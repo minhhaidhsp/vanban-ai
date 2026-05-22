@@ -9,18 +9,21 @@ import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { EditorToolbar } from "./editor-toolbar";
 import { Nd30Field } from "./nd30-field";
+import { RecipientTagInput } from "./recipient-tag-input";
 import {
   QUOC_HUY, TIEU_NGU, DIA_DANH_LIST,
-  VAN_BAN_TYPES, VAN_BAN_TEMPLATES, QUYEN_HAN_KY,
-  getFontStyle, getPageMargins, getSoKHFormat,
+  DO_MAT_OPTIONS, DO_KHAN_OPTIONS,
+  VAN_BAN_TYPES, QUYEN_HAN_KY,
+  getFontStyle, getPageMargins, getSoKHFormat, generateSoKH,
   getTemplateForType, hasTenLoai, hasKinhGui,
   defaultNd30Data,
   type Nd30Data,
 } from "@/lib/nd30";
+import { organizationApi, documentApi } from "@/lib/api";
 import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { ChevronDown } from "lucide-react";
 
-// ── Inline TipTap section ─────────────────────────────────────────────────
+// ── TipTap section editor ─────────────────────────────────────────────────
 
 interface SectionEditorProps {
   content: string;
@@ -78,16 +81,10 @@ function SectionEditor({
 
 // ── Type selector ─────────────────────────────────────────────────────────
 
-function TypeSelector({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (loai: string) => void;
-}) {
+function TypeSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex items-center gap-2 print:hidden">
-      <span className="text-xs text-muted-foreground whitespace-nowrap">Loại văn bản:</span>
+      <span className="text-xs text-muted-foreground whitespace-nowrap">Loại VB:</span>
       <div className="relative">
         <select
           value={value}
@@ -95,9 +92,7 @@ function TypeSelector({
           className="h-7 pl-2 pr-7 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
         >
           {Object.entries(VAN_BAN_TYPES).map(([key, vb]) => (
-            <option key={key} value={key}>
-              {vb.abbreviation} — {vb.full_name}
-            </option>
+            <option key={key} value={key}>{vb.abbreviation} — {vb.full_name}</option>
           ))}
         </select>
         <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
@@ -109,16 +104,10 @@ function TypeSelector({
   );
 }
 
-// ── Địa danh searchable dropdown ─────────────────────────────────────────
+// ── Địa danh searchable dropdown ──────────────────────────────────────────
 
-function DiaDanhSelect({
-  value,
-  onChange,
-  style,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  style?: CSSProperties;
+function DiaDanhSelect({ value, onChange, style }: {
+  value: string; onChange: (v: string) => void; style?: CSSProperties;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -128,8 +117,7 @@ function DiaDanhSelect({
     if (!open) return;
     const handleOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
+        setOpen(false); setSearch("");
       }
     };
     document.addEventListener("mousedown", handleOutside);
@@ -147,62 +135,34 @@ function DiaDanhSelect({
         style={{ ...style, cursor: "pointer", whiteSpace: "nowrap" }}
         title="Click để chọn địa danh"
       >
-        {value || (
-          <span style={{ color: "#9ca3af", fontWeight: "normal", fontStyle: "italic", textTransform: "none" }}>
-            Địa danh
-          </span>
-        )}
+        {value || <span style={{ color: "#9ca3af", fontWeight: "normal", fontStyle: "italic", textTransform: "none" }}>Địa danh</span>}
       </div>
 
       {open && (
         <div style={{
-          position: "absolute",
-          top: "calc(100% + 4px)",
-          left: 0,
-          zIndex: 200,
-          background: "white",
-          border: "1px solid #d1d5db",
-          borderRadius: "6px",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-          width: "220px",
-          maxHeight: "260px",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
+          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
+          background: "white", border: "1px solid #d1d5db", borderRadius: "6px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.12)", width: "220px",
+          maxHeight: "260px", display: "flex", flexDirection: "column", overflow: "hidden",
         }}>
           <input
-            autoFocus
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            autoFocus value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm kiếm..."
-            style={{
-              padding: "6px 10px",
-              fontSize: "12pt",
-              border: "none",
-              borderBottom: "1px solid #e5e7eb",
-              outline: "none",
-              fontFamily: "'Times New Roman', serif",
-              flexShrink: 0,
-            }}
+            style={{ padding: "6px 10px", fontSize: "12pt", border: "none",
+              borderBottom: "1px solid #e5e7eb", outline: "none",
+              fontFamily: "'Times New Roman', serif", flexShrink: 0 }}
           />
           <div style={{ overflowY: "auto", flex: 1 }}>
             {filtered.map((d) => (
-              <div
-                key={d}
+              <div key={d}
                 onMouseDown={() => { onChange(d); setOpen(false); setSearch(""); }}
-                style={{
-                  padding: "5px 10px",
-                  cursor: "pointer",
-                  fontSize: "12pt",
+                style={{ padding: "5px 10px", cursor: "pointer", fontSize: "12pt",
                   fontFamily: "'Times New Roman', serif",
                   background: d === value ? "#eff6ff" : "white",
-                  fontWeight: d === value ? "bold" : "normal",
-                }}
+                  fontWeight: d === value ? "bold" : "normal" }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = d === value ? "#eff6ff" : "white"; }}
-              >
-                {d}
-              </div>
+              >{d}</div>
             ))}
             {filtered.length === 0 && (
               <div style={{ padding: "8px 10px", color: "#9ca3af", fontSize: "11pt", fontFamily: "'Times New Roman', serif" }}>
@@ -216,14 +176,15 @@ function DiaDanhSelect({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────
 
 export interface Nd30DocumentProps {
   initialData?: Partial<Nd30Data>;
   onChange?: (data: Nd30Data) => void;
+  isNew?: boolean;
 }
 
-export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
+export function Nd30Document({ initialData, onChange, isNew = false }: Nd30DocumentProps) {
   const [data, setData] = useState<Nd30Data>(() => ({
     ...defaultNd30Data(initialData?.loaiVanBan ?? "QĐ"),
     ...initialData,
@@ -231,7 +192,7 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
 
   const quocHieuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-shrink quốc hiệu font nếu text tràn ra ngoài cột
+  // Auto-shrink quốc hiệu nếu tràn cột
   useEffect(() => {
     const el = quocHieuRef.current;
     if (!el) return;
@@ -243,10 +204,10 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
     }
   }, []);
 
-  // Initialize ngayThang on client only (avoids SSR hydration mismatch)
+  // Initialize ngayThang on client
   useEffect(() => {
     if (!data.ngayThang) {
-      const now  = new Date();
+      const now = new Date();
       const dd   = String(now.getDate()).padStart(2, "0");
       const mm   = String(now.getMonth() + 1).padStart(2, "0");
       const yyyy = now.getFullYear();
@@ -254,6 +215,40 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-fill từ organization API (chỉ khi tạo mới)
+  useEffect(() => {
+    if (!isNew) return;
+    organizationApi.getCurrent()
+      .then((org) => {
+        setData((prev) => ({
+          ...prev,
+          coQuanChuQuan: prev.coQuanChuQuan || org.ten_chu_quan,
+          coQuanBanHanh: prev.coQuanBanHanh || org.ten_co_quan,
+          diaDanh: prev.diaDanh || org.dia_danh,
+          quyenHanKy: prev.quyenHanKy || org.chu_ky_mac_dinh?.quyen_han || "TM.",
+          chucDanhTapThe: prev.chucDanhTapThe || org.chu_ky_mac_dinh?.ten_tap_the || "",
+          chucVuKy: prev.chucVuKy || org.chu_ky_mac_dinh?.chuc_vu || "",
+          _orgVietTat: org.viet_tat,
+        } as Nd30Data & { _orgVietTat: string }));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew]);
+
+  // Auto-number soKyHieu (chỉ khi tạo mới và chưa có số)
+  useEffect(() => {
+    if (!isNew || data.soKyHieu) return;
+    const loai = data.loaiVanBan;
+    documentApi.nextNumber(loai)
+      .then(({ so, nam }) => {
+        const orgVietTat = (data as Nd30Data & { _orgVietTat?: string })._orgVietTat || "CQ";
+        const soKH = generateSoKH(loai, so, nam, orgVietTat);
+        setData((prev) => ({ ...prev, soKyHieu: prev.soKyHieu || soKH }));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, data.loaiVanBan, data.coQuanBanHanh]);
 
   const update = useCallback(<K extends keyof Nd30Data>(key: K, val: Nd30Data[K]) => {
     setData((prev) => {
@@ -275,65 +270,92 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
   const showTenLoai = hasTenLoai(template);
   const showKinhGui = hasKinhGui(template);
   const vbInfo      = VAN_BAN_TYPES[data.loaiVanBan];
-  // Placeholder for soKyHieu — just the number/code part (without "Số:")
   const soKHHint    = getSoKHFormat(data.loaiVanBan)
     .replace("{so}", "15").replace("{nam}", "2025")
     .replace("{loai}", data.loaiVanBan).replace("{cq}", "CQ");
 
+  const showDoMat  = data.doMat !== "Thường";
+  const showDoKhan = data.doKhan !== "Thường";
+
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Top toolbar ─────────────────────────────────────── */}
+      {/* ── Top toolbar ───────────────────────────────────────── */}
       <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/30 print:hidden">
         <TypeSelector value={data.loaiVanBan} onChange={handleTypeChange} />
+
+        {/* Độ mật */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Độ mật:</span>
+          <div className="relative">
+            <select
+              value={data.doMat}
+              onChange={(e) => update("doMat", e.target.value)}
+              className="h-7 pl-2 pr-6 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+            >
+              {DO_MAT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
+          </div>
+        </div>
+
+        {/* Độ khẩn */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Độ khẩn:</span>
+          <div className="relative">
+            <select
+              value={data.doKhan}
+              onChange={(e) => update("doKhan", e.target.value)}
+              className="h-7 pl-2 pr-6 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+            >
+              {DO_KHAN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
+          </div>
+        </div>
       </div>
 
-      {/* ── A4 scroll wrapper ───────────────────────────────── */}
+      {/* ── A4 scroll wrapper ─────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0">
         <div
           className="a4-page mx-auto bg-white shadow-lg print:shadow-none"
           style={{
-            width: "210mm",
-            minHeight: "297mm",
+            width: "210mm", minHeight: "297mm",
             ...getPageMargins(),
             fontFamily: "'Times New Roman', Times, serif",
-            fontSize: "14pt",
-            color: "#000",
-            boxSizing: "border-box",
+            fontSize: "14pt", color: "#000", boxSizing: "border-box",
           }}
         >
 
-          {/* ══ VÙNG A — THỂ THỨC ════════════════════════════════════════ */}
+          {/* Độ mật / độ khẩn — chỉ hiện khi khác Thường */}
+          {(showDoMat || showDoKhan) && (
+            <div style={{ display: "flex", gap: "12mm", marginBottom: "3mm", fontSize: "13pt" }}>
+              {showDoMat  && <span style={{ textTransform: "uppercase", fontWeight: "bold" }}>{data.doMat}</span>}
+              {showDoKhan && <span style={{ textTransform: "uppercase", fontWeight: "bold" }}>Khẩn: {data.doKhan}</span>}
+            </div>
+          )}
 
-          {/* Header 2 cột: trái 42%, phải 58% để quốc hiệu đủ chỗ */}
+          {/* ══ VÙNG A — THỂ THỨC ══════════════════════════════════════ */}
+
+          {/* Header 2 cột: trái 42%, phải 58% */}
           <div style={{ display: "grid", gridTemplateColumns: "42% 58%", marginBottom: "6mm" }}>
 
-            {/* Cột trái: Ô 2 (tên CQ) + Ô 3 (số/KH) */}
+            {/* Cột trái: Ô 2 + Ô 3 */}
             <div style={{ paddingRight: "4mm" }}>
-
-              {/* Ô 2a: Tên CQ chủ quản — in hoa, KHÔNG đậm */}
               <Nd30Field
                 value={data.coQuanChuQuan}
                 onChange={(v) => update("coQuanChuQuan", v)}
                 style={getFontStyle("co_quan_chu_quan")}
                 placeholder="TÊN CƠ QUAN CHỦ QUẢN"
               />
-
-              {/* Ô 2b: Tên CQ ban hành — in hoa, ĐẬM */}
               <Nd30Field
                 value={data.coQuanBanHanh}
                 onChange={(v) => update("coQuanBanHanh", v)}
                 style={getFontStyle("co_quan_ban_hanh")}
                 placeholder="TÊN CƠ QUAN BAN HÀNH"
               />
-
-              {/* Đường kẻ ngang ~40-50% dòng chữ, căn giữa */}
-              <div style={{
-                height: "1.5px", background: "#000",
-                width: "50%", margin: "2px auto 4px",
-              }} />
-
-              {/* Ô 3: Số/KH — inline để "Số:" và số hiệu nằm liền nhau */}
+              <div style={{ height: "1.5px", background: "#000", width: "50%", margin: "2px auto 4px" }} />
+              {/* Số/KH — inline để không có khoảng cách thừa */}
               <div style={{ textAlign: "center" }}>
                 <span style={getFontStyle("so_ky_hieu")}>Số: </span>
                 <Nd30Field
@@ -345,41 +367,23 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
               </div>
             </div>
 
-            {/* Cột phải: Ô 1 (quốc hiệu + tiêu ngữ) + Ô 4 (ngày tháng) */}
+            {/* Cột phải: Ô 1 + Ô 4 */}
             <div style={{ paddingLeft: "4mm" }}>
-
-              {/* Ô 1a: Quốc hiệu — nowrap + auto-shrink nếu tràn cột */}
               <div
                 ref={quocHieuRef}
-                style={{
-                  ...getFontStyle("quoc_huy"),
-                  fontSize: "12pt",
-                  letterSpacing: "0.5px",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                }}
+                style={{ ...getFontStyle("quoc_huy"), fontSize: "12pt", letterSpacing: "0.5px", whiteSpace: "nowrap", overflow: "hidden" }}
               >
                 {QUOC_HUY}
               </div>
 
-              {/* Ô 1b: Tiêu ngữ — inline-block + border-bottom thay cho gạch riêng */}
               <div style={{ textAlign: "center", marginBottom: "4mm" }}>
-                <span style={{
-                  ...getFontStyle("tieu_ngu"),
-                  display: "inline-block",
-                  borderBottom: "1.5px solid #000",
-                  paddingBottom: "2px",
-                }}>
+                <span style={{ ...getFontStyle("tieu_ngu"), display: "inline-block", borderBottom: "1.5px solid #000", paddingBottom: "2px" }}>
                   {TIEU_NGU}
                 </span>
               </div>
 
-              {/* Ô 4: Địa danh (dropdown) + ngày tháng — 1 dòng liền, căn giữa */}
-              <div style={{
-                display: "flex", justifyContent: "center",
-                alignItems: "baseline", gap: 0,
-                whiteSpace: "nowrap",
-              }}>
+              {/* Địa danh + ngày tháng — 1 dòng, nowrap */}
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "baseline", gap: 0, whiteSpace: "nowrap" }}>
                 <DiaDanhSelect
                   value={data.diaDanh}
                   onChange={(v) => update("diaDanh", v)}
@@ -396,7 +400,7 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
             </div>
           </div>
 
-          {/* ── Ô 5a: Tên loại VB + trích yếu (VB có tên loại) ─────── */}
+          {/* ── Ô 5a: Tên loại VB + trích yếu ──────────────────────── */}
           {showTenLoai && (
             <div style={{ textAlign: "center", margin: "4mm 0 2mm" }}>
               <div style={getFontStyle("ten_loai_vb")}>
@@ -408,15 +412,11 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
                 style={getFontStyle("trich_yeu_co_ten_loai")}
                 placeholder="Trích yếu nội dung văn bản"
               />
-              {/* Đường kẻ 1/3–1/2 độ dài dòng, dưới trích yếu */}
-              <div style={{
-                height: "1.5px", background: "#000",
-                width: "40%", margin: "3px auto 0",
-              }} />
+              <div style={{ height: "1.5px", background: "#000", width: "40%", margin: "3px auto 0" }} />
             </div>
           )}
 
-          {/* ── Ô 5b: Trích yếu công văn (V/v) ─────────────────────── */}
+          {/* ── Ô 5b: Trích yếu công văn ────────────────────────────── */}
           {!showTenLoai && (
             <div style={{ textAlign: "center", margin: "4mm 0 2mm" }}>
               <Nd30Field
@@ -428,16 +428,10 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
             </div>
           )}
 
-          {/* ── Ô 9a: Kính gửi (chỉ CV, GGT) ───────────────────────── */}
+          {/* ── Ô 9a: Kính gửi ──────────────────────────────────────── */}
           {showKinhGui && (
-            <div style={{
-              marginBottom: "3mm", marginTop: "2mm",
-              display: "flex", gap: "4px", alignItems: "flex-start",
-            }}>
-              <span style={{
-                fontFamily: "'Times New Roman',serif",
-                fontSize: "14pt", whiteSpace: "nowrap",
-              }}>
+            <div style={{ marginBottom: "3mm", marginTop: "2mm", display: "flex", gap: "4px", alignItems: "flex-start" }}>
+              <span style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", whiteSpace: "nowrap" }}>
                 Kính gửi:
               </span>
               <Nd30Field
@@ -450,7 +444,7 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
             </div>
           )}
 
-          {/* ══ VÙNG B — CĂN CỨ (italic) ════════════════════════════════ */}
+          {/* ══ VÙNG B — CĂN CỨ ════════════════════════════════════════ */}
           <div style={{ marginBottom: "3mm" }}>
             <SectionEditor
               content={data.canCu}
@@ -461,7 +455,7 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
             />
           </div>
 
-          {/* ══ VÙNG C — NỘI DUNG ════════════════════════════════════════ */}
+          {/* ══ VÙNG C — NỘI DUNG ══════════════════════════════════════ */}
           <div style={{ marginBottom: "6mm" }}>
             <SectionEditor
               content={data.noiDung}
@@ -471,62 +465,37 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
             />
           </div>
 
-          {/* ══ PHẦN KÝ ══════════════════════════════════════════════════ */}
+          {/* ══ PHẦN KÝ ════════════════════════════════════════════════ */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginTop: "4mm" }}>
 
-            {/* Cột trái: Nơi nhận (Ô 9b) */}
+            {/* Cột trái: Nơi nhận */}
             <div style={{ paddingRight: "4mm" }}>
               <div style={getFontStyle("noi_nhan_label")}>Nơi nhận:</div>
-              <Nd30Field
+              <RecipientTagInput
                 value={data.noiNhan}
                 onChange={(v) => update("noiNhan", v)}
                 style={getFontStyle("noi_nhan_list")}
-                placeholder={"- Như trên;\n- Lưu: VT."}
-                multiline
+                placeholder="- Như trên; (Enter để thêm)"
               />
             </div>
 
-            {/* Cột phải: Ký (Ô 7a/7b/7c) */}
+            {/* Cột phải: Ký */}
             <div style={{ textAlign: "center", paddingLeft: "4mm" }}>
-
-              {/* Ô 7a: Quyền hạn ký + tên tập thể trên 1 dòng */}
-              {/* FIX 5: dropdown không chèn mũi tên giữa TM. và tên CQ */}
-              <div style={{
-                display: "flex", justifyContent: "center",
-                alignItems: "baseline", gap: "4px", marginBottom: "2px",
-              }}>
-                {/* Screen: select với appearance:none, ChevronDown ở bên phải select */}
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "baseline", gap: "4px", marginBottom: "2px" }}>
                 <div className="print:hidden" style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
                   <select
                     value={data.quyenHanKy}
                     onChange={(e) => update("quyenHanKy", e.target.value)}
                     className="appearance-none"
-                    style={{
-                      fontFamily: "'Times New Roman',serif",
-                      fontSize: "14pt",
-                      fontWeight: "bold",
-                      color: "#000",
-                      background: "transparent",
-                      border: "none",
-                      outline: "none",
-                      cursor: "pointer",
-                      paddingRight: "14px",
-                    }}
+                    style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", fontWeight: "bold", color: "#000", background: "transparent", border: "none", outline: "none", cursor: "pointer", paddingRight: "14px" }}
                   >
                     {Object.values(QUYEN_HAN_KY).map((v) => (
                       <option key={v} value={v}>{v}</option>
                     ))}
                   </select>
-                  <ChevronDown
-                    className="pointer-events-none text-muted-foreground"
-                    style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: "12px", height: "12px" }}
-                  />
+                  <ChevronDown className="pointer-events-none text-muted-foreground" style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: "12px", height: "12px" }} />
                 </div>
-                {/* Print: text tĩnh */}
-                <span className="hidden print:inline" style={getFontStyle("quyen_han_ky")}>
-                  {data.quyenHanKy}
-                </span>
-                {/* Tên tập thể lãnh đạo */}
+                <span className="hidden print:inline" style={getFontStyle("quyen_han_ky")}>{data.quyenHanKy}</span>
                 <Nd30Field
                   value={data.chucDanhTapThe}
                   onChange={(v) => update("chucDanhTapThe", v)}
@@ -535,7 +504,6 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
                 />
               </div>
 
-              {/* Chức vụ người ký — in hoa đậm */}
               <Nd30Field
                 value={data.chucVuKy}
                 onChange={(v) => update("chucVuKy", v)}
@@ -543,10 +511,8 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
                 placeholder="CHỨC VỤ NGƯỜI KÝ"
               />
 
-              {/* Khoảng chữ ký tay (~3–4 dòng) */}
               <div style={{ height: "18mm" }} />
 
-              {/* Họ và tên — in thường đậm */}
               <Nd30Field
                 value={data.hoTenKy}
                 onChange={(v) => update("hoTenKy", v)}
@@ -556,8 +522,8 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
             </div>
           </div>
 
-        </div>{/* end .a4-page */}
-      </div>{/* end scroll wrapper */}
+        </div>
+      </div>
     </div>
   );
 }

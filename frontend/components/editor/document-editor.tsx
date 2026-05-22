@@ -14,7 +14,6 @@ import { defaultNd30Data } from "@/lib/nd30";
 
 interface DocumentEditorProps {
   documentId?: string;
-  /** JSON-parsed nội dung từ DB, hoặc plain text cũ */
   initialContent?: string;
   initialTitle?: string;
 }
@@ -31,16 +30,13 @@ function SaveIndicator({ status, label }: { status: string; label: string }) {
   );
 }
 
-/** Deserialize content từ DB thành Nd30Data */
 function parseContent(content?: string): Partial<Nd30Data> {
   if (!content) return {};
   try {
     const parsed = JSON.parse(content);
     if (parsed.version === "nd30") return parsed as Nd30Data;
-    // fallback: nội dung cũ (HTML text) → đưa vào noiDung
     if (typeof parsed.section_c === "string") return { noiDung: parsed.section_c, canCu: parsed.section_b ?? "" };
   } catch {
-    // plain text
     return { noiDung: content };
   }
   return {};
@@ -50,15 +46,20 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   const queryClient  = useQueryClient();
   const { toast }    = useToast();
   const [docId, setDocId] = useState(documentId);
-  const dataRef      = useRef<Nd30Data>(
+  const isNew = !documentId;
+  const dataRef = useRef<Nd30Data>(
     { ...defaultNd30Data(), ...parseContent(initialContent) }
   );
 
   const saveMutation = useMutation({
     mutationFn: async (data: Nd30Data) => {
+      const soNum = parseInt(data.soKyHieu.split("/")[0]) || undefined;
       const payload = {
         title: data.trichYeu || data.coQuanBanHanh || "Tài liệu không tiêu đề",
         content: JSON.stringify({ version: "nd30", ...data }),
+        loai_vb: data.loaiVanBan || undefined,
+        so_van_ban: soNum,
+        nam: soNum ? new Date().getFullYear() : undefined,
       };
       if (docId) {
         return documentApi.update(docId, payload);
@@ -69,28 +70,21 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         return created;
       }
     },
-    onSuccess: () => {
-      toast({ title: "Đã lưu văn bản" });
-    },
     onError: () => {
       toast({ title: "Lưu thất bại", variant: "destructive" });
     },
   });
 
-  const handleSave = useCallback(async (data: Nd30Data) => {
-    await saveMutation.mutateAsync(data);
-  }, [saveMutation]);
-
-  const { status, statusLabel, saveNow } = useAutosave({
-    data: dataRef.current,
-    onSave: handleSave,
+  const { status, statusLabel, saveNow, markDirty } = useAutosave({
+    onSave: async () => { await saveMutation.mutateAsync(dataRef.current); },
     interval: 30_000,
     enabled: true,
   });
 
   const handleChange = useCallback((data: Nd30Data) => {
     dataRef.current = data;
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   return (
     <div className="flex flex-col h-full">
@@ -119,6 +113,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         <Nd30Document
           initialData={{ ...defaultNd30Data(), ...parseContent(initialContent) }}
           onChange={handleChange}
+          isNew={isNew}
         />
       </div>
     </div>

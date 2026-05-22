@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func as sql_func
 from app.core.database import get_db
 from app.core.storage import upload_file
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
+from datetime import datetime
 import uuid
 
 router = APIRouter()
@@ -43,6 +44,25 @@ async def create_document(
     await db.flush()
     await db.refresh(document)
     return document
+
+
+# Must be before /{document_id} to avoid route conflict
+@router.get("/next-number")
+async def get_next_number(
+    loai: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    nam = datetime.now().year
+    result = await db.execute(
+        select(sql_func.count(Document.id)).where(
+            Document.loai_vb == loai,
+            Document.nam == nam,
+            Document.owner_id == current_user.id,
+        )
+    )
+    count = result.scalar() or 0
+    return {"so": count + 1, "nam": nam, "loai": loai}
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)

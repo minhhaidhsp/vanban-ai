@@ -15,6 +15,9 @@ class Document(Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     file_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    loai_vb: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+    so_van_ban: Mapped[int | None] = mapped_column(nullable=True)
+    nam: Mapped[int | None] = mapped_column(nullable=True)
     owner_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )

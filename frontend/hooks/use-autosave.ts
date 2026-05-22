@@ -4,36 +4,33 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-interface UseAutosaveOptions<T> {
-  data: T;
-  onSave: (data: T) => Promise<void>;
+interface UseAutosaveOptions {
+  onSave: () => Promise<void>;
   interval?: number;
   enabled?: boolean;
 }
 
-export function useAutosave<T>({
-  data,
+export function useAutosave({
   onSave,
   interval = 30_000,
   enabled = true,
-}: UseAutosaveOptions<T>) {
+}: UseAutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const dataRef = useRef(data);
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
+  const onSaveRef = useRef(onSave);
 
-  useEffect(() => {
-    dataRef.current = data;
-    isDirtyRef.current = true;
-  }, [data]);
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+
+  const markDirty = useCallback(() => { isDirtyRef.current = true; }, []);
 
   const save = useCallback(async () => {
     if (!isDirtyRef.current || isSavingRef.current) return;
     isSavingRef.current = true;
     setStatus("saving");
     try {
-      await onSave(dataRef.current);
+      await onSaveRef.current();
       isDirtyRef.current = false;
       setLastSaved(new Date());
       setStatus("saved");
@@ -42,7 +39,7 @@ export function useAutosave<T>({
     } finally {
       isSavingRef.current = false;
     }
-  }, [onSave]);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -54,8 +51,8 @@ export function useAutosave<T>({
     status === "saving" ? "Đang lưu..."
     : status === "saved" && lastSaved
       ? `Đã lưu lúc ${lastSaved.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`
-    : status === "error" ? "Lưu thất bại"
+    : status === "error" ? "Lưu thất bại, thử lại"
     : "";
 
-  return { status, lastSaved, statusLabel, saveNow: save };
+  return { status, lastSaved, statusLabel, saveNow: save, markDirty };
 }

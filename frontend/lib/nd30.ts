@@ -43,6 +43,8 @@ export interface Nd30Data {
   ngayThang: string;
   trichYeu: string;
   kinhGui: string;
+  doMat: string;             // "Thường" | "Mật" | "Tối mật" | "Tuyệt mật"
+  doKhan: string;            // "Thường" | "Khẩn" | "Thượng khẩn" | "Hỏa tốc"
   // Section B — Căn cứ (TipTap HTML)
   canCu: string;
   // Section C — Nội dung (TipTap HTML)
@@ -52,8 +54,11 @@ export interface Nd30Data {
   chucDanhTapThe: string;    // tên tập thể lãnh đạo (dòng dưới quyền hạn)
   chucVuKy: string;
   hoTenKy: string;
-  noiNhan: string;           // plain text, mỗi nơi 1 dòng
+  noiNhan: string[];         // mỗi phần tử = 1 nơi nhận
 }
+
+export const DO_MAT_OPTIONS = ["Thường", "Mật", "Tối mật", "Tuyệt mật"] as const;
+export const DO_KHAN_OPTIONS = ["Thường", "Khẩn", "Thượng khẩn", "Hỏa tốc"] as const;
 
 // ── Static constants ───────────────────────────────────────────────────────
 
@@ -248,13 +253,15 @@ export function defaultNd30Data(loai = "QĐ"): Nd30Data {
     ngayThang:      "",
     trichYeu:       "",
     kinhGui:        "",
+    doMat:          "Thường",
+    doKhan:         "Thường",
     canCu:          "",
     noiDung:        "",
     quyenHanKy:     "TM.",
     chucDanhTapThe: "",
     chucVuKy:       "",
     hoTenKy:        "",
-    noiNhan:        "- Như trên;\n- Lưu: VT.",
+    noiNhan:        ["- Như trên;", "- Lưu: VT."],
   };
 }
 

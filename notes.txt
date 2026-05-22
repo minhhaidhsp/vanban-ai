@@ -19,3 +19,9 @@ npm install
 npm run dev
 
 Mở http://localhost:3000 — thấy giao diện Next.js là xong.
+
+
+---
+account
+email: minhhaidhsp@gmail.com
+pass: 12345678

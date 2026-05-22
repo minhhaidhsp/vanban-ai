@@ -49,6 +49,29 @@ export const authApi = {
   },
 };
 
+export const organizationApi = {
+  getCurrent: async () => {
+    const { data } = await api.get("/organizations/current");
+    return data as {
+      ten_chu_quan: string;
+      ten_co_quan: string;
+      viet_tat: string;
+      dia_danh: string;
+      chu_ky_mac_dinh: { quyen_han?: string; ten_tap_the?: string; chuc_vu?: string };
+    };
+  },
+};
+
+export const recipientApi = {
+  search: async (q: string) => {
+    const { data } = await api.get("/recipient-suggestions/", { params: { q } });
+    return data as { id: string; name: string }[];
+  },
+  increment: async (name: string) => {
+    await api.post("/recipient-suggestions/increment", null, { params: { name } });
+  },
+};
+
 export const documentApi = {
   list: async (skip = 0, limit = 20) => {
     const { data } = await api.get("/documents/", { params: { skip, limit } });
@@ -65,7 +88,12 @@ export const documentApi = {
     return data;
   },
 
-  update: async (id: string, payload: { title?: string; content?: string }) => {
+  nextNumber: async (loai: string) => {
+    const { data } = await api.get("/documents/next-number", { params: { loai } });
+    return data as { so: number; nam: number; loai: string };
+  },
+
+  update: async (id: string, payload: { title?: string; content?: string; loai_vb?: string; so_van_ban?: number | null; nam?: number | null }) => {
     const { data } = await api.patch(`/documents/${id}`, payload);
     return data;
   },

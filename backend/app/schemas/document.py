@@ -5,6 +5,9 @@ from datetime import datetime
 class DocumentBase(BaseModel):
     title: str
     content: str | None = None
+    loai_vb: str | None = None
+    so_van_ban: int | None = None
+    nam: int | None = None
 
 
 class DocumentCreate(DocumentBase):
@@ -14,6 +17,9 @@ class DocumentCreate(DocumentBase):
 class DocumentUpdate(BaseModel):
     title: str | None = None
     content: str | None = None
+    loai_vb: str | None = None
+    so_van_ban: int | None = None
+    nam: int | None = None
 
 
 class DocumentResponse(DocumentBase):
