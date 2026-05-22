@@ -57,3 +57,18 @@ class RefDocListResponse(BaseModel):
 class RefDocSearchResponse(BaseModel):
     items: list[RefDocResponse]
     query: str
+
+
+class RefDocChunkSearchItem(BaseModel):
+    document_id: str
+    document_title: str
+    so_ki_hieu: str
+    chunk_index: int
+    dieu_khoan: str | None
+    content_preview: str
+    score: float
+
+
+class RefDocChunkSearchResponse(BaseModel):
+    items: list[RefDocChunkSearchItem]
+    query: str

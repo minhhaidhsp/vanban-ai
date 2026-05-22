@@ -10,7 +10,9 @@ Flow:
   3. Extract text (PDF → pdfplumber, DOCX → python-docx)
   4. Chunk with chunking_service
   5. Embed all chunks with embedding_service
-  6. Store first chunk's embedding in reference_documents.embedding
+  6. Delete old reference_doc_chunks rows for this doc
+  7. Bulk-insert new ReferenceDocChunk rows (one per chunk, each with its embedding)
+  8. Also store first chunk's embedding on reference_documents.embedding
 """
 import asyncio
 import io
@@ -144,19 +146,43 @@ async def process_document_embedding(doc_id: str) -> None:
                     batch = chunk_texts[i : i + batch_size]
                     logger.info(
                         f"[pipeline] embedding doc {doc_id}: "
-                        f"chunk {i+1}–{min(i+batch_size, total)}/{total}"
+                        f"chunk {i+1}-{min(i+batch_size, total)}/{total}"
                     )
                     results.extend(embedding_service.embed_batch(batch))
                 return results
 
             embeddings = await asyncio.to_thread(_embed_all)
 
-            # 6. Store first chunk's embedding on the document row
+            # 6. Delete old chunks for this doc (idempotent re-run)
+            from app.models.reference_doc_chunk import ReferenceDocChunk
+            from sqlalchemy import delete as sa_delete
+            await db.execute(
+                sa_delete(ReferenceDocChunk).where(ReferenceDocChunk.document_id == doc_id)
+            )
+
+            # 7. Bulk-insert new chunk rows
+            import uuid as _uuid
+            chunk_rows = [
+                ReferenceDocChunk(
+                    id=str(_uuid.uuid4()),
+                    document_id=doc_id,
+                    chunk_index=c["chunk_index"],
+                    content=c["content"],
+                    dieu_khoan=c.get("dieu_khoan"),
+                    token_count=c.get("token_count", 0),
+                    embedding=embeddings[i],
+                )
+                for i, c in enumerate(chunks)
+            ]
+            db.add_all(chunk_rows)
+
+            # 8. Keep first chunk's embedding on the document row (doc-level search)
             doc.embedding = embeddings[0]
+
             await db.flush()
             await db.commit()
-            logger.info(f"[pipeline] ✓ doc {doc_id} embedded  dim={len(embeddings[0])}")
+            logger.info(f"[pipeline] saved {total} chunks for doc {doc_id}  dim={len(embeddings[0])}")
 
         except Exception as exc:
             await db.rollback()
-            logger.exception(f"[pipeline] ✗ doc {doc_id} failed: {exc}")
+            logger.exception(f"[pipeline] doc {doc_id} failed: {exc}")

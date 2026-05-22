@@ -9,6 +9,7 @@ from app.models.reference_document import ReferenceDocument
 from app.schemas.reference_document import (
     RefDocCreate, RefDocUpdate, RefDocResponse,
     RefDocListResponse, RefDocSearchResponse,
+    RefDocChunkSearchItem, RefDocChunkSearchResponse,
 )
 import asyncio
 import uuid
@@ -109,6 +110,58 @@ async def search_ref_docs(
 
     items = [_add_url(doc, float(score)) for doc, score in rows]
     return RefDocSearchResponse(items=items, query=q)
+
+
+# ── Chunk-level semantic search — MUST be before /{doc_id} ──────────────────
+
+@router.get("/search/chunks", response_model=RefDocChunkSearchResponse)
+async def search_ref_doc_chunks(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(5, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.services import embedding_service
+    from app.models.reference_doc_chunk import ReferenceDocChunk
+
+    if not embedding_service.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embedding model not loaded — semantic search unavailable",
+        )
+
+    query_vector = await asyncio.to_thread(embedding_service.embed_text, q)
+
+    stmt = (
+        select(
+            ReferenceDocChunk,
+            ReferenceDocument.title,
+            ReferenceDocument.so_ki_hieu,
+            (1 - ReferenceDocChunk.embedding.cosine_distance(query_vector)).label("score"),
+        )
+        .join(ReferenceDocument, ReferenceDocChunk.document_id == ReferenceDocument.id)
+        .where(ReferenceDocument.created_by == current_user.id)
+        .where(ReferenceDocChunk.embedding.is_not(None))
+        .order_by(ReferenceDocChunk.embedding.cosine_distance(query_vector))
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    items = [
+        RefDocChunkSearchItem(
+            document_id=chunk.document_id,
+            document_title=title,
+            so_ki_hieu=so_ki_hieu,
+            chunk_index=chunk.chunk_index,
+            dieu_khoan=chunk.dieu_khoan,
+            content_preview=chunk.content[:200],
+            score=float(score),
+        )
+        for chunk, title, so_ki_hieu, score in rows
+    ]
+    return RefDocChunkSearchResponse(items=items, query=q)
 
 
 # ── Create ───────────────────────────────────────────────────────────────────
