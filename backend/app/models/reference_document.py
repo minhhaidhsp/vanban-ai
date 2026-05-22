@@ -1,4 +1,5 @@
-from sqlalchemy import String, Text, Integer, Date, JSON, DateTime, ForeignKey, func
+from sqlalchemy import String, Text, Integer, Date, JSON, DateTime, ForeignKey, func, Column
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 from app.core.database import Base
@@ -26,6 +27,7 @@ class ReferenceDocument(Base):
     tom_tat: Mapped[str | None] = mapped_column(Text, nullable=True)
     tu_khoa: Mapped[list] = mapped_column(JSON, default=list)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    search_vector = Column(TSVECTOR, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

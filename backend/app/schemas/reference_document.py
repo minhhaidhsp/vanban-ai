@@ -72,3 +72,12 @@ class RefDocChunkSearchItem(BaseModel):
 class RefDocChunkSearchResponse(BaseModel):
     items: list[RefDocChunkSearchItem]
     query: str
+
+
+class RefDocFTSItem(RefDocResponse):
+    rank: float = 0.0
+
+
+class RefDocFTSResponse(BaseModel):
+    items: list[RefDocFTSItem]
+    query: str

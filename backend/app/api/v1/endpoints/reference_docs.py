@@ -10,6 +10,7 @@ from app.schemas.reference_document import (
     RefDocCreate, RefDocUpdate, RefDocResponse,
     RefDocListResponse, RefDocSearchResponse,
     RefDocChunkSearchItem, RefDocChunkSearchResponse,
+    RefDocFTSItem, RefDocFTSResponse,
 )
 import asyncio
 import uuid
@@ -162,6 +163,47 @@ async def search_ref_doc_chunks(
         for chunk, title, so_ki_hieu, score in rows
     ]
     return RefDocChunkSearchResponse(items=items, query=q)
+
+
+# ── Full-text search (Vietnamese, unaccent) — MUST be before /{doc_id} ───────
+
+@router.get("/search/fulltext", response_model=RefDocFTSResponse)
+async def search_ref_docs_fulltext(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Build tsquery: "ho tich" → "ho & tich"
+    terms = [t.strip() for t in q.strip().split() if t.strip()]
+    tsquery_str = " & ".join(terms)
+
+    tsq_expr = sql_func.to_tsquery("simple", sql_func.unaccent(tsquery_str))
+    rank_expr = sql_func.ts_rank(ReferenceDocument.search_vector, tsq_expr).label("rank")
+
+    stmt = (
+        select(ReferenceDocument, rank_expr)
+        .where(ReferenceDocument.created_by == current_user.id)
+        .where(ReferenceDocument.search_vector.op("@@")(tsq_expr))
+        .order_by(rank_expr.desc())
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    items = []
+    for doc, rank in rows:
+        resp = RefDocFTSItem.model_validate(doc)
+        if doc.file_path:
+            try:
+                resp.download_url = get_file_url(doc.file_path, bucket_name=REF_DOCS_BUCKET)
+            except Exception:
+                pass
+        resp.rank = float(rank)
+        items.append(resp)
+
+    return RefDocFTSResponse(items=items, query=q)
 
 
 # ── Create ───────────────────────────────────────────────────────────────────
