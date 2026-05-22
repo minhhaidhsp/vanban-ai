@@ -84,9 +84,9 @@ export const INDENT_FIRST_LINE_CM = 1.0;
 export const FONT_STYLES: Record<string, FontStyle> = {
   quoc_huy:              { size_min: 12, size_max: 13, bold: true,  italic: false, underline: false, uppercase: true,  align: "center"  },
   tieu_ngu:              { size_min: 13, size_max: 14, bold: true,  italic: false, underline: false, uppercase: false, align: "center"  },
-  co_quan_chu_quan:      { size_min: 12, size_max: 13, bold: false, italic: false, underline: false, uppercase: true,  align: "left"    },
-  co_quan_ban_hanh:      { size_min: 12, size_max: 13, bold: true,  italic: false, underline: false, uppercase: true,  align: "left"    },
-  so_ky_hieu:            { size_min: 13, size_max: 13, bold: false, italic: false, underline: false, uppercase: false, align: "left"    },
+  co_quan_chu_quan:      { size_min: 12, size_max: 13, bold: false, italic: false, underline: false, uppercase: true,  align: "center"  },
+  co_quan_ban_hanh:      { size_min: 12, size_max: 13, bold: true,  italic: false, underline: false, uppercase: true,  align: "center"  },
+  so_ky_hieu:            { size_min: 13, size_max: 13, bold: false, italic: false, underline: false, uppercase: false, align: "center"  },
   dia_danh_ngay:         { size_min: 13, size_max: 14, bold: false, italic: true,  underline: false, uppercase: false, align: "right"   },
   ten_loai_vb:           { size_min: 13, size_max: 14, bold: true,  italic: false, underline: false, uppercase: true,  align: "center"  },
   trich_yeu_co_ten_loai: { size_min: 13, size_max: 14, bold: true,  italic: false, underline: false, uppercase: false, align: "center"  },

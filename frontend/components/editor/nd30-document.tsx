@@ -327,14 +327,14 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
                 placeholder="TÊN CƠ QUAN BAN HÀNH"
               />
 
-              {/* Đường kẻ ngang ~40% dòng chữ, căn trái */}
+              {/* Đường kẻ ngang ~40-50% dòng chữ, căn giữa */}
               <div style={{
                 height: "1.5px", background: "#000",
-                width: "40%", margin: "2px 0 4px 0",
+                width: "50%", margin: "2px auto 4px",
               }} />
 
               {/* Ô 3: Số/KH — "Số:" là nhãn tĩnh, phần số là editable */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "4px" }}>
                 <span style={{ ...getFontStyle("so_ky_hieu"), flexShrink: 0 }}>Số:</span>
                 <Nd30Field
                   value={data.soKyHieu}
