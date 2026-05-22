@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* TipTap placeholder */
+.tiptap p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.prose p { margin: 0.35rem 0; line-height: 1.7; }
+.prose ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
+.prose ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
+.prose li { margin: 0.2rem 0; }
+.prose mark { background-color: #fef08a; border-radius: 2px; padding: 0 2px; }
+.dark .prose mark { background-color: #854d0e; }
+
 @layer base {
   :root {
     --background: 0 0% 100%;

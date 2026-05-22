@@ -1,3 +1,5 @@
+https://github.com/minhhaidhsp/vanban-ai
+
 Mở trình duyệt vào http://localhost:9001 → login admin / admin123 → xác nhận MinIO UI hiện ra.
 
 -- Tạo connection trong pgAdmin -
@@ -9,7 +11,11 @@ cd d:\Projects\vanban-ai\backend
 .\venv\Scripts\activate
 uvicorn app.main:app --reload --port 8000
 
+Mở trình duyệt vào http://localhost:8000/docs — thấy giao diện Swagger API là backend chạy thành công.
+
 --chạy frontend:
 cd D:\Projects\vanban-ai\frontend
 npm install
 npm run dev
+
+Mở http://localhost:3000 — thấy giao diện Next.js là xong.
