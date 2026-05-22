@@ -1,48 +1,22 @@
 "use client";
 
-import "./editor.css";
-import { useState, useCallback } from "react";
-import { RichEditor } from "./rich-editor";
-import { useAutosave } from "@/hooks/use-autosave";
+import { useCallback, useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { documentApi } from "@/lib/api";
+import { useAutosave } from "@/hooks/use-autosave";
+import { Nd30Document } from "./nd30-document";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { Save, Check, AlertCircle, Loader2 } from "lucide-react";
-
-export interface DocumentSections {
-  title: string;
-  section_a: string;
-  section_b: string;
-  section_c: string;
-}
+import type { Nd30Data } from "@/lib/nd30";
+import { defaultNd30Data } from "@/lib/nd30";
 
 interface DocumentEditorProps {
   documentId?: string;
-  initialData?: Partial<DocumentSections>;
-  onSaved?: (id: string) => void;
-}
-
-function SectionLabel({
-  tag,
-  label,
-  description,
-}: {
-  tag: string;
-  label: string;
-  description: string;
-}) {
-  return (
-    <div className="flex items-baseline gap-2 mb-2">
-      <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
-        {tag}
-      </span>
-      <div>
-        <span className="font-semibold text-sm">{label}</span>
-        <span className="text-xs text-muted-foreground ml-2">{description}</span>
-      </div>
-    </div>
-  );
+  /** JSON-parsed nội dung từ DB, hoặc plain text cũ */
+  initialContent?: string;
+  initialTitle?: string;
 }
 
 function SaveIndicator({ status, label }: { status: string; label: string }) {
@@ -50,131 +24,102 @@ function SaveIndicator({ status, label }: { status: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
       {status === "saving" && <Loader2 className="h-3 w-3 animate-spin" />}
-      {status === "saved" && <Check className="h-3 w-3 text-green-500" />}
-      {status === "error" && <AlertCircle className="h-3 w-3 text-destructive" />}
+      {status === "saved"  && <Check   className="h-3 w-3 text-green-500" />}
+      {status === "error"  && <AlertCircle className="h-3 w-3 text-destructive" />}
       {label}
     </span>
   );
 }
 
-export function DocumentEditor({
-  documentId,
-  initialData,
-  onSaved,
-}: DocumentEditorProps) {
+/** Deserialize content từ DB thành Nd30Data */
+function parseContent(content?: string): Partial<Nd30Data> {
+  if (!content) return {};
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed.version === "nd30") return parsed as Nd30Data;
+    // fallback: nội dung cũ (HTML text) → đưa vào noiDung
+    if (typeof parsed.section_c === "string") return { noiDung: parsed.section_c, canCu: parsed.section_b ?? "" };
+  } catch {
+    // plain text
+    return { noiDung: content };
+  }
+  return {};
+}
+
+export function DocumentEditor({ documentId, initialContent, initialTitle }: DocumentEditorProps) {
+  const queryClient  = useQueryClient();
+  const { toast }    = useToast();
   const [docId, setDocId] = useState(documentId);
-  const [sections, setSections] = useState<DocumentSections>({
-    title: initialData?.title ?? "",
-    section_a: initialData?.section_a ?? "",
-    section_b: initialData?.section_b ?? "",
-    section_c: initialData?.section_c ?? "",
-  });
+  const dataRef      = useRef<Nd30Data>(
+    { ...defaultNd30Data(), ...parseContent(initialContent) }
+  );
 
-  const handleSave = useCallback(
-    async (data: DocumentSections) => {
+  const saveMutation = useMutation({
+    mutationFn: async (data: Nd30Data) => {
       const payload = {
-        title: data.title || "Tài liệu không tiêu đề",
-        content: JSON.stringify({
-          section_a: data.section_a,
-          section_b: data.section_b,
-          section_c: data.section_c,
-        }),
+        title: data.trichYeu || data.coQuanBanHanh || "Tài liệu không tiêu đề",
+        content: JSON.stringify({ version: "nd30", ...data }),
       };
-
       if (docId) {
-        await documentApi.update(docId, payload);
+        return documentApi.update(docId, payload);
       } else {
         const created = await documentApi.create(payload);
         setDocId(created.id);
-        onSaved?.(created.id);
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+        return created;
       }
     },
-    [docId, onSaved]
-  );
-
-  const { status, statusLabel, saveNow } = useAutosave({
-    data: sections,
-    onSave: handleSave,
-    interval: 30_000,
-    enabled: sections.title.length > 0 || sections.section_c.length > 0,
+    onSuccess: () => {
+      toast({ title: "Đã lưu văn bản" });
+    },
+    onError: () => {
+      toast({ title: "Lưu thất bại", variant: "destructive" });
+    },
   });
 
-  const update = (key: keyof DocumentSections) => (value: string) =>
-    setSections((prev) => ({ ...prev, [key]: value }));
+  const handleSave = useCallback(async (data: Nd30Data) => {
+    await saveMutation.mutateAsync(data);
+  }, [saveMutation]);
+
+  const { status, statusLabel, saveNow } = useAutosave({
+    data: dataRef.current,
+    onSave: handleSave,
+    interval: 30_000,
+    enabled: true,
+  });
+
+  const handleChange = useCallback((data: Nd30Data) => {
+    dataRef.current = data;
+  }, []);
 
   return (
-    <div className="flex flex-col gap-0 h-full">
-      {/* Header bar */}
-      <div className="flex items-center justify-between gap-4 px-6 py-3 border-b bg-card">
-        <Input
-          value={sections.title}
-          onChange={(e) => update("title")(e.target.value)}
-          placeholder="Tiêu đề văn bản..."
-          className="border-0 shadow-none text-lg font-semibold px-0 focus-visible:ring-0 placeholder:font-normal placeholder:text-base"
-        />
-        <div className="flex items-center gap-3 shrink-0">
+    <div className="flex flex-col h-full">
+      {/* Save bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card print:hidden">
+        <span className="text-sm font-medium text-muted-foreground">
+          {docId ? "Chỉnh sửa văn bản" : "Văn bản mới"}
+        </span>
+        <div className="flex items-center gap-3">
           <SaveIndicator status={status} label={statusLabel} />
-          <Button size="sm" onClick={saveNow} disabled={status === "saving"}>
-            {status === "saving" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
+          <Button
+            size="sm"
+            onClick={() => saveNow()}
+            disabled={saveMutation.isPending}
+          >
+            {saveMutation.isPending
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Save className="h-3.5 w-3.5" />}
             Lưu
           </Button>
         </div>
       </div>
 
-      {/* 3 sections */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {/* Section A */}
-        <section>
-          <SectionLabel
-            tag="A"
-            label="Thể thức"
-            description="Tiêu ngữ, quốc hiệu, số hiệu, ngày tháng, cơ quan ban hành"
-          />
-          <RichEditor
-            content={sections.section_a}
-            onChange={update("section_a")}
-            placeholder="Nhập thể thức văn bản (tiêu ngữ, số hiệu, ngày tháng...)"
-            minHeight="100px"
-            showToolbar
-          />
-        </section>
-
-        {/* Section B */}
-        <section>
-          <SectionLabel
-            tag="B"
-            label="Căn cứ"
-            description="Cơ sở pháp lý, văn bản tham chiếu"
-          />
-          <RichEditor
-            content={sections.section_b}
-            onChange={update("section_b")}
-            placeholder="Nhập căn cứ ban hành (Căn cứ Luật..., Căn cứ Nghị định...)"
-            minHeight="100px"
-            showToolbar
-          />
-        </section>
-
-        {/* Section C */}
-        <section>
-          <SectionLabel
-            tag="C"
-            label="Nội dung"
-            description="Phần chính của văn bản"
-          />
-          <RichEditor
-            content={sections.section_c}
-            onChange={update("section_c")}
-            placeholder="Nhập nội dung chính của văn bản..."
-            minHeight="320px"
-            showToolbar
-            showWordCount
-          />
-        </section>
+      {/* A4 document */}
+      <div className="flex-1 min-h-0">
+        <Nd30Document
+          initialData={{ ...defaultNd30Data(), ...parseContent(initialContent) }}
+          onChange={handleChange}
+        />
       </div>
     </div>
   );

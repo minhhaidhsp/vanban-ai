@@ -2,13 +2,18 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { documentApi } from "@/lib/api";
-import { DocumentEditor } from "@/components/editor/document-editor";
+import dynamic from "next/dynamic";
 
-interface PageProps {
-  params: { id: string };
-}
+const DocumentEditor = dynamic(
+  () => import("@/components/editor/document-editor").then((m) => m.DocumentEditor),
+  { ssr: false, loading: () => (
+    <div className="-m-6 h-[calc(100vh-64px)] flex items-center justify-center text-muted-foreground text-sm">
+      Đang tải...
+    </div>
+  ) }
+);
 
-export default function EditDocumentPage({ params }: PageProps) {
+export default function EditDocumentPage({ params }: { params: { id: string } }) {
   const { data: doc, isLoading } = useQuery({
     queryKey: ["document", params.id],
     queryFn: () => documentApi.get(params.id),
@@ -22,17 +27,13 @@ export default function EditDocumentPage({ params }: PageProps) {
     );
   }
 
-  let initialData = { title: doc?.title ?? "" };
-  try {
-    const parsed = JSON.parse(doc?.content ?? "{}");
-    Object.assign(initialData, parsed);
-  } catch {
-    Object.assign(initialData, { section_c: doc?.content ?? "" });
-  }
-
   return (
     <div className="-m-6 h-[calc(100vh-64px)] flex flex-col">
-      <DocumentEditor documentId={params.id} initialData={initialData} />
+      <DocumentEditor
+        documentId={params.id}
+        initialContent={doc?.content}
+        initialTitle={doc?.title}
+      />
     </div>
   );
 }
