@@ -9,6 +9,7 @@ from app.models.reference_document import ReferenceDocument
 from app.schemas.reference_document import (
     RefDocCreate, RefDocUpdate, RefDocResponse, RefDocListResponse,
 )
+import asyncio
 import uuid
 import io
 
@@ -166,25 +167,45 @@ async def upload_ref_doc_file(
     object_name = f"{current_user.id}/{doc_id}/{uuid.uuid4()}_{file.filename}"
     content_type = file.content_type or "application/octet-stream"
 
-    client = get_minio_client()
-    ensure_bucket_exists(client, REF_DOCS_BUCKET)
-    client.put_object(
-        bucket_name=REF_DOCS_BUCKET,
-        object_name=object_name,
-        data=io.BytesIO(file_data),
-        length=len(file_data),
-        content_type=content_type,
-    )
+    # Run blocking MinIO I/O in a thread so it doesn't starve the DB connection
+    def _upload():
+        client = get_minio_client()
+        ensure_bucket_exists(client, REF_DOCS_BUCKET)
+        client.put_object(
+            bucket_name=REF_DOCS_BUCKET,
+            object_name=object_name,
+            data=io.BytesIO(file_data),
+            length=len(file_data),
+            content_type=content_type,
+        )
 
-    if doc.file_path:
-        try:
-            client.remove_object(REF_DOCS_BUCKET, doc.file_path)
-        except Exception:
-            pass
+    await asyncio.get_event_loop().run_in_executor(None, _upload)
 
+    old_path = doc.file_path
     doc.file_path = object_name
     doc.file_size = len(file_data)
     doc.file_type = content_type
-    await db.flush()
-    await db.refresh(doc)
+
+    try:
+        await db.flush()
+        await db.refresh(doc)
+    except Exception:
+        # DB update failed — remove the just-uploaded file to avoid orphaning it in MinIO
+        def _cleanup():
+            try:
+                get_minio_client().remove_object(REF_DOCS_BUCKET, object_name)
+            except Exception:
+                pass
+        await asyncio.get_event_loop().run_in_executor(None, _cleanup)
+        raise
+
+    # Remove old file AFTER the DB flush succeeded
+    if old_path and old_path != object_name:
+        def _remove_old():
+            try:
+                get_minio_client().remove_object(REF_DOCS_BUCKET, old_path)
+            except Exception:
+                pass
+        await asyncio.get_event_loop().run_in_executor(None, _remove_old)
+
     return _add_url(doc)
