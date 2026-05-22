@@ -327,14 +327,6 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
           }}
         >
 
-          {/* Độ mật / độ khẩn — chỉ hiện khi khác Thường */}
-          {(showDoMat || showDoKhan) && (
-            <div style={{ display: "flex", gap: "12mm", marginBottom: "3mm", fontSize: "13pt" }}>
-              {showDoMat  && <span style={{ textTransform: "uppercase", fontWeight: "bold" }}>{data.doMat}</span>}
-              {showDoKhan && <span style={{ textTransform: "uppercase", fontWeight: "bold" }}>Khẩn: {data.doKhan}</span>}
-            </div>
-          )}
-
           {/* ══ VÙNG A — THỂ THỨC ══════════════════════════════════════ */}
 
           {/* Header 2 cột: trái 42%, phải 58% */}
@@ -365,6 +357,40 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
                   placeholder={soKHHint}
                 />
               </div>
+
+              {/* Ô 10a: Độ mật — chỉ hiện khi khác Thường */}
+              {showDoMat && (
+                <div style={{ textAlign: "center", marginTop: "3mm" }}>
+                  <span style={{
+                    display: "inline-block",
+                    border: "1px solid #000",
+                    padding: "2px 8px",
+                    fontFamily: "'Times New Roman', serif",
+                    fontSize: "13pt",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                  }}>
+                    {data.doMat}
+                  </span>
+                </div>
+              )}
+
+              {/* Ô 10b: Độ khẩn — chỉ hiện khi khác Thường */}
+              {showDoKhan && (
+                <div style={{ textAlign: "center", marginTop: "2mm" }}>
+                  <span style={{
+                    display: "inline-block",
+                    border: "1px solid #000",
+                    padding: "2px 8px",
+                    fontFamily: "'Times New Roman', serif",
+                    fontSize: "13pt",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                  }}>
+                    {data.doKhan}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Cột phải: Ô 1 + Ô 4 */}
