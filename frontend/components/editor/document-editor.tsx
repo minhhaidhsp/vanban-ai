@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { documentApi } from "@/lib/api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { Nd30Document } from "./nd30-document";
+import { DocumentPreview } from "./DocumentPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Check, AlertCircle, Loader2 } from "lucide-react";
+import { Save, Check, AlertCircle, Loader2, Eye } from "lucide-react";
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
 
@@ -51,6 +51,35 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     { ...defaultNd30Data(), ...parseContent(initialContent) }
   );
 
+  // ── Preview mode ──────────────────────────────────────────────────────────
+  const [previewMode, setPreviewMode] = useState(false);
+  const [previewData, setPreviewData] = useState<Nd30Data | null>(null);
+
+  const enterPreview = useCallback(() => {
+    setPreviewData({ ...dataRef.current });
+    setPreviewMode(true);
+  }, []);
+
+  const exitPreview = useCallback(() => {
+    setPreviewMode(false);
+    setPreviewData(null);
+  }, []);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "P") {
+        e.preventDefault();
+        setPreviewMode((prev) => {
+          if (!prev) setPreviewData({ ...dataRef.current });
+          else setPreviewData(null);
+          return !prev;
+        });
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
   const saveMutation = useMutation({
     mutationFn: async (data: Nd30Data) => {
       const soNum = parseInt(data.soKyHieu.split("/")[0]) || undefined;
@@ -86,6 +115,14 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     markDirty();
   }, [markDirty]);
 
+  if (previewMode && previewData) {
+    return (
+      <div className="flex flex-col h-full">
+        <DocumentPreview data={previewData} onClose={exitPreview} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Save bar */}
@@ -95,6 +132,15 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         </span>
         <div className="flex items-center gap-3">
           <SaveIndicator status={status} label={statusLabel} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={enterPreview}
+            title="Xem trước (Ctrl+Shift+P)"
+          >
+            <Eye className="h-3.5 w-3.5 mr-1.5" />
+            Xem trước
+          </Button>
           <Button
             size="sm"
             onClick={() => saveNow()}
