@@ -10,6 +10,13 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.core.storage import get_minio_client, ensure_bucket_exists
+    try:
+        client = get_minio_client()
+        ensure_bucket_exists(client, settings.minio_bucket_name)
+        ensure_bucket_exists(client, "reference-docs")
+    except Exception:
+        pass
     yield
     await close_redis()
 

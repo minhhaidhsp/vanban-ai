@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, users, documents, constants,
-    organizations, recipient_suggestions,
+    organizations, recipient_suggestions, reference_docs,
 )
 
 api_router = APIRouter()
@@ -12,3 +12,4 @@ api_router.include_router(documents.router, prefix="/documents", tags=["document
 api_router.include_router(constants.router, prefix="/constants", tags=["constants"])
 api_router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 api_router.include_router(recipient_suggestions.router, prefix="/recipient-suggestions", tags=["recipient-suggestions"])
+api_router.include_router(reference_docs.router, prefix="/reference-docs", tags=["reference-docs"])

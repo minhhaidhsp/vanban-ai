@@ -72,6 +72,72 @@ export const recipientApi = {
   },
 };
 
+export interface RefDoc {
+  id: string;
+  title: string;
+  loai_van_ban: string;
+  so_ki_hieu: string;
+  ngay_ban_hanh: string | null;
+  co_quan_ban_hanh: string;
+  nguoi_ky: string | null;
+  trich_yeu: string;
+  hieu_luc: string;
+  file_path: string | null;
+  file_size: number | null;
+  file_type: string | null;
+  tom_tat: string | null;
+  tu_khoa: string[];
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  download_url: string | null;
+}
+
+export interface RefDocListResponse {
+  items: RefDoc[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export const refDocApi = {
+  list: async (params?: { skip?: number; limit?: number; loai?: string; hieu_luc?: string; q?: string }) => {
+    const { data } = await api.get("/reference-docs/", { params });
+    return data as RefDocListResponse;
+  },
+
+  get: async (id: string) => {
+    const { data } = await api.get(`/reference-docs/${id}`);
+    return data as RefDoc;
+  },
+
+  create: async (payload: Omit<RefDoc, "id" | "file_path" | "file_size" | "file_type" | "created_at" | "updated_at" | "created_by" | "download_url">) => {
+    const { data } = await api.post("/reference-docs/", payload);
+    return data as RefDoc;
+  },
+
+  upload: async (id: string, file: File, onProgress?: (pct: number) => void) => {
+    const form = new FormData();
+    form.append("file", file);
+    const { data } = await api.post(`/reference-docs/${id}/upload`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total));
+      },
+    });
+    return data as RefDoc;
+  },
+
+  update: async (id: string, payload: Partial<Omit<RefDoc, "id" | "created_at" | "updated_at" | "created_by" | "download_url">>) => {
+    const { data } = await api.put(`/reference-docs/${id}`, payload);
+    return data as RefDoc;
+  },
+
+  remove: async (id: string) => {
+    await api.delete(`/reference-docs/${id}`);
+  },
+};
+
 export const documentApi = {
   list: async (skip = 0, limit = 20) => {
     const { data } = await api.get("/documents/", { params: { skip, limit } });

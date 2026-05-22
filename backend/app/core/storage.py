@@ -24,12 +24,14 @@ async def upload_file(
     file_data: bytes,
     object_name: str,
     content_type: str = "application/octet-stream",
+    bucket_name: str | None = None,
 ) -> str:
     client = get_minio_client()
-    ensure_bucket_exists(client, settings.minio_bucket_name)
+    bucket = bucket_name or settings.minio_bucket_name
+    ensure_bucket_exists(client, bucket)
 
     client.put_object(
-        bucket_name=settings.minio_bucket_name,
+        bucket_name=bucket,
         object_name=object_name,
         data=io.BytesIO(file_data),
         length=len(file_data),
@@ -38,12 +40,12 @@ async def upload_file(
     return object_name
 
 
-def get_file_url(object_name: str, expires_seconds: int = 3600) -> str:
+def get_file_url(object_name: str, expires_seconds: int = 3600, bucket_name: str | None = None) -> str:
     from datetime import timedelta
 
     client = get_minio_client()
     return client.presigned_get_object(
-        bucket_name=settings.minio_bucket_name,
+        bucket_name=bucket_name or settings.minio_bucket_name,
         object_name=object_name,
         expires=timedelta(seconds=expires_seconds),
     )
