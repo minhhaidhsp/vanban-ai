@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func as sql_func, or_
+from sqlalchemy import select, func as sql_func, or_, text
 from app.core.database import get_db
 from app.core.storage import get_minio_client, ensure_bucket_exists, get_file_url
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.reference_document import ReferenceDocument
 from app.schemas.reference_document import (
-    RefDocCreate, RefDocUpdate, RefDocResponse, RefDocListResponse,
+    RefDocCreate, RefDocUpdate, RefDocResponse,
+    RefDocListResponse, RefDocSearchResponse,
 )
 import asyncio
 import uuid
@@ -18,15 +19,21 @@ router = APIRouter()
 REF_DOCS_BUCKET = "reference-docs"
 
 
-def _add_url(doc: ReferenceDocument) -> RefDocResponse:
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _add_url(doc: ReferenceDocument, score: float | None = None) -> RefDocResponse:
     resp = RefDocResponse.model_validate(doc)
     if doc.file_path:
         try:
             resp.download_url = get_file_url(doc.file_path, bucket_name=REF_DOCS_BUCKET)
         except Exception:
             pass
+    if score is not None:
+        resp.score = score
     return resp
 
+
+# ── List ─────────────────────────────────────────────────────────────────────
 
 @router.get("/", response_model=RefDocListResponse)
 async def list_ref_docs(
@@ -64,6 +71,48 @@ async def list_ref_docs(
     return RefDocListResponse(items=items, total=total, skip=skip, limit=limit)
 
 
+# ── Semantic search — MUST be before /{doc_id} ───────────────────────────────
+
+@router.get("/search", response_model=RefDocSearchResponse)
+async def search_ref_docs(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(5, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.services import embedding_service
+
+    if not embedding_service.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embedding model not loaded — semantic search unavailable",
+        )
+
+    # Embed query in thread (CPU-bound)
+    query_vector = await asyncio.to_thread(embedding_service.embed_text, q)
+
+    # pgvector cosine distance: <=> operator
+    # score = 1 - cosine_distance  (higher = more similar)
+    stmt = (
+        select(
+            ReferenceDocument,
+            (1 - ReferenceDocument.embedding.cosine_distance(query_vector)).label("score"),
+        )
+        .where(ReferenceDocument.created_by == current_user.id)
+        .where(ReferenceDocument.embedding.is_not(None))
+        .order_by(ReferenceDocument.embedding.cosine_distance(query_vector))
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    items = [_add_url(doc, float(score)) for doc, score in rows]
+    return RefDocSearchResponse(items=items, query=q)
+
+
+# ── Create ───────────────────────────────────────────────────────────────────
+
 @router.post("/", response_model=RefDocResponse, status_code=status.HTTP_201_CREATED)
 async def create_ref_doc(
     doc_in: RefDocCreate,
@@ -76,6 +125,8 @@ async def create_ref_doc(
     await db.refresh(doc)
     return _add_url(doc)
 
+
+# ── Get one ──────────────────────────────────────────────────────────────────
 
 @router.get("/{doc_id}", response_model=RefDocResponse)
 async def get_ref_doc(
@@ -94,6 +145,8 @@ async def get_ref_doc(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return _add_url(doc)
 
+
+# ── Update ───────────────────────────────────────────────────────────────────
 
 @router.put("/{doc_id}", response_model=RefDocResponse)
 async def update_ref_doc(
@@ -119,6 +172,8 @@ async def update_ref_doc(
     await db.refresh(doc)
     return _add_url(doc)
 
+
+# ── Delete ───────────────────────────────────────────────────────────────────
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_ref_doc(
@@ -146,9 +201,12 @@ async def delete_ref_doc(
     await db.delete(doc)
 
 
+# ── Upload file + trigger embedding pipeline ─────────────────────────────────
+
 @router.post("/{doc_id}/upload", response_model=RefDocResponse)
 async def upload_ref_doc_file(
     doc_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -167,7 +225,7 @@ async def upload_ref_doc_file(
     object_name = f"{current_user.id}/{doc_id}/{uuid.uuid4()}_{file.filename}"
     content_type = file.content_type or "application/octet-stream"
 
-    # Run blocking MinIO I/O in a thread so it doesn't starve the DB connection
+    # Upload to MinIO in a thread (blocking I/O)
     def _upload():
         client = get_minio_client()
         ensure_bucket_exists(client, REF_DOCS_BUCKET)
@@ -190,7 +248,7 @@ async def upload_ref_doc_file(
         await db.flush()
         await db.refresh(doc)
     except Exception:
-        # DB update failed — remove the just-uploaded file to avoid orphaning it in MinIO
+        # DB update failed — clean up the just-uploaded MinIO object
         def _cleanup():
             try:
                 get_minio_client().remove_object(REF_DOCS_BUCKET, object_name)
@@ -199,7 +257,7 @@ async def upload_ref_doc_file(
         await asyncio.get_event_loop().run_in_executor(None, _cleanup)
         raise
 
-    # Remove old file AFTER the DB flush succeeded
+    # Remove previous file only after DB flush succeeds
     if old_path and old_path != object_name:
         def _remove_old():
             try:
@@ -207,5 +265,9 @@ async def upload_ref_doc_file(
             except Exception:
                 pass
         await asyncio.get_event_loop().run_in_executor(None, _remove_old)
+
+    # Kick off embedding in the background — does not block the response
+    from app.services.pipeline_service import process_document_embedding
+    background_tasks.add_task(process_document_embedding, doc_id)
 
     return _add_url(doc)

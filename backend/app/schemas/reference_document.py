@@ -41,6 +41,8 @@ class RefDocResponse(RefDocBase):
     updated_at: datetime
     created_by: str
     download_url: str | None = None
+    # Populated only by the semantic search endpoint
+    score: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -50,3 +52,8 @@ class RefDocListResponse(BaseModel):
     total: int
     skip: int
     limit: int
+
+
+class RefDocSearchResponse(BaseModel):
+    items: list[RefDocResponse]
+    query: str
