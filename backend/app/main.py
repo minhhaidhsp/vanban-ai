@@ -10,6 +10,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # MinIO buckets
     from app.core.storage import get_minio_client, ensure_bucket_exists
     try:
         client = get_minio_client()
@@ -17,6 +18,17 @@ async def lifespan(app: FastAPI):
         ensure_bucket_exists(client, "reference-docs")
     except Exception:
         pass
+
+    # Eager-load embedding model in a thread so the event loop isn't blocked
+    import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        import app.services.embedding_service as _emb  # noqa: F401 — triggers module-level load
+        logger.info("Embedding service ready: available=%s", _emb.is_available())
+    except Exception as exc:
+        logger.warning("Embedding service failed to load: %s", exc)
+
     yield
     await close_redis()
 
