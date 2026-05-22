@@ -1,0 +1,15 @@
+Mở trình duyệt vào http://localhost:9001 → login admin / admin123 → xác nhận MinIO UI hiện ra.
+
+-- Tạo connection trong pgAdmin -
+    Username          : postgres
+    Password          : postgres123
+
+-- Giờ chạy backend:
+cd d:\Projects\vanban-ai\backend
+.\venv\Scripts\activate
+uvicorn app.main:app --reload --port 8000
+
+--chạy frontend:
+cd D:\Projects\vanban-ai\frontend
+npm install
+npm run dev
