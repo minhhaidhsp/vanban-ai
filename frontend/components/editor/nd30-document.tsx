@@ -333,13 +333,13 @@ export function Nd30Document({ initialData, onChange }: Nd30DocumentProps) {
                 width: "50%", margin: "2px auto 4px",
               }} />
 
-              {/* Ô 3: Số/KH — "Số:" là nhãn tĩnh, phần số là editable */}
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "4px" }}>
-                <span style={{ ...getFontStyle("so_ky_hieu"), flexShrink: 0 }}>Số:</span>
+              {/* Ô 3: Số/KH — inline để "Số:" và số hiệu nằm liền nhau */}
+              <div style={{ textAlign: "center" }}>
+                <span style={getFontStyle("so_ky_hieu")}>Số: </span>
                 <Nd30Field
                   value={data.soKyHieu}
                   onChange={(v) => update("soKyHieu", v)}
-                  style={{ ...getFontStyle("so_ky_hieu"), flex: 1 }}
+                  style={{ ...getFontStyle("so_ky_hieu"), display: "inline", fontStyle: "italic" }}
                   placeholder={soKHHint}
                 />
               </div>
