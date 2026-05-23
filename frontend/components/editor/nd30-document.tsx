@@ -176,6 +176,8 @@ function DiaDanhSelect({ value, onChange, style }: {
   );
 }
 
+// ── Page-break visual overlay ─────────────────────────────────────────────
+
 // ── Main component ────────────────────────────────────────────────────────
 
 export interface Nd30DocumentProps {
@@ -329,11 +331,11 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
 
           {/* ══ VÙNG A — THỂ THỨC ══════════════════════════════════════ */}
 
-          {/* Header 2 cột: trái 42%, phải 58% */}
-          <div style={{ display: "grid", gridTemplateColumns: "42% 58%", marginBottom: "6mm" }}>
+          {/* Header 2 cột: trái 45%, phải 55% */}
+          <div style={{ display: "grid", gridTemplateColumns: "45% 55%", gap: "4mm", marginBottom: "6mm" }}>
 
             {/* Cột trái: Ô 2 + Ô 3 */}
-            <div style={{ paddingRight: "4mm" }}>
+            <div>
               <Nd30Field
                 value={data.coQuanChuQuan}
                 onChange={(v) => update("coQuanChuQuan", v)}
@@ -394,16 +396,16 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
             </div>
 
             {/* Cột phải: Ô 1 + Ô 4 */}
-            <div style={{ paddingLeft: "4mm" }}>
+            <div>
               <div
                 ref={quocHieuRef}
-                style={{ ...getFontStyle("quoc_huy"), fontSize: "12pt", letterSpacing: "0.5px", whiteSpace: "nowrap", overflow: "hidden" }}
+                style={{ ...getFontStyle("quoc_huy"), fontSize: "12pt", letterSpacing: "0.5px", whiteSpace: "nowrap", overflow: "visible" }}
               >
                 {QUOC_HUY}
               </div>
 
               <div style={{ textAlign: "center", marginBottom: "4mm" }}>
-                <span style={{ ...getFontStyle("tieu_ngu"), display: "inline-block", borderBottom: "1.5px solid #000", paddingBottom: "2px" }}>
+                <span style={{ ...getFontStyle("tieu_ngu"), display: "inline-block", borderBottom: "1.5px solid #000", paddingBottom: "2px", whiteSpace: "nowrap" }}>
                   {TIEU_NGU}
                 </span>
               </div>

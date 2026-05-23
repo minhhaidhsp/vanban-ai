@@ -5,10 +5,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { documentApi } from "@/lib/api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { Nd30Document } from "./nd30-document";
-import { DocumentPreview } from "./DocumentPreview";
+import { DocumentPreviewPaged } from "./DocumentPreviewPaged";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Check, AlertCircle, Loader2, Eye } from "lucide-react";
+import { Save, Check, AlertCircle, Loader2, Eye, Download } from "lucide-react";
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
 
@@ -65,6 +65,41 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     setPreviewData(null);
   }, []);
 
+  // ── PDF export ────────────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPdf = useCallback(async () => {
+    if (!docId) {
+      toast({ title: "Lưu văn bản trước khi xuất PDF", variant: "destructive" });
+      return;
+    }
+    setExporting(true);
+    try {
+      const res = await fetch("/api/export/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      const d    = dataRef.current;
+      const raw  = [d.soKyHieu, d.trichYeu || "vanban"].filter(Boolean).join("_");
+      a.download = raw.replace(/[/\\:*?"<>|]/g, "-").substring(0, 120) + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Xuất PDF thành công" });
+    } catch {
+      toast({ title: "Xuất PDF thất bại", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }, [docId, toast]);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === "P") {
@@ -117,9 +152,12 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
 
   if (previewMode && previewData) {
     return (
-      <div className="flex flex-col h-full">
-        <DocumentPreview data={previewData} onClose={exitPreview} />
-      </div>
+      <DocumentPreviewPaged
+        data={previewData}
+        onClose={exitPreview}
+        onExportPdf={handleExportPdf}
+        exporting={exporting}
+      />
     );
   }
 
@@ -140,6 +178,18 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
           >
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Xem trước
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={exporting || !docId}
+            title={!docId ? "Lưu văn bản trước" : "Xuất PDF"}
+          >
+            {exporting
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              : <Download className="h-3.5 w-3.5 mr-1.5" />}
+            Xuất PDF
           </Button>
           <Button
             size="sm"

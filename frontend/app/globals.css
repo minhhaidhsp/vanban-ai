@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Thin line at every 297mm boundary — marks page breaks without covering content */
+.a4-page {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(297mm - 1px),
+    rgba(100, 116, 139, 0.35) calc(297mm - 1px),
+    rgba(100, 116, 139, 0.35) 297mm
+  );
+}
+
+@media print {
+  .a4-page {
+    width: auto !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+    background-image: none !important;
+  }
+}
+
+/* nd30 preview — TipTap HTML content rendered via dangerouslySetInnerHTML */
+.nd30-preview p          { margin: 0 0 0.35em 0; }
+.nd30-preview ul,
+.nd30-preview ol         { margin: 0 0 0.35em 1.6em; padding: 0; }
+.nd30-preview li         { margin: 0.1em 0; }
+.nd30-preview h1,
+.nd30-preview h2,
+.nd30-preview h3         { font-weight: bold; margin: 0.3em 0; }
+.nd30-preview p:last-child { margin-bottom: 0; }
+
 /* TipTap placeholder */
 .tiptap p.is-editor-empty:first-child::before {
   color: hsl(var(--muted-foreground));

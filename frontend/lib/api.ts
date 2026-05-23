@@ -176,4 +176,11 @@ export const documentApi = {
     });
     return data;
   },
+
+  exportPdf: async (id: string): Promise<Blob> => {
+    const { data } = await api.post(`/documents/${id}/export/pdf`, null, {
+      responseType: "blob",
+    });
+    return data as Blob;
+  },
 };

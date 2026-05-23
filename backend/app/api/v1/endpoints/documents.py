@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func
 from app.core.database import get_db
@@ -8,6 +9,8 @@ from app.models.user import User
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from datetime import datetime
+import json
+import re
 import uuid
 
 router = APIRouter()
@@ -121,6 +124,41 @@ async def delete_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     await db.delete(document)
+
+
+@router.post("/{document_id}/export/pdf")
+async def export_document_pdf(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Document).where(
+            Document.id == document_id, Document.owner_id == current_user.id
+        )
+    )
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    try:
+        data = json.loads(document.content or "{}")
+    except Exception:
+        data = {}
+
+    from app.services.pdf_service import generate_pdf
+    pdf_bytes = await generate_pdf(data)
+
+    # Build safe filename: {soKyHieu}_{title}.pdf
+    so_ky = data.get("soKyHieu") or document.title or document_id
+    raw_name = f"{so_ky}_{document.title or ''}".strip("_")
+    safe_name = re.sub(r'[/\\:*?"<>|]', "-", raw_name)[:120] + ".pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
 
 
 @router.post("/{document_id}/upload", response_model=DocumentResponse)

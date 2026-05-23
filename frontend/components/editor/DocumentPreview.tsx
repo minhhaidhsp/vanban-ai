@@ -42,7 +42,7 @@ export function DocumentPreview({ data, onClose }: DocumentPreviewProps) {
       </div>
 
       {/* ── A4 scroll wrapper ───────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0">
+      <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible">
         <div
           className="a4-page mx-auto bg-white shadow-lg print:shadow-none"
           style={{
@@ -55,23 +55,11 @@ export function DocumentPreview({ data, onClose }: DocumentPreviewProps) {
             boxSizing: "border-box",
           }}
         >
-          {/* scoped styles for dangerouslySetInnerHTML content */}
-          <style>{`
-            .nd30-preview p   { margin: 0 0 0.35em 0; }
-            .nd30-preview ul,
-            .nd30-preview ol  { margin: 0 0 0.35em 1.6em; padding: 0; }
-            .nd30-preview li  { margin: 0.1em 0; }
-            .nd30-preview h1,
-            .nd30-preview h2,
-            .nd30-preview h3  { font-weight: bold; margin: 0.3em 0; }
-            .nd30-preview p:last-child { margin-bottom: 0; }
-          `}</style>
-
           {/* ══ PHẦN 1+2 — Header 2 cột ═════════════════════════════ */}
-          <div style={{ display: "grid", gridTemplateColumns: "42% 58%", marginBottom: "6mm" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "45% 55%", gap: "4mm", marginBottom: "6mm" }}>
 
             {/* Cột trái: cơ quan + số/KH */}
-            <div style={{ paddingRight: "4mm" }}>
+            <div>
               {data.coQuanChuQuan && (
                 <div style={getFontStyle("co_quan_chu_quan")}>{data.coQuanChuQuan}</div>
               )}
@@ -105,8 +93,14 @@ export function DocumentPreview({ data, onClose }: DocumentPreviewProps) {
             </div>
 
             {/* Cột phải: quốc hiệu + địa danh/ngày */}
-            <div style={{ paddingLeft: "4mm" }}>
-              <div style={{ ...getFontStyle("quoc_huy"), fontSize: "12pt", letterSpacing: "0.5px" }}>
+            <div>
+              <div style={{
+                ...getFontStyle("quoc_huy"),
+                fontSize: "12pt",
+                letterSpacing: "0.5px",
+                whiteSpace: "nowrap",
+                overflow: "visible",
+              }}>
                 {QUOC_HUY}
               </div>
               <div style={{ textAlign: "center", marginBottom: "4mm" }}>
@@ -115,12 +109,17 @@ export function DocumentPreview({ data, onClose }: DocumentPreviewProps) {
                   display: "inline-block",
                   borderBottom: "1.5px solid #000",
                   paddingBottom: "2px",
+                  whiteSpace: "nowrap",
                 }}>
                   {TIEU_NGU}
                 </span>
               </div>
               <div style={{ textAlign: "center" }}>
-                <span style={getFontStyle("dia_danh_ngay")}>
+                <span style={{
+                  ...getFontStyle("dia_danh_ngay"),
+                  fontSize: "12pt",
+                  whiteSpace: "nowrap",
+                }}>
                   {[data.diaDanh, data.ngayThang].filter(Boolean).join(", ")}
                 </span>
               </div>
