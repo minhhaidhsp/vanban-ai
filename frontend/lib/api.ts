@@ -100,6 +100,33 @@ export interface RefDocListResponse {
   limit: number;
 }
 
+export interface MetadataPreviewResponse {
+  doc_id: string;
+  status: "ready" | "processing" | "not_available";
+  fields: {
+    so_ki_hieu: string | null;
+    ngay_ban_hanh: string | null;
+    co_quan_ban_hanh: string | null;
+    nguoi_ky: string | null;
+    trich_yeu: string | null;
+    hieu_luc: string | null;
+    tom_tat: string | null;
+    can_cu: string[];
+  } | null;
+  confidence: Record<string, "high" | "medium" | "low" | "unknown"> | null;
+}
+
+export interface MetadataConfirmRequest {
+  so_ki_hieu?: string | null;
+  ngay_ban_hanh?: string | null;
+  co_quan_ban_hanh?: string | null;
+  nguoi_ky?: string | null;
+  trich_yeu?: string | null;
+  hieu_luc?: string | null;
+  tom_tat?: string | null;
+  can_cu?: string[];
+}
+
 export const refDocApi = {
   list: async (params?: { skip?: number; limit?: number; loai?: string; hieu_luc?: string; q?: string }) => {
     const { data } = await api.get("/reference-docs/", { params });
@@ -135,6 +162,16 @@ export const refDocApi = {
 
   remove: async (id: string) => {
     await api.delete(`/reference-docs/${id}`);
+  },
+
+  getMetadataPreview: async (id: string) => {
+    const { data } = await api.get(`/reference-docs/${id}/metadata-preview`);
+    return data as MetadataPreviewResponse;
+  },
+
+  confirmMetadata: async (id: string, payload: MetadataConfirmRequest) => {
+    const { data } = await api.post(`/reference-docs/${id}/metadata-confirm`, payload);
+    return data as RefDoc;
   },
 };
 

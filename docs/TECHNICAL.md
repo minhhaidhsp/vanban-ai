@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-05-23
-> Phiên bản: Tuần 7
+> Phiên bản: Tuần 8
 
 ---
 
@@ -26,6 +26,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 6 | Chunk-level semantic search (reference_doc_chunks), pipeline tự động |
 | 6b | Full-text search tiếng Việt (unaccent + tsvector trigger) |
 | 7 | Preview mode A4 read-only (DocumentPreview + DocumentPreviewPaged), Ctrl+Shift+P, xuất PDF (xhtml2pdf + Puppeteer) |
+| 8 | LLM trích xuất metadata tự động khi upload (metadata_extraction_service, MetadataReviewCard, Redis cache, confidence scoring) |
 
 ### Tech stack thực tế
 
@@ -462,6 +463,19 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 **Ghi chú:** Tạo DB session riêng — không dùng request session. Toàn bộ I/O blocking chạy qua `asyncio.to_thread()`.
 
+### `metadata_extraction_service.py`
+
+**Mô tả:** Trích xuất metadata có cấu trúc từ text văn bản hành chính bằng LLM (Qwen/Qwen2.5 via vLLM). Kết quả được cache trong Redis để frontend polling.
+
+**Các hàm:**
+- `extract_metadata(text, doc_id, llm_service) -> dict`: Gửi 2000 ký tự đầu của văn bản lên LLM với system prompt tiếng Việt, nhận về JSON chứa `{so_ki_hieu, ngay_ban_hanh, co_quan_ban_hanh, nguoi_ky, trich_yeu, can_cu[], hieu_luc, tom_tat, confidence{}}`. Retry 1 lần nếu JSON parse lỗi. Luôn trả về (không raise) — trả `_empty_result()` nếu LLM fail.
+- `save_metadata_preview(doc_id, metadata, redis_client)`: Ghi metadata vào Redis với key `metadata_preview:{doc_id}`, TTL 1 giờ.
+- `get_metadata_preview(doc_id, redis_client) -> dict | None`: Đọc cache từ Redis. Trả `None` nếu key không tồn tại (chưa xử lý xong).
+
+**Confidence scoring:** Mỗi field có mức `high / medium / low` do LLM tự đánh giá. Frontend `MetadataReviewCard` hiển thị badge màu xanh/vàng/đỏ tương ứng.
+
+**Tích hợp pipeline:** `pipeline_service.py` gọi `extract_metadata()` ở **step 2** (sau extract text, trước chunk). Bước này là optional — nếu `LLM_BASE_URL` rỗng hoặc LLM lỗi, pipeline vẫn tiếp tục chunk và embed bình thường.
+
 ### `pdf_service.py`
 
 **Mô tả:** Tạo PDF từ dữ liệu `Nd30Data` (JSON) sử dụng xhtml2pdf + ReportLab với font DejaVu Serif (hỗ trợ tiếng Việt Unicode).
@@ -782,3 +796,6 @@ Trên CPU, mỗi chunk mất ~100-500ms. Với văn bản dài (~50 chunks), pip
 
 **Issue 6: Thiếu docker-compose.yml**
 Dự án hiện chưa có file `docker-compose.yml`. Các service (PostgreSQL, Redis, MinIO) cần khởi động thủ công hoặc theo hướng dẫn phần 9.
+
+**Issue 7: Qwen2.5-3B trích metadata kém với văn bản danh mục/bảng biểu**
+Model Qwen2.5-3B-Instruct thiếu khả năng suy luận đủ mạnh để trích xuất chính xác metadata từ văn bản dạng danh mục (bảng biểu, phụ lục). Các field như `so_ki_hieu`, `ngay_ban_hanh`, `co_quan_ban_hanh` thường trả về `null` ngay cả khi thông tin có trong 2000 ký tự đầu. Ngoài ra, nhiều PDF hành chính dùng font Vietnamese cũ (VNI/TCVN) khiến pdfplumber trả về ký tự `?` thay vì Unicode — LLM nhận text rác, chất lượng trích xuất giảm thêm. **Workaround:** User tự điền/chỉnh sửa trong `MetadataReviewCard` trước khi xác nhận lưu. **Fix tuần 13:** Nâng lên Qwen2.5-14B hoặc thêm fallback OCR (pymupdf) cho PDF font cũ.

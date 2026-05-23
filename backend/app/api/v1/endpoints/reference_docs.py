@@ -11,6 +11,7 @@ from app.schemas.reference_document import (
     RefDocListResponse, RefDocSearchResponse,
     RefDocChunkSearchItem, RefDocChunkSearchResponse,
     RefDocFTSItem, RefDocFTSResponse,
+    MetadataPreviewResponse, MetadataConfirmRequest, MetadataConfidence,
 )
 import asyncio
 import uuid
@@ -204,6 +205,81 @@ async def search_ref_docs_fulltext(
         items.append(resp)
 
     return RefDocFTSResponse(items=items, query=q)
+
+
+# ── Metadata preview (polling after upload) ───────────────────────────────────
+
+@router.get("/{doc_id}/metadata-preview", response_model=MetadataPreviewResponse)
+async def get_metadata_preview_endpoint(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Verify ownership
+    result = await db.execute(
+        select(ReferenceDocument).where(
+            ReferenceDocument.id == doc_id,
+            ReferenceDocument.created_by == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    from app.core.redis import get_redis
+    from app.services.metadata_extraction_service import get_metadata_preview
+    redis = await get_redis()
+    meta = await get_metadata_preview(doc_id, redis)
+
+    if meta is None:
+        return MetadataPreviewResponse(doc_id=doc_id, status="not_available")
+
+    confidence_data = meta.pop("confidence", {})
+    confidence = MetadataConfidence(**confidence_data) if confidence_data else MetadataConfidence()
+
+    return MetadataPreviewResponse(
+        doc_id=doc_id,
+        status="ready",
+        fields=meta,
+        confidence=confidence,
+    )
+
+
+# ── Metadata confirm (user edits + writes to DB) ──────────────────────────────
+
+@router.post("/{doc_id}/metadata-confirm", response_model=RefDocResponse)
+async def confirm_metadata(
+    doc_id: str,
+    body: MetadataConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ReferenceDocument).where(
+            ReferenceDocument.id == doc_id,
+            ReferenceDocument.created_by == current_user.id,
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Update only non-None fields (can_cu has no DB column — skipped)
+    updatable = ("so_ki_hieu", "ngay_ban_hanh", "co_quan_ban_hanh",
+                 "nguoi_ky", "trich_yeu", "hieu_luc", "tom_tat")
+    for field in updatable:
+        value = getattr(body, field)
+        if value is not None:
+            setattr(doc, field, value)
+
+    await db.flush()
+    await db.refresh(doc)
+
+    # Remove Redis preview cache now that data is confirmed in DB
+    from app.core.redis import get_redis
+    redis = await get_redis()
+    await redis.delete(f"metadata_preview:{doc_id}")
+
+    return _add_url(doc)
 
 
 # ── Create ───────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { refDocApi, type RefDoc } from "@/lib/api";
 import { RefDocTable } from "@/components/reference-docs/ref-doc-table";
 import { UploadModal } from "@/components/reference-docs/upload-modal";
+import { MetadataReviewCard } from "@/components/reference-docs/MetadataReviewCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,6 +39,7 @@ export default function ReferenceDocsPage() {
   const [hieuLuc, setHieuLuc] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<RefDoc | null>(null);
+  const [pendingMetadataDocId, setPendingMetadataDocId] = useState<string | null>(null);
 
   const q = useDebounce(searchInput, 300);
 
@@ -152,6 +154,13 @@ export default function ReferenceDocsPage() {
         open={modalOpen}
         onClose={handleCloseModal}
         editing={editingDoc}
+        onUploaded={(id) => setPendingMetadataDocId(id)}
+      />
+
+      {/* Metadata review after upload */}
+      <MetadataReviewCard
+        docId={pendingMetadataDocId}
+        onClose={() => setPendingMetadataDocId(null)}
       />
     </div>
   );

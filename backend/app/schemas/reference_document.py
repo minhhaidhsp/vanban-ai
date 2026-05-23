@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date, datetime
+from typing import Any
 
 
 class RefDocBase(BaseModel):
@@ -81,3 +82,37 @@ class RefDocFTSItem(RefDocResponse):
 class RefDocFTSResponse(BaseModel):
     items: list[RefDocFTSItem]
     query: str
+
+
+# ── Metadata preview / confirm ────────────────────────────────────────────────
+
+class MetadataConfidence(BaseModel):
+    so_ki_hieu: str = "unknown"
+    ngay_ban_hanh: str = "unknown"
+    co_quan_ban_hanh: str = "unknown"
+    nguoi_ky: str = "unknown"
+    trich_yeu: str = "unknown"
+    can_cu: str = "unknown"
+    hieu_luc: str = "unknown"
+    tom_tat: str = "unknown"
+
+    model_config = {"extra": "allow"}
+
+
+class MetadataPreviewResponse(BaseModel):
+    doc_id: str
+    status: str  # "ready" | "processing" | "not_available"
+    fields: dict[str, Any] | None = None
+    confidence: MetadataConfidence | None = None
+    extracted_at: datetime | None = None
+
+
+class MetadataConfirmRequest(BaseModel):
+    so_ki_hieu: str | None = None
+    ngay_ban_hanh: date | None = None
+    co_quan_ban_hanh: str | None = None
+    nguoi_ky: str | None = None
+    trich_yeu: str | None = None
+    hieu_luc: str | None = None
+    tom_tat: str | None = None
+    can_cu: list[str] = []

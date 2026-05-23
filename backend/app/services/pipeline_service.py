@@ -100,7 +100,8 @@ async def process_document_embedding(doc_id: str) -> None:
 
     async with AsyncSessionLocal() as db:
         try:
-            # 1. Fetch document
+            # step 1: fetch + download + extract text
+            logger.info(f"[pipeline] step 1: fetch doc {doc_id}")
             result = await db.execute(
                 select(ReferenceDocument).where(ReferenceDocument.id == doc_id)
             )
@@ -112,19 +113,45 @@ async def process_document_embedding(doc_id: str) -> None:
                 logger.warning(f"[pipeline] doc {doc_id} has no file_path — skipping")
                 return
 
-            # 2. Download file from MinIO
-            logger.info(f"[pipeline] downloading  {doc.file_path}")
+            logger.info(f"[pipeline] step 1: downloading  {doc.file_path}")
             file_data = await asyncio.to_thread(_read_minio, doc.file_path)
-            logger.info(f"[pipeline] downloaded  {len(file_data)} bytes")
+            logger.info(f"[pipeline] step 1: downloaded  {len(file_data)} bytes")
 
-            # 3. Extract text
+            logger.info(f"[pipeline] step 1: extracting text  doc {doc_id}")
             text = await asyncio.to_thread(_extract_text, file_data, doc.file_type)
             if not text.strip():
                 logger.warning(f"[pipeline] doc {doc_id} — no text extracted, embedding skipped")
                 return
-            logger.info(f"[pipeline] extracted  {len(text)} chars")
+            logger.info(f"[pipeline] step 1: extracted  {len(text)} chars")
 
-            # 4. Chunk
+            # step 2: LLM metadata extraction (optional — skipped if LLM not configured)
+            logger.info(f"[pipeline] step 2: LLM metadata {doc_id}")
+            try:
+                from app.services.metadata_extraction_service import (
+                    extract_metadata, save_metadata_preview,
+                )
+                from app.services.llm_service import llm_service
+                from app.core.redis import get_redis
+
+                if llm_service._base_url:
+                    meta = await extract_metadata(text, doc_id, llm_service)
+                    redis = await get_redis()
+                    await save_metadata_preview(doc_id, meta, redis)
+                else:
+                    logger.warning(
+                        "[pipeline] step 2: LLM_BASE_URL rỗng, "
+                        "bỏ qua metadata extraction doc %s — "
+                        "set LLM_BASE_URL trong .env rồi restart server",
+                        doc_id,
+                    )
+            except Exception as e:
+                logger.error(
+                    "[pipeline] step 2: LLM metadata lỗi doc %s: %s",
+                    doc_id, e, exc_info=True,
+                )
+
+            # step 3: chunk
+            logger.info(f"[pipeline] step 3: chunk doc {doc_id}")
             metadata = {
                 "so_ki_hieu": doc.so_ki_hieu,
                 "co_quan_ban_hanh": doc.co_quan_ban_hanh,
@@ -133,9 +160,10 @@ async def process_document_embedding(doc_id: str) -> None:
             if not chunks:
                 logger.warning(f"[pipeline] doc {doc_id} — chunking produced 0 chunks")
                 return
-            logger.info(f"[pipeline] {len(chunks)} chunks created")
+            logger.info(f"[pipeline] step 3: {len(chunks)} chunks created")
 
-            # 5. Embed all chunks (CPU-bound → thread)
+            # step 4: embed
+            logger.info(f"[pipeline] step 4: embed doc {doc_id}")
             chunk_texts = [c["content"] for c in chunks]
             total = len(chunk_texts)
 

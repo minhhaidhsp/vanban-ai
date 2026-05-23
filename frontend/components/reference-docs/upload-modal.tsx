@@ -59,9 +59,10 @@ interface UploadModalProps {
   open: boolean;
   onClose: () => void;
   editing?: RefDoc | null;
+  onUploaded?: (docId: string) => void;
 }
 
-export function UploadModal({ open, onClose, editing }: UploadModalProps) {
+export function UploadModal({ open, onClose, editing, onUploaded }: UploadModalProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,9 +121,12 @@ export function UploadModal({ open, onClose, editing }: UploadModalProps) {
       }
       return doc;
     },
-    onSuccess: () => {
+    onSuccess: (doc) => {
       queryClient.invalidateQueries({ queryKey: ["reference-docs"] });
       toast({ title: editing ? "Đã cập nhật văn bản" : "Đã thêm văn bản" });
+      if (!editing && selectedFile && onUploaded) {
+        onUploaded(doc.id);
+      }
       onClose();
     },
     onError: () => {
