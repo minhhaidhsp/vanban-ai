@@ -47,6 +47,7 @@ class RAGQueryResponse(BaseModel):
     semantic_score: float = 0.0
     has_disclaimer: bool = False
     llm_available: bool
+    fallback_mode: bool = False
     latency_ms: int = 0
 
 
@@ -85,22 +86,15 @@ async def rag_query(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not llm_service._base_url:
-        return RAGQueryResponse(
-            query=body.query,
-            answer="LLM chưa được cấu hình. Vui lòng cập nhật URL Colab.",
-            citations=[],
-            chunks_used=[],
-            confidence=0.0,
-            llm_available=False,
-        )
-
     start = time.monotonic()
     result = await rag_service.query(body.query, db, body.top_k, body.min_score)
     latency_ms = int((time.monotonic() - start) * 1000)
 
-    logger.info("[rag] /query latency=%dms  confidence=%.2f  citations=%d",
-                latency_ms, result["confidence"], len(result["citations"]))
+    logger.info(
+        "[rag] /query latency=%dms  confidence=%.2f  citations=%d  fallback=%s",
+        latency_ms, result["confidence"], len(result["citations"]),
+        result.get("fallback_mode", False),
+    )
 
     return RAGQueryResponse(
         query=result["query"],
@@ -111,7 +105,8 @@ async def rag_query(
         citation_score=result.get("citation_score", 0.0),
         semantic_score=result.get("semantic_score", 0.0),
         has_disclaimer=result.get("has_disclaimer", False),
-        llm_available=True,
+        llm_available=result.get("llm_available", True),
+        fallback_mode=result.get("fallback_mode", False),
         latency_ms=latency_ms,
     )
 

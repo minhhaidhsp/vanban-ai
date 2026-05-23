@@ -2,13 +2,13 @@
 RAG (Retrieval-Augmented Generation) service cho VănBản.AI.
 
 Pipeline: retrieve → rerank → build_context → generate → validate
+Fallback: khi LLM offline → trả chunks trực tiếp (không có LLM answer)
 """
 import asyncio
 import logging
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func as sql_func
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,11 @@ INSUFFICIENT_CONTEXT_MSG = (
     "Không tìm thấy thông tin liên quan "
     "trong kho văn bản. Vui lòng thử câu hỏi khác "
     "hoặc bổ sung thêm văn bản vào kho."
+)
+
+LLM_OFFLINE_MSG = (
+    "⚠️ LLM hiện không khả dụng. "
+    "Dưới đây là các đoạn văn bản liên quan nhất từ kho tài liệu:"
 )
 
 _SYSTEM_PROMPT = """Bạn là trợ lý tra cứu văn bản hành chính Việt Nam chuyên nghiệp.
@@ -64,6 +69,17 @@ def _get_reranker():
         except Exception as exc:
             logger.warning("[rag] CrossEncoder load failed: %s — rerank skipped", exc)
     return _reranker
+
+
+def _chunk_row(c: dict) -> dict:
+    return {
+        "document_title": c.get("document_title"),
+        "so_ki_hieu": c.get("so_ki_hieu"),
+        "dieu_khoan": c.get("dieu_khoan"),
+        "score": float(c.get("score") or 0),
+        "rerank_score": c.get("rerank_score"),
+        "content_preview": c["content"][:300],
+    }
 
 
 # ── Service ──────────────────────────────────────────────────────────────────
@@ -117,6 +133,67 @@ class RAGService:
         result = await db.execute(stmt)
         return [dict(row) for row in result.mappings().all()]
 
+    async def hybrid_search(
+        self,
+        query: str,
+        db: AsyncSession,
+        top_k: int = 5,
+    ) -> list[dict]:
+        """
+        Kết hợp semantic search (pgvector) + FTS (tsvector).
+        hybrid_score = 0.7 × semantic_score + 0.3 × fts_rank
+        """
+        # 1. Semantic search với threshold relaxed
+        semantic_chunks = await self.retrieve(
+            query, db,
+            top_k=top_k * 2,
+            min_score=0.2,
+        )
+
+        # 2. FTS — lấy document-level rank để boost semantic chunks
+        terms = [t.strip() for t in query.strip().split() if t.strip()]
+        if terms:
+            tsquery_str = " & ".join(terms)
+            tsq_expr = sql_func.to_tsquery("simple", sql_func.unaccent(tsquery_str))
+
+            from app.models.reference_document import ReferenceDocument
+            rank_expr = sql_func.ts_rank(
+                ReferenceDocument.search_vector, tsq_expr
+            ).label("fts_rank")
+
+            fts_stmt = (
+                select(ReferenceDocument.id.label("document_id"), rank_expr)
+                .where(ReferenceDocument.search_vector.op("@@")(tsq_expr))
+                .limit(top_k * 2)
+            )
+            try:
+                fts_result = await db.execute(fts_stmt)
+                fts_docs: dict[str, float] = {
+                    str(row.document_id): float(row.fts_rank)
+                    for row in fts_result
+                }
+            except Exception as exc:
+                logger.warning("[rag] FTS failed in hybrid_search: %s", exc)
+                fts_docs = {}
+        else:
+            fts_docs = {}
+
+        # 3. Merge — thêm hybrid_score vào mỗi chunk
+        for chunk in semantic_chunks:
+            doc_id = str(chunk.get("document_id") or "")
+            fts_rank = fts_docs.get(doc_id, 0.0)
+            chunk["hybrid_score"] = (
+                0.7 * float(chunk.get("score") or 0)
+                + 0.3 * fts_rank
+            )
+
+        # 4. Sort by hybrid_score → top_k
+        semantic_chunks.sort(
+            key=lambda x: x.get("hybrid_score", 0),
+            reverse=True,
+        )
+        return semantic_chunks[:top_k]
+
     def rerank(
         self,
         query: str,
@@ -157,7 +234,6 @@ class RAGService:
         """
         Ghép chunks thành context string gửi cho LLM.
         Mỗi chunk được đánh số [1], [2]... để LLM có thể cite.
-        Giới hạn ~3000 token (~12000 ký tự).
         """
         parts: list[str] = []
         total_chars = 0
@@ -233,17 +309,7 @@ class RAGService:
             "citation_score": validation.citation_score,
             "semantic_score": validation.semantic_score,
             "has_disclaimer": validation.has_disclaimer,
-            "chunks_used": [
-                {
-                    "document_title": c.get("document_title"),
-                    "so_ki_hieu": c.get("so_ki_hieu"),
-                    "dieu_khoan": c.get("dieu_khoan"),
-                    "score": float(c.get("score") or 0),
-                    "rerank_score": c.get("rerank_score"),
-                    "content_preview": c["content"][:200],
-                }
-                for c in chunks
-            ],
+            "chunks_used": [_chunk_row(c) for c in chunks],
         }
 
     async def query(
@@ -254,26 +320,79 @@ class RAGService:
         min_score: float = DEFAULT_MIN_SCORE,
     ) -> dict:
         """
-        Orchestrator chính: retrieve → rerank → build_context → generate.
+        Orchestrator chính với fallback chain:
+          1. retrieve → retry với threshold relaxed nếu không có kết quả
+          2. Nếu LLM offline → trả chunks trực tiếp (fallback_mode=True)
+          3. Nếu không có chunks → INSUFFICIENT_CONTEXT_MSG
+          4. Normal: rerank → build_context → generate
         """
+        from app.services.llm_service import llm_service
+
         logger.info("[rag] query: %.100s", question)
 
+        # Bước 1: Retrieve với threshold gốc
         chunks = await self.retrieve(question, db, top_k, min_score)
-        logger.info("[rag] retrieved %d chunks (top_k=%d, min_score=%.2f)",
-                    len(chunks), top_k, min_score)
+        logger.info(
+            "[rag] retrieved %d chunks (top_k=%d, min_score=%.2f)",
+            len(chunks), top_k, min_score,
+        )
 
+        # Bước 1b: Retry với threshold relaxed
+        if not chunks:
+            logger.info("[rag] no chunks at %.2f, retry at 0.2", min_score)
+            chunks = await self.retrieve(question, db, top_k, min_score=0.2)
+            logger.info("[rag] retry retrieved %d chunks", len(chunks))
+
+        # Bước 2: Kiểm tra LLM availability
+        llm_available = bool(llm_service._base_url)
+
+        if not llm_available:
+            logger.warning("[rag] LLM offline, fallback to chunks only")
+
+            if not chunks:
+                return {
+                    "query": question,
+                    "answer": INSUFFICIENT_CONTEXT_MSG,
+                    "citations": [],
+                    "chunks_used": [],
+                    "confidence": 0.0,
+                    "citation_score": 0.0,
+                    "semantic_score": 0.0,
+                    "has_disclaimer": True,
+                    "llm_available": False,
+                    "fallback_mode": True,
+                }
+
+            reranked = self.rerank(question, chunks)
+            return {
+                "query": question,
+                "answer": LLM_OFFLINE_MSG,
+                "citations": [],
+                "chunks_used": [_chunk_row(c) for c in reranked],
+                "confidence": 0.0,
+                "citation_score": 0.0,
+                "semantic_score": 0.0,
+                "has_disclaimer": True,
+                "llm_available": False,
+                "fallback_mode": True,
+            }
+
+        # Bước 3: Không có chunks sau retry
         if not chunks:
             return {
                 "query": question,
                 "answer": INSUFFICIENT_CONTEXT_MSG,
                 "citations": [],
+                "chunks_used": [],
                 "confidence": 0.0,
                 "citation_score": 0.0,
                 "semantic_score": 0.0,
                 "has_disclaimer": False,
-                "chunks_used": [],
+                "llm_available": True,
+                "fallback_mode": False,
             }
 
+        # Bước 4: Normal flow — rerank → build_context → generate
         reranked = self.rerank(question, chunks)
         logger.info("[rag] reranked → %d chunks", len(reranked))
 
@@ -282,6 +401,8 @@ class RAGService:
 
         result = await self.generate(question, context, reranked)
         result["query"] = question
+        result["llm_available"] = True
+        result["fallback_mode"] = False
         return result
 
 
