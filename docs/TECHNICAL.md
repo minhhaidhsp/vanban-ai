@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-05-23
-> Phiên bản: Tuần 9 (Phase 2 - AI/RAG đang triển khai)
+> Phiên bản: Tuần 10 (Phase 2 - AI/RAG hoàn thiện)
 
 ---
 
@@ -29,6 +29,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 7 | vLLM 0.21.0 + Qwen2.5-3B-Instruct trên Google Colab Pro, Cloudflare Tunnel, llm_service.py (chat, health_check, update_base_url), PATCH /llm/config runtime update |
 | 8 | LLM trích xuất metadata tự động khi upload (metadata_extraction_service.py, 8 trường + confidence), Redis cache TTL 1h, MetadataReviewCard UI với polling 3s + confidence badges xanh/vàng/đỏ |
 | 9 | RAG pipeline đầy đủ: pgvector retrieve → CrossEncoder rerank → Qwen generate → HallucinationGuard validate, trang Tra cứu AI (/dashboard/rag-search) với citation badges, citation cards, LLM status badge |
+| 10 | `validate_full()` async (semantic+citation+length weighted confidence), fallback chain (LLM offline → trả chunks, retry 0.35→0.2, hybrid FTS+semantic), system prompt v2, UI: ConfidenceMeter/disclaimer/fallback/CopyButton, Benchmark 10 câu: avg confidence 0.645 |
 
 ### Tech stack thực tế
 
@@ -144,7 +145,7 @@ frontend/
 │   │   ├── reference-docs/
 │   │   │   └── page.tsx         # Kho văn bản tham chiếu (filter, phân trang)
 │   │   └── rag-search/
-│   │       └── page.tsx         # Tra cứu AI: search bar, progress steps, citation cards
+│   │       └── page.tsx         # Tra cứu AI: search bar, ConfidenceMeter, disclaimer/fallback banners, CopyButton, citation cards
 │   ├── print/
 │   │   ├── layout.tsx           # Print layout (minimal)
 │   │   └── [id]/
@@ -444,7 +445,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | Method | Path | Mô tả | Request | Response |
 |--------|------|-------|---------|----------|
 | GET | `/rag/health` | Trạng thái retrieval + LLM, đếm chunks/docs | — | `{retrieval, llm, total_chunks, total_documents}` |
-| POST | `/rag/query` | Full RAG pipeline — yêu cầu auth | `{query, top_k=10, min_score=0.35}` | `RAGQueryResponse {answer, citations, chunks_used, confidence, llm_available, latency_ms}` |
+| POST | `/rag/query` | Full RAG pipeline — yêu cầu auth | `{query, top_k=10, min_score=0.35}` | `RAGQueryResponse {answer, citations, chunks_used, confidence, citation_score, semantic_score, has_disclaimer, llm_available, fallback_mode, latency_ms}` |
 | POST | `/rag/query/stream` | SSE streaming response — yêu cầu auth | `{query, top_k, min_score}` | `text/event-stream`: `chunk` → `citations` → `chunks_used` → `done` |
 
 ### Constants (`/constants`)
@@ -534,7 +535,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 ### `rag_service.py`
 
-**Mô tả:** Orchestrator RAG pipeline — kết hợp pgvector retrieval, CrossEncoder rerank, LLM generation và hallucination guard.
+**Mô tả:** Orchestrator RAG pipeline — kết hợp pgvector retrieval, CrossEncoder rerank, LLM generation và hallucination guard. Phiên bản Tuần 10 thêm hybrid search, fallback chain và system prompt v2.
 
 **Hằng số:**
 - `DEFAULT_TOP_K = 10`, `DEFAULT_MIN_SCORE = 0.35`, `DEFAULT_TOP_N_RERANK = 5`
@@ -542,30 +543,37 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 **Các phương thức:**
 - `retrieve(query, db, top_k=10, min_score=0.35) -> list[dict]`: Embed query bằng BAAI/bge-m3 → pgvector cosine distance ≤ `(1-min_score)` → JOIN `reference_documents` → trả danh sách chunk với `score`, `so_ki_hieu`, `document_title`, `dieu_khoan`.
+- `hybrid_search(query, db, top_k=5) -> list[dict]`: Kết hợp semantic search (min_score=0.2, top_k*2 chunk) với FTS rank ở cấp văn bản. Merge theo `hybrid_score = 0.7×semantic_score + 0.3×fts_rank`. Trả top_k chunk theo hybrid_score.
 - `rerank(query, chunks, top_n=5) -> list[dict]`: CrossEncoder `ms-marco-MiniLM-L-6-v2` (lazy-load), predict scores → sort descending → top_n chunks với field `rerank_score`. Fallback về pgvector order nếu model chưa load.
 - `build_context(chunks) -> str`: Format `[1] Nguồn: {so_ki_hieu} — {title}\n{dieu_khoan}:\n{content}` → cắt tại `MAX_CONTEXT_CHARS`.
-- `generate(query, context, chunks) -> dict`: Gọi `llm_service.chat()` với system prompt 5-rule citation + context → `hallucination_guard.validate()` → trả `{answer, citations, confidence, chunks_used}`.
-- `query(question, db, top_k, min_score) -> dict`: Orchestrator chính: retrieve → rerank → build_context → generate.
+- `generate(query, context, chunks) -> dict`: Gọi `llm_service.chat()` với system prompt v2 (6 quy tắc + ví dụ positive/negative, `temperature=0.05`) → `hallucination_guard.validate_full()` async → thêm ⚠️ disclaimer nếu `confidence < 0.5` → trả `{answer, citations, confidence, citation_score, semantic_score, has_disclaimer, chunks_used}`.
+- `query(question, db, top_k, min_score) -> dict`: Orchestrator với fallback chain 4 bước:
+  1. `retrieve(min_score=0.35)` — ngưỡng chuẩn
+  2. Nếu rỗng: `retrieve(min_score=0.2)` — retry ngưỡng thấp hơn
+  3. Nếu LLM offline (`not llm_service._base_url`): trả chunks trực tiếp với `fallback_mode=True`, `llm_available=False`
+  4. Nếu không có chunk: trả `INSUFFICIENT_CONTEXT_MSG`, `fallback_mode=False`
+  5. Bình thường: rerank → build_context → generate
 
-**System prompt:** Quy tắc citation nghiêm ngặt — mọi thông tin phải cite `[1]`, `[2]`... Kèm ví dụ mẫu để Qwen 3B tuân theo.
+**System prompt v2:** 6 quy tắc citation nghiêm ngặt + ví dụ mẫu positive/negative. `temperature=0.05` (giảm từ 0.1) để LLM ít "sáng tạo" hơn.
 
 ### `hallucination_guard.py`
 
-**Mô tả:** Validate citations trong câu trả lời LLM so với danh sách chunk thực tế.
-
-**Hàm chính:** `validate(answer: str, chunks: list[dict]) -> ValidationResult`
+**Mô tả:** Validate citations và đo độ tin cậy của câu trả lời LLM so với danh sách chunk thực tế. Phiên bản Tuần 10 bổ sung semantic similarity check và weighted confidence.
 
 **`ValidationResult` (dataclass):**
 - `is_valid: bool` — True nếu tất cả citations đều hợp lệ
-- `confidence_score: float` — `valid/(valid+invalid)`, range [0.0, 1.0]
+- `confidence_score: float` — weighted average `0.4×citation + 0.4×semantic + 0.2×length`, range [0.0, 1.0]
+- `citation_score: float` — `valid_citations / total_citations` (1.0 nếu không có citation)
+- `semantic_score: float` — cosine similarity giữa embedding answer và embedding chunks (max qua tất cả chunks)
 - `valid_citations: list[str]` — danh sách citation đã được xác nhận
 - `invalid_citations: list[str]` — danh sách citation không tìm thấy trong chunks
-- `message: str` — mô tả kết quả
+- `has_disclaimer: bool` — True nếu `confidence_score < 0.5`
+- `message: str` — "OK" nếu ≥0.7, "Cần kiểm tra lại" nếu ≥0.4, "Độ tin cậy thấp" nếu <0.4
 
-**Logic validate:**
-1. Parse `[N]` (số thứ tự): kiểm tra N ≤ len(chunks)
-2. Parse `[Nguồn: xxx]`: so sánh với `so_ki_hieu` và `document_title`
-3. confidence_score = số citation valid / tổng citations (1.0 nếu không có citation nào)
+**Các hàm:**
+- `validate(answer, chunks) -> ValidationResult` (sync): Giữ lại để tương thích ngược. Chỉ tính `citation_score`, `semantic_score=0.0`. Parse `[N]` kiểm tra N ≤ len(chunks); parse `[Nguồn: xxx]` so với `so_ki_hieu`/`document_title`.
+- `semantic_similarity_check(answer, chunks) -> float` (async): Embed `answer[:500]` qua `asyncio.to_thread(embed_text)`, tính cosine với từng chunk embedding (cũng embed chunk[:500]) → trả max similarity.
+- `validate_full(answer, chunks) -> ValidationResult` (async): Gọi `validate()` lấy citation_score → gọi `semantic_similarity_check()` lấy semantic_score → `length_score = min(1.0, len(answer)/200)` → `confidence = 0.4×citation + 0.4×semantic + 0.2×length`.
 
 ### `pdf_service.py`
 
@@ -580,6 +588,41 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 - `_patch_xhtml2pdf_font_loader()`: Patch xhtml2pdf để đọc font từ `BytesIO` thay vì file tạm (workaround lỗi Windows path).
 
 **Bố cục văn bản được render:** 18 loại văn bản (`NQ`, `QĐ`, `CT`, `CV`, `GM`, `GGT`, `GNP`, ...) với logic `has_type_name` và `has_kinh_gui`.
+
+---
+
+## 6b. Benchmark Results (Tuần 10)
+
+### Thiết lập benchmark
+
+- **Script:** `backend/scripts/benchmark_rag.py` — 10 test cases chuẩn, lưu kết quả vào `benchmark_results.json`
+- **LLM:** Qwen2.5-3B-Instruct qua Cloudflare Tunnel
+- **Dữ liệu:** Toàn bộ reference docs đã được embed trong DB (kho hiện tại)
+- **Ngày chạy:** 2026-05-23
+
+### Kết quả Tuần 10
+
+| Chỉ số | Giá trị |
+|--------|---------|
+| Avg confidence | 0.645 |
+| Avg citation score | 0.750 |
+| Avg semantic score | 0.580 |
+| Has result (có chunk trả về) | 10/10 |
+| Keyword hits | 4/10 (*) |
+| Fallback mode | 0/10 |
+
+(*) Keyword hits thấp do test case dùng ASCII không dấu, trong khi câu trả lời LLM trả về tiếng Việt có dấu Unicode. Không phản ánh chất lượng thực — xem Issue 12.
+
+### So sánh Tuần 9 vs Tuần 10
+
+| Chỉ số | Tuần 9 | Tuần 10 | Thay đổi |
+|--------|--------|---------|---------|
+| Confidence scoring | Chỉ dựa citation format (thường =1.0) | Weighted: citation 40% + semantic 40% + length 20% | Thực tế hơn |
+| Avg confidence | ~1.0 (ảo) | 0.645 (thực) | Chính xác hơn |
+| LLM offline | Trả lỗi / màn hình trắng | Fallback mode: trả chunks trực tiếp | 10/10 có kết quả |
+| Retry mechanism | Không có | retry min_score 0.35→0.2 | 100% has_result |
+| Hybrid search | Không có | 0.7×semantic + 0.3×FTS | Precision cao hơn |
+| Disclaimer | Không có | ⚠️ tự động khi confidence <0.5 | Minh bạch hơn |
 
 ---
 
@@ -689,18 +732,28 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 ```
 1. User vào /dashboard/rag-search → nhập câu hỏi → Ctrl+Enter hoặc nút Tìm kiếm
 2. Frontend POST /api/v1/rag/query {query, top_k=10, min_score=0.35}
-3. Backend RAGService.query():
-   a. retrieve(): embed_text(query) → pgvector cosine search JOIN reference_documents
-      Chỉ lấy chunk có cosine_distance ≤ (1 - min_score) = 0.65
-   b. rerank(): CrossEncoder.predict([(query, chunk.content)]) → sort desc → top 5
-   c. build_context(): format [1][2]... cắt tại 2500 ký tự (~1500 token)
-   d. generate(): LLM system prompt (5 quy tắc citation) + context + câu hỏi
-      → llm_service.chat(messages, temperature=0.1, max_tokens=512)
-      → hallucination_guard.validate(answer, chunks)
-4. Trả RAGQueryResponse {answer, citations, chunks_used, confidence, latency_ms}
+3. Backend RAGService.query() — fallback chain 4 bước:
+   a. retrieve(min_score=0.35): embed_text(query) → pgvector cosine search JOIN reference_documents
+   b. Nếu rỗng: retry retrieve(min_score=0.2) — ngưỡng thấp hơn
+   c. Nếu LLM offline (llm_service._base_url rỗng):
+      → trả chunks trực tiếp, fallback_mode=True, llm_available=False
+   d. Nếu không có chunk sau retry:
+      → trả INSUFFICIENT_CONTEXT_MSG, chunks_used=[], confidence=0.0
+   e. Bình thường:
+      - rerank(): CrossEncoder.predict([(query, chunk.content)]) → sort desc → top 5
+      - build_context(): format [1][2]... cắt tại 2500 ký tự
+      - generate(): system prompt v2 (6 quy tắc + examples) + context
+        → llm_service.chat(temperature=0.05, max_tokens=512)
+        → hallucination_guard.validate_full() async (semantic+citation+length)
+        → thêm ⚠️ disclaimer nếu confidence < 0.5
+4. Trả RAGQueryResponse {answer, citations, chunks_used, confidence,
+   citation_score, semantic_score, has_disclaimer, llm_available, fallback_mode, latency_ms}
 5. Frontend:
-   - Parse [1][2] trong answer → render thành clickable citation badges
-   - Click badge → scroll to #citation-{n} trong right panel
+   - Nếu fallback_mode: hiển thị banner cam + danh sách văn bản liên quan (không có badge citation)
+   - Nếu has_disclaimer: hiển thị banner vàng cảnh báo độ tin cậy thấp
+   - Bình thường: parse [1][2] → clickable citation badges
+   - ConfidenceMeter: progress bar màu xanh/vàng/đỏ, hiển thị citation% và semantic%
+   - CopyButton: copy answer + sources ra clipboard
    - Right panel (40%): CitationCard với so_ki_hieu, dieu_khoan, content_preview, score
    - LLM status badge polling /rag/health mỗi 60 giây
 ```
@@ -919,6 +972,15 @@ Qwen2.5-3B-Instruct có `max_model_len=4096` token. Vietnamese ~1.5 chars/token 
 **12. Reranker lazy-load để không block startup**
 CrossEncoder `ms-marco-MiniLM-L-6-v2` (~70MB) được lazy-load khi request RAG đầu tiên thay vì eager-load khi startup — tránh tăng thêm ~10 giây thời gian khởi động. Sau lần đầu, model được cache trong `_reranker` module-level variable.
 
+**13. Weighted confidence thay vì chỉ dựa citation format**
+Tuần 9, `confidence_score = valid_citations / total_citations` — thường bằng 1.0 vì LLM không có citation thì không có citation invalid. Tuần 10 dùng `0.4×citation + 0.4×semantic + 0.2×length` để phản ánh thực chất: answer ngắn hoặc không liên quan đến context sẽ có confidence thấp dù không vi phạm citation format.
+
+**14. Fallback chain 4 bước thay vì error khi LLM offline**
+Trước: endpoint có `if not llm_service._base_url: return error`. Sau: service xử lý hoàn toàn — retry threshold thấp đảm bảo 100% has_result, nếu LLM offline vẫn trả được danh sách chunk liên quan với flag `fallback_mode=True`. Frontend hiển thị banner cam thay vì màn hình trắng.
+
+**15. Hybrid search score = 0.7×semantic + 0.3×FTS**
+Tỷ lệ 7:3 dựa trên thực nghiệm: semantic search bge-m3 cho precision cao với câu hỏi tự nhiên, FTS giúp khi query chứa tên văn bản/số ký hiệu chính xác (ví dụ "30/2020/NĐ-CP"). Merge ở cấp document (không phải chunk) để tránh trùng lặp: mỗi document chỉ xuất hiện một lần với chunk có score cao nhất.
+
 ### Known Issues và Workarounds
 
 **Issue 1: xhtml2pdf font loader lỗi trên Windows**
@@ -950,3 +1012,9 @@ Một số PDF hành chính dùng font VNI/TCVN (không phải Unicode). `pdfplu
 
 **Issue 10: CrossEncoder reranker chậm khi load lần đầu**
 `cross-encoder/ms-marco-MiniLM-L-6-v2` được lazy-load khi request RAG đầu tiên (~5-10 giây download model ~70MB). Các request sau nhanh (<200ms). **Workaround:** Gọi `GET /api/v1/rag/health` sau khi khởi động server để trigger lazy-load. **Fix:** Eager-load reranker trong lifespan() tương tự embedding model.
+
+**Issue 11: `validate_full()` thêm ~0.5 giây latency mỗi request**
+`semantic_similarity_check()` trong `validate_full()` gọi `embed_text()` cho answer và từng chunk qua `asyncio.to_thread()`. Với 5 chunk, tổng ~6 lần embed → ~0.5 giây trên CPU. **Workaround:** Chấp nhận latency hiện tại (tổng end-to-end ~3-5 giây vẫn acceptable). **Fix tuần sau:** Batch embed answer + tất cả chunks trong 1 lần gọi `embed_batch()`, giảm xuống ~0.1 giây.
+
+**Issue 12: Benchmark keyword_hit thấp (4/10) không phản ánh chất lượng thực**
+Test cases trong `benchmark_rag.py` dùng `expected_keywords` là ASCII không dấu (vd: `"ho tich"`, `"can cu"`). Câu trả lời LLM trả về tiếng Việt có dấu Unicode (vd: `"hộ tịch"`, `"căn cứ"`). `str.lower()` match thất bại vì `"hộ tịch" != "ho tich"`. Confidence thực tế của 7 câu hỏi in-scope là 0.75-0.91 (cao). **Workaround:** Đọc `confidence` và `semantic_score` thay vì `keyword_hit` để đánh giá chất lượng. **Fix:** Dùng `unidecode` để normalize cả answer và keyword trước khi so sánh.
