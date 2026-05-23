@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 import time
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
@@ -69,6 +71,50 @@ class LLMService:
                     await asyncio.sleep(wait)
 
         raise last_exc
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        temperature: float | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream tokens one-by-one via SSE. Yields each token string."""
+        if not self._base_url:
+            yield "[LLM_OFFLINE]"
+            return
+
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self._temperature,
+            "max_tokens": self._max_tokens,
+            "stream": True,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self._base_url}/v1/chat/completions",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            content = chunk["choices"][0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except Exception:
+                            continue
+        except Exception as exc:
+            logger.error("[llm] stream error: %s", exc)
+            yield f"[ERROR: {exc}]"
 
     async def health_check(self) -> dict[str, Any]:
         if not self._base_url:
