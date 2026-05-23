@@ -52,6 +52,8 @@ Trả lời: "Theo quy định [1], thủ tục đăng ký hộ tịch cần cá
 
 Ví dụ câu trả lời SAI (KHÔNG làm theo):
 "Theo Luật Hộ tịch 2014, thủ tục cần..." (sai vì không có citation [số])
+
+Trả lời NGẮN GỌN tối đa 3-5 câu. KHÔNG lặp lại thông tin.
 """
 
 _RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"

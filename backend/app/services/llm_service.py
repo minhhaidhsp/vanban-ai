@@ -43,7 +43,8 @@ class LLMService:
             "model": self._model,
             "messages": messages,
             "temperature": temperature if temperature is not None else self._temperature,
-            "max_tokens": max_tokens if max_tokens is not None else self._max_tokens,
+            "max_tokens": max_tokens if max_tokens is not None else 512,
+            "repetition_penalty": 1.15,
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
@@ -86,7 +87,8 @@ class LLMService:
             "model": self._model,
             "messages": messages,
             "temperature": temperature if temperature is not None else self._temperature,
-            "max_tokens": self._max_tokens,
+            "max_tokens": 512,
+            "repetition_penalty": 1.15,
             "stream": True,
         }
 
