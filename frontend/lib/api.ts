@@ -190,7 +190,11 @@ export interface RAGQueryResponse {
   citations: string[];
   chunks_used: ChunkUsed[];
   confidence: number;
+  citation_score: number;
+  semantic_score: number;
+  has_disclaimer: boolean;
   llm_available: boolean;
+  fallback_mode: boolean;
   latency_ms: number;
 }
 

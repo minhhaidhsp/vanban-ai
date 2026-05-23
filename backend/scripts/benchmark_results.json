@@ -1,0 +1,123 @@
+{
+  "date": "2026-05-23T22:14:27.225844",
+  "llm_url": "https://write-link-wed-asus.trycloudflare.com",
+  "summary": {
+    "avg_confidence": 0.645,
+    "avg_citation": 0.75,
+    "avg_semantic": 0.58,
+    "keyword_hits": "4/10",
+    "has_result": "10/10"
+  },
+  "results": [
+    {
+      "question": "Thu tuc dang ky khai sinh can gi?",
+      "confidence": 0.754,
+      "citation_score": 1.0,
+      "semantic_score": 0.622,
+      "has_result": true,
+      "keyword_hit": false,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    },
+    {
+      "question": "Quy dinh ve so ky hieu van ban hanh chinh?",
+      "confidence": 0.85,
+      "citation_score": 1.0,
+      "semantic_score": 0.696,
+      "has_result": true,
+      "keyword_hit": false,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    },
+    {
+      "question": "Thoi han giai quyet thu tuc hanh chinh?",
+      "confidence": 0.74,
+      "citation_score": 1.0,
+      "semantic_score": 0.657,
+      "has_result": true,
+      "keyword_hit": false,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    },
+    {
+      "question": "Can cu phap ly ban hanh quyet dinh?",
+      "confidence": 0.662,
+      "citation_score": 0.5,
+      "semantic_score": 0.654,
+      "has_result": true,
+      "keyword_hit": false,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    },
+    {
+      "question": "Nuoi con nuoi can thu tuc gi?",
+      "confidence": 0.907,
+      "citation_score": 1.0,
+      "semantic_score": 0.767,
+      "has_result": true,
+      "keyword_hit": false,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    },
+    {
+      "question": "Quy dinh xay dung cau duong?",
+      "confidence": 0.396,
+      "citation_score": 0.5,
+      "semantic_score": 0.403,
+      "has_result": true,
+      "keyword_hit": true,
+      "fallback": false,
+      "has_disclaimer": true,
+      "chunks": 5
+    },
+    {
+      "question": "Thue thu nhap doanh nghiep?",
+      "confidence": 0.609,
+      "citation_score": 0.5,
+      "semantic_score": 0.521,
+      "has_result": true,
+      "keyword_hit": true,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    },
+    {
+      "question": "Dang ky kinh doanh ho ca the?",
+      "confidence": 0.397,
+      "citation_score": 0.5,
+      "semantic_score": 0.405,
+      "has_result": true,
+      "keyword_hit": true,
+      "fallback": false,
+      "has_disclaimer": true,
+      "chunks": 5
+    },
+    {
+      "question": "UBND thanh pho co tham quyen gi?",
+      "confidence": 0.394,
+      "citation_score": 0.5,
+      "semantic_score": 0.399,
+      "has_result": true,
+      "keyword_hit": false,
+      "fallback": false,
+      "has_disclaimer": true,
+      "chunks": 5
+    },
+    {
+      "question": "So Tu phap quan ly linh vuc nao?",
+      "confidence": 0.744,
+      "citation_score": 1.0,
+      "semantic_score": 0.671,
+      "has_result": true,
+      "keyword_hit": true,
+      "fallback": false,
+      "has_disclaimer": false,
+      "chunks": 5
+    }
+  ]
+}
