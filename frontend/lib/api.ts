@@ -175,6 +175,44 @@ export const refDocApi = {
   },
 };
 
+export interface ChunkUsed {
+  document_title: string | null;
+  so_ki_hieu: string | null;
+  dieu_khoan: string | null;
+  score: number;
+  rerank_score: number | null;
+  content_preview: string;
+}
+
+export interface RAGQueryResponse {
+  query: string;
+  answer: string;
+  citations: string[];
+  chunks_used: ChunkUsed[];
+  confidence: number;
+  llm_available: boolean;
+  latency_ms: number;
+}
+
+export interface RAGHealthResponse {
+  retrieval: string;
+  llm: string;
+  total_chunks: number;
+  total_documents: number;
+}
+
+export const ragApi = {
+  query: async (payload: { query: string; top_k?: number; min_score?: number }) => {
+    const { data } = await api.post("/rag/query", payload);
+    return data as RAGQueryResponse;
+  },
+
+  health: async () => {
+    const { data } = await api.get("/rag/health");
+    return data as RAGHealthResponse;
+  },
+};
+
 export const documentApi = {
   list: async (skip = 0, limit = 20) => {
     const { data } = await api.get("/documents/", { params: { skip, limit } });

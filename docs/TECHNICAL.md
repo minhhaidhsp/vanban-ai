@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-05-23
-> Phiên bản: Tuần 8
+> Phiên bản: Tuần 9 (Phase 2 - AI/RAG đang triển khai)
 
 ---
 
@@ -25,8 +25,10 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 5 | Embedding pgvector BAAI/bge-m3 cho reference docs (dim=1024) |
 | 6 | Chunk-level semantic search (reference_doc_chunks), pipeline tự động |
 | 6b | Full-text search tiếng Việt (unaccent + tsvector trigger) |
-| 7 | Preview mode A4 read-only (DocumentPreview + DocumentPreviewPaged), Ctrl+Shift+P, xuất PDF (xhtml2pdf + Puppeteer) |
-| 8 | LLM trích xuất metadata tự động khi upload (metadata_extraction_service, MetadataReviewCard, Redis cache, confidence scoring) |
+| 6.5 | Preview mode A4 read-only (DocumentPreview + DocumentPreviewPaged), Ctrl+Shift+P, nút quay lại soạn thảo, xuất PDF (xhtml2pdf + Puppeteer) |
+| 7 | vLLM 0.21.0 + Qwen2.5-3B-Instruct trên Google Colab Pro, Cloudflare Tunnel, llm_service.py (chat, health_check, update_base_url), PATCH /llm/config runtime update |
+| 8 | LLM trích xuất metadata tự động khi upload (metadata_extraction_service.py, 8 trường + confidence), Redis cache TTL 1h, MetadataReviewCard UI với polling 3s + confidence badges xanh/vàng/đỏ |
+| 9 | RAG pipeline đầy đủ: pgvector retrieve → CrossEncoder rerank → Qwen generate → HallucinationGuard validate, trang Tra cứu AI (/dashboard/rag-search) với citation badges, citation cards, LLM status badge |
 
 ### Tech stack thực tế
 
@@ -50,10 +52,17 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - MinIO 7.2.11 (object storage S3-compatible)
 - python-jose 3.3.0 + passlib[bcrypt] 1.7.4 (JWT auth)
 - sentence-transformers ≥3.0.0 với model **BAAI/bge-m3** (dim=1024)
+- cross-encoder/ms-marco-MiniLM-L-6-v2 (reranker cho RAG pipeline)
+- httpx ≥0.27.0 (async HTTP client cho LLM API)
 - pdfplumber ≥0.11.0 (trích xuất text từ PDF)
 - python-docx ≥1.1.0 (trích xuất text từ DOCX)
 - xhtml2pdf ≥0.2.0 + ReportLab (xuất PDF phía backend)
 - Pydantic 2.10.3 + pydantic-settings 2.6.1
+
+**External services:**
+- vLLM 0.21.0 (LLM inference server, chạy trên Google Colab Pro T4 GPU)
+- Qwen/Qwen2.5-3B-Instruct (LLM model, max_model_len=4096 token)
+- Cloudflare Tunnel (expose Colab → internet; URL thay đổi mỗi session)
 
 ---
 
@@ -75,12 +84,21 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 │  /api/v1/users       /api/v1/reference-docs                  │
 │  /api/v1/constants   /api/v1/organizations                   │
 │  /api/v1/recipient-suggestions                               │
+│  /api/v1/llm         /api/v1/rag                             │
 │                                                              │
 │  Services: embedding_service, chunking_service,              │
-│            pipeline_service, pdf_service                     │
-└────┬───────────────┬──────────────────┬──────────────────────┘
-     │               │                  │
-┌────▼───┐    ┌──────▼──────┐    ┌──────▼──────┐
+│            pipeline_service, pdf_service,                    │
+│            llm_service, rag_service, hallucination_guard,    │
+│            metadata_extraction_service                       │
+└────┬───────────────┬──────────────────┬──────────────────────────┘
+     │               │                  │  HTTPS (httpx)
+     │               │                  │  ┌────────────────────────┐
+     │               │                  └─►│ Cloudflare Tunnel       │
+     │               │                     │ → vLLM (Colab T4 GPU)   │
+     │               │                     │   Qwen2.5-3B-Instruct   │
+     │               │                     └────────────────────────┘
+     │               │
+┌────▼───┐    ┌──────▼──────┐    ┌─────────────┐
 │ Redis  │    │ PostgreSQL   │    │   MinIO      │
 │ Cache  │    │ + pgvector   │    │ Object Store │
 │        │    │ + unaccent   │    │ Bucket:      │
@@ -123,8 +141,10 @@ frontend/
 │   │   ├── documents/
 │   │   │   ├── new/page.tsx     # Tạo văn bản mới → DocumentEditor (SSR=false)
 │   │   │   └── [id]/page.tsx    # Chỉnh sửa văn bản → DocumentEditor
-│   │   └── reference-docs/
-│   │       └── page.tsx         # Kho văn bản tham chiếu (filter, phân trang)
+│   │   ├── reference-docs/
+│   │   │   └── page.tsx         # Kho văn bản tham chiếu (filter, phân trang)
+│   │   └── rag-search/
+│   │       └── page.tsx         # Tra cứu AI: search bar, progress steps, citation cards
 │   ├── print/
 │   │   ├── layout.tsx           # Print layout (minimal)
 │   │   └── [id]/
@@ -136,7 +156,7 @@ frontend/
 ├── components/
 │   ├── providers.tsx            # TanStack Query + Toast providers
 │   ├── dashboard/
-│   │   ├── sidebar.tsx          # Nav sidebar: Tổng quan, Tài liệu, Kho văn bản...
+│   │   ├── sidebar.tsx          # Nav sidebar: Tổng quan, Tài liệu, Kho văn bản, Tra cứu AI...
 │   │   ├── document-list.tsx    # Grid danh sách tài liệu, nút xóa/sửa
 │   │   └── document-dialog.tsx  # Dialog tạo tài liệu mới (title)
 │   ├── editor/
@@ -149,7 +169,8 @@ frontend/
 │   │   └── recipient-tag-input.tsx  # Tag input cho Nơi nhận
 │   ├── reference-docs/
 │   │   ├── ref-doc-table.tsx    # Bảng danh sách văn bản tham chiếu
-│   │   └── upload-modal.tsx     # Dialog thêm/sửa + upload file
+│   │   ├── upload-modal.tsx     # Dialog thêm/sửa + upload file
+│   │   └── MetadataReviewCard.tsx  # Dialog polling + review metadata từ LLM
 │   └── ui/                      # shadcn/ui components (Button, Input, Dialog...)
 ├── lib/
 │   ├── api.ts                   # Axios client + authApi, documentApi, refDocApi...
@@ -177,7 +198,9 @@ backend/
 │   │           ├── documents.py # CRUD documents + export/pdf + upload
 │   │           ├── organizations.py  # GET /current
 │   │           ├── recipient_suggestions.py  # GET /  POST /increment
-│   │           ├── reference_docs.py  # CRUD + upload + 3 search endpoints
+│   │           ├── reference_docs.py  # CRUD + upload + 3 search + metadata endpoints
+│   │           ├── llm.py             # GET /health, POST /test, PATCH /config
+│   │           ├── rag.py             # GET /health, POST /query, POST /query/stream
 │   │           └── constants.py # GET /nd30 (hằng số NĐ30)
 │   ├── core/
 │   │   ├── config.py            # Settings (pydantic-settings, .env)
@@ -200,7 +223,11 @@ backend/
 │   │   ├── embedding_service.py # BAAI/bge-m3 singleton, embed_text(), embed_batch()
 │   │   ├── chunking_service.py  # chunk_document() — Điều/Khoản/Mục + sliding window
 │   │   ├── pipeline_service.py  # process_document_embedding() BackgroundTask
-│   │   └── pdf_service.py       # generate_pdf() — xhtml2pdf + DejaVu Serif
+│   │   ├── pdf_service.py       # generate_pdf() — xhtml2pdf + DejaVu Serif
+│   │   ├── llm_service.py       # LLMService singleton — chat(), health_check(), update_base_url()
+│   │   ├── metadata_extraction_service.py  # extract_metadata(), save/get_metadata_preview()
+│   │   ├── rag_service.py       # RAGService — retrieve, rerank, build_context, generate, query
+│   │   └── hallucination_guard.py  # validate(answer, chunks) → ValidationResult
 │   └── constants/
 │       └── nd30_2020.py         # Hằng số NĐ30 (FontStyle, VAN_BAN_TYPES, templates...)
 ├── alembic/
@@ -401,6 +428,24 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | PUT | `/reference-docs/{id}` | Cập nhật toàn bộ metadata | `RefDocUpdate` | `RefDocResponse` |
 | DELETE | `/reference-docs/{id}` | Xóa (kèm file MinIO) | — | 204 No Content |
 | POST | `/reference-docs/{id}/upload` | Upload file + trigger embedding pipeline | `multipart: file` | `RefDocResponse` |
+| GET | `/reference-docs/{id}/metadata-preview` | Đọc Redis cache metadata từ LLM | — | `{doc_id, status: "ready"\|"processing"\|"not_available", fields, confidence}` |
+| POST | `/reference-docs/{id}/metadata-confirm` | Xác nhận metadata, UPDATE DB, xóa Redis key | `MetadataConfirmRequest` | `RefDocResponse` |
+
+### LLM (`/llm`)
+
+| Method | Path | Mô tả | Request | Response |
+|--------|------|-------|---------|----------|
+| GET | `/llm/health` | Kiểm tra LLM — gọi GET /v1/models | — | `{status, model, latency_ms}` |
+| POST | `/llm/test` | Test prompt đơn giản | `{prompt: str}` | `{response: str, latency_ms: int}` |
+| PATCH | `/llm/config` | Cập nhật LLM_BASE_URL runtime (không cần restart) | `{llm_base_url: str}` | `{ok: true, base_url: str}` |
+
+### RAG (`/rag`)
+
+| Method | Path | Mô tả | Request | Response |
+|--------|------|-------|---------|----------|
+| GET | `/rag/health` | Trạng thái retrieval + LLM, đếm chunks/docs | — | `{retrieval, llm, total_chunks, total_documents}` |
+| POST | `/rag/query` | Full RAG pipeline — yêu cầu auth | `{query, top_k=10, min_score=0.35}` | `RAGQueryResponse {answer, citations, chunks_used, confidence, llm_available, latency_ms}` |
+| POST | `/rag/query/stream` | SSE streaming response — yêu cầu auth | `{query, top_k, min_score}` | `text/event-stream`: `chunk` → `citations` → `chunks_used` → `done` |
 
 ### Constants (`/constants`)
 
@@ -475,6 +520,52 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 **Confidence scoring:** Mỗi field có mức `high / medium / low` do LLM tự đánh giá. Frontend `MetadataReviewCard` hiển thị badge màu xanh/vàng/đỏ tương ứng.
 
 **Tích hợp pipeline:** `pipeline_service.py` gọi `extract_metadata()` ở **step 2** (sau extract text, trước chunk). Bước này là optional — nếu `LLM_BASE_URL` rỗng hoặc LLM lỗi, pipeline vẫn tiếp tục chunk và embed bình thường.
+
+### `llm_service.py`
+
+**Mô tả:** Singleton `LLMService` — client OpenAI-compatible cho vLLM. Khởi tạo một lần khi module được import. URL được lưu trong `_base_url` (string), cập nhật runtime qua `update_base_url()`.
+
+**Các phương thức:**
+- `chat(messages, temperature=0.7, max_tokens=512, json_mode=False) -> str`: Gọi POST `{_base_url}/v1/chat/completions`. Retry tối đa 3 lần với timeout 30s. Raise `ValueError` nếu `_base_url` rỗng.
+- `health_check() -> dict`: Gọi GET `{_base_url}/v1/models`, đo latency, trả `{status, model, latency_ms}`.
+- `update_base_url(url: str)`: Cập nhật `_base_url` ngay lập tức — không cần restart server. Dùng bởi `PATCH /llm/config`.
+
+**Lưu ý:** `LLMService()` singleton được tạo khi module import, trước khi `.env` được đọc qua `@lru_cache`. Nếu `LLM_BASE_URL` trong `.env` rỗng (hoặc server chưa restart sau khi thêm biến), dùng `PATCH /llm/config` để cập nhật runtime.
+
+### `rag_service.py`
+
+**Mô tả:** Orchestrator RAG pipeline — kết hợp pgvector retrieval, CrossEncoder rerank, LLM generation và hallucination guard.
+
+**Hằng số:**
+- `DEFAULT_TOP_K = 10`, `DEFAULT_MIN_SCORE = 0.35`, `DEFAULT_TOP_N_RERANK = 5`
+- `MAX_CONTEXT_CHARS = 2500` (~1500 token Vietnamese, an toàn với Qwen2.5-3B max_model_len=4096)
+
+**Các phương thức:**
+- `retrieve(query, db, top_k=10, min_score=0.35) -> list[dict]`: Embed query bằng BAAI/bge-m3 → pgvector cosine distance ≤ `(1-min_score)` → JOIN `reference_documents` → trả danh sách chunk với `score`, `so_ki_hieu`, `document_title`, `dieu_khoan`.
+- `rerank(query, chunks, top_n=5) -> list[dict]`: CrossEncoder `ms-marco-MiniLM-L-6-v2` (lazy-load), predict scores → sort descending → top_n chunks với field `rerank_score`. Fallback về pgvector order nếu model chưa load.
+- `build_context(chunks) -> str`: Format `[1] Nguồn: {so_ki_hieu} — {title}\n{dieu_khoan}:\n{content}` → cắt tại `MAX_CONTEXT_CHARS`.
+- `generate(query, context, chunks) -> dict`: Gọi `llm_service.chat()` với system prompt 5-rule citation + context → `hallucination_guard.validate()` → trả `{answer, citations, confidence, chunks_used}`.
+- `query(question, db, top_k, min_score) -> dict`: Orchestrator chính: retrieve → rerank → build_context → generate.
+
+**System prompt:** Quy tắc citation nghiêm ngặt — mọi thông tin phải cite `[1]`, `[2]`... Kèm ví dụ mẫu để Qwen 3B tuân theo.
+
+### `hallucination_guard.py`
+
+**Mô tả:** Validate citations trong câu trả lời LLM so với danh sách chunk thực tế.
+
+**Hàm chính:** `validate(answer: str, chunks: list[dict]) -> ValidationResult`
+
+**`ValidationResult` (dataclass):**
+- `is_valid: bool` — True nếu tất cả citations đều hợp lệ
+- `confidence_score: float` — `valid/(valid+invalid)`, range [0.0, 1.0]
+- `valid_citations: list[str]` — danh sách citation đã được xác nhận
+- `invalid_citations: list[str]` — danh sách citation không tìm thấy trong chunks
+- `message: str` — mô tả kết quả
+
+**Logic validate:**
+1. Parse `[N]` (số thứ tự): kiểm tra N ≤ len(chunks)
+2. Parse `[Nguồn: xxx]`: so sánh với `so_ki_hieu` và `document_title`
+3. confidence_score = số citation valid / tổng citations (1.0 nếu không có citation nào)
 
 ### `pdf_service.py`
 
@@ -593,7 +684,28 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 4. Trả về RefDocChunkSearchResponse: document_title, so_ki_hieu, dieu_khoan, content_preview (200 chars), score
 ```
 
-### Luồng 6: Xuất PDF
+### Luồng 6: Tra cứu AI (RAG Query)
+
+```
+1. User vào /dashboard/rag-search → nhập câu hỏi → Ctrl+Enter hoặc nút Tìm kiếm
+2. Frontend POST /api/v1/rag/query {query, top_k=10, min_score=0.35}
+3. Backend RAGService.query():
+   a. retrieve(): embed_text(query) → pgvector cosine search JOIN reference_documents
+      Chỉ lấy chunk có cosine_distance ≤ (1 - min_score) = 0.65
+   b. rerank(): CrossEncoder.predict([(query, chunk.content)]) → sort desc → top 5
+   c. build_context(): format [1][2]... cắt tại 2500 ký tự (~1500 token)
+   d. generate(): LLM system prompt (5 quy tắc citation) + context + câu hỏi
+      → llm_service.chat(messages, temperature=0.1, max_tokens=512)
+      → hallucination_guard.validate(answer, chunks)
+4. Trả RAGQueryResponse {answer, citations, chunks_used, confidence, latency_ms}
+5. Frontend:
+   - Parse [1][2] trong answer → render thành clickable citation badges
+   - Click badge → scroll to #citation-{n} trong right panel
+   - Right panel (40%): CitationCard với so_ki_hieu, dieu_khoan, content_preview, score
+   - LLM status badge polling /rag/health mỗi 60 giây
+```
+
+### Luồng 8: Xuất PDF
 
 **Phương án A — Puppeteer (Next.js API Route, trả về pixel-perfect):**
 ```
@@ -642,6 +754,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | `ALLOWED_ORIGINS` | `["http://localhost:3000"]` | CORS allowed origins (JSON array) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | JWT TTL (phút) |
 | `ALGORITHM` | `HS256` | JWT algorithm |
+| `LLM_BASE_URL` | _(rỗng)_ | URL vLLM Cloudflare Tunnel, vd: `https://xxx.trycloudflare.com` |
 
 ### Frontend (`.env.local`)
 
@@ -734,6 +847,25 @@ docker run -d --name minio-vanban \
   minio/minio server /data --console-address ":9001"
 ```
 
+### Khởi động LLM (Google Colab)
+
+Mỗi lần làm việc cần khởi động Colab trước khi dùng tính năng RAG và metadata extraction:
+
+1. Mở `notebooks/vllm_qwen25_colab.ipynb`
+2. Runtime → Change runtime type → **T4 GPU**
+3. Chạy Cell 1: `pip install vllm -q` (chờ ~3 phút)
+4. Chạy Cell 2: Khởi động vLLM server Qwen2.5-3B-Instruct  
+   Chờ log: `Application startup complete`
+5. Chạy Cell 3: Cloudflare Tunnel → copy `PUBLIC_URL` (`https://xxx.trycloudflare.com`)
+6. Cập nhật URL trong backend:
+   ```
+   PATCH http://localhost:8000/api/v1/llm/config
+   {"llm_base_url": "https://xxx.trycloudflare.com"}
+   ```
+7. Kiểm tra: `GET /api/v1/rag/health` → `"llm": "ok"`
+
+> **Lưu ý:** Tunnel tự động expire sau ~2h idle. Khi `llm: "error"` → restart Cell 3 → copy URL mới → PATCH lại.
+
 ### Lệnh khởi động tóm tắt
 
 | Thành phần | Lệnh | Port |
@@ -742,6 +874,7 @@ docker run -d --name minio-vanban \
 | Frontend | `npm run dev` | 3000 |
 | MinIO UI | Truy cập browser | 9001 |
 | Swagger UI | `http://localhost:8000/docs` | 8000 |
+| vLLM (Colab) | Xem mục "Khởi động LLM" | Cloudflare URL |
 
 ---
 
@@ -777,6 +910,15 @@ Khi re-process một văn bản (upload file mới), hệ thống DELETE toàn b
 **9. JWT lưu trong cookie**
 Token lưu trong cookie `access_token` (expires: 1 ngày) thay vì localStorage để cho phép Next.js server component đọc trong `cookies()` (phục vụ Puppeteer PDF export và `/print/[id]` page).
 
+**10. MAX_CONTEXT_CHARS = 2500 (an toàn cho Qwen 3B)**
+Qwen2.5-3B-Instruct có `max_model_len=4096` token. Vietnamese ~1.5 chars/token → 2500 chars ≈ 1700 token context + 512 token output ≈ 2200 token tổng, đủ an toàn. Tăng lên 4000 chars với model 8K context trở lên.
+
+**11. LLMService singleton không đọc lại .env sau khi tạo**
+`Settings` dùng `@lru_cache` → singleton được tạo lần đầu khi module import. Nếu `LLM_BASE_URL` chưa có trong `.env` tại thời điểm server start, `llm_service._base_url` sẽ rỗng. Dùng `PATCH /llm/config` để cập nhật runtime mà không cần restart.
+
+**12. Reranker lazy-load để không block startup**
+CrossEncoder `ms-marco-MiniLM-L-6-v2` (~70MB) được lazy-load khi request RAG đầu tiên thay vì eager-load khi startup — tránh tăng thêm ~10 giây thời gian khởi động. Sau lần đầu, model được cache trong `_reranker` module-level variable.
+
 ### Known Issues và Workarounds
 
 **Issue 1: xhtml2pdf font loader lỗi trên Windows**
@@ -799,3 +941,12 @@ Dự án hiện chưa có file `docker-compose.yml`. Các service (PostgreSQL, R
 
 **Issue 7: Qwen2.5-3B trích metadata kém với văn bản danh mục/bảng biểu**
 Model Qwen2.5-3B-Instruct thiếu khả năng suy luận đủ mạnh để trích xuất chính xác metadata từ văn bản dạng danh mục (bảng biểu, phụ lục). Các field như `so_ki_hieu`, `ngay_ban_hanh`, `co_quan_ban_hanh` thường trả về `null` ngay cả khi thông tin có trong 2000 ký tự đầu. Ngoài ra, nhiều PDF hành chính dùng font Vietnamese cũ (VNI/TCVN) khiến pdfplumber trả về ký tự `?` thay vì Unicode — LLM nhận text rác, chất lượng trích xuất giảm thêm. **Workaround:** User tự điền/chỉnh sửa trong `MetadataReviewCard` trước khi xác nhận lưu. **Fix tuần 13:** Nâng lên Qwen2.5-14B hoặc thêm fallback OCR (pymupdf) cho PDF font cũ.
+
+**Issue 8: Cloudflare Tunnel URL thay đổi mỗi session**
+Mỗi lần restart Google Colab → Cloudflare Tunnel tạo URL mới (`https://xxx.trycloudflare.com`). LLM service sẽ trả `error` cho đến khi URL được cập nhật. **Workaround:** Sau mỗi lần restart Colab, gọi `PATCH /api/v1/llm/config {"llm_base_url": "https://new-url.trycloudflare.com"}` qua Swagger UI (`http://localhost:8000/docs`). Xác nhận bằng `GET /api/v1/rag/health` → `llm: "ok"`. **Fix tuần 13+:** Dùng Cloudflare Named Tunnel (domain cố định) hoặc ngrok với domain cố định.
+
+**Issue 9: Encoding font VNI trong PDF cũ làm RAG trả về ký tự ?**
+Một số PDF hành chính dùng font VNI/TCVN (không phải Unicode). `pdfplumber` trả về ký tự `?` thay vì chữ có dấu tiếng Việt. Chunk embedding vẫn hoạt động (bge-m3 robust với nhiễu), nhưng `content_preview` trong citation cards và câu trả lời LLM chứa `?` thay vì ký tự Việt đúng. **Workaround:** Upload PDF chuẩn Unicode (xuất từ Word, font Times New Roman). **Fix:** Thêm OCR fallback (tesseract-ocr tiếng Việt hoặc pymupdf) tuần sau.
+
+**Issue 10: CrossEncoder reranker chậm khi load lần đầu**
+`cross-encoder/ms-marco-MiniLM-L-6-v2` được lazy-load khi request RAG đầu tiên (~5-10 giây download model ~70MB). Các request sau nhanh (<200ms). **Workaround:** Gọi `GET /api/v1/rag/health` sau khi khởi động server để trigger lazy-load. **Fix:** Eager-load reranker trong lifespan() tương tự embedding model.
