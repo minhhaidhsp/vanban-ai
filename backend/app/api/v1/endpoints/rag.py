@@ -43,6 +43,9 @@ class RAGQueryResponse(BaseModel):
     citations: list[str]
     chunks_used: list[ChunkUsed]
     confidence: float
+    citation_score: float = 0.0
+    semantic_score: float = 0.0
+    has_disclaimer: bool = False
     llm_available: bool
     latency_ms: int = 0
 
@@ -105,6 +108,9 @@ async def rag_query(
         citations=result["citations"],
         chunks_used=[ChunkUsed(**c) for c in result["chunks_used"]],
         confidence=result["confidence"],
+        citation_score=result.get("citation_score", 0.0),
+        semantic_score=result.get("semantic_score", 0.0),
+        has_disclaimer=result.get("has_disclaimer", False),
         llm_available=True,
         latency_ms=latency_ms,
     )

@@ -25,19 +25,28 @@ INSUFFICIENT_CONTEXT_MSG = (
     "hoặc bổ sung thêm văn bản vào kho."
 )
 
-_SYSTEM_PROMPT = """\
-Bạn là trợ lý tra cứu văn bản hành chính Việt Nam.
+_SYSTEM_PROMPT = """Bạn là trợ lý tra cứu văn bản hành chính Việt Nam chuyên nghiệp.
 Nhiệm vụ: Trả lời câu hỏi DỰA TRÊN các đoạn văn bản được đánh số [1], [2], [3]... dưới đây.
 
 QUY TẮC BẮT BUỘC:
-1. Chỉ dùng thông tin từ các đoạn [1][2][3]...
-2. Sau mỗi thông tin, PHẢI ghi citation: ví dụ "...quy định [1]" hoặc "Căn cứ [2]..."
-3. Nếu không có thông tin → trả lời: "Không tìm thấy thông tin liên quan."
-4. KHÔNG bịa đặt thông tin ngoài các đoạn trích.
-5. Trả lời bằng tiếng Việt, ngắn gọn, rõ ràng.
+1. CHỈ dùng thông tin từ các đoạn [1][2][3]...
+2. SAU MỖI thông tin PHẢI ghi citation: "...quy định [1]"
+3. KHÔNG bịa đặt số văn bản, ngày tháng, tên người
+4. KHÔNG thêm thông tin ngoài context
+5. Nếu không đủ thông tin → trả lời: "Không tìm thấy thông tin liên quan."
+6. Trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc
 
-Ví dụ câu trả lời đúng:
-"Theo quy định [1], thủ tục đăng ký hộ tịch cần... Căn cứ [2], thời hạn giải quyết là..."\
+KHÔNG được làm:
+- Bịa số văn bản: "Theo Nghị định 999/2020..."
+- Trả lời chung chung không có citation
+- Thêm thông tin từ kiến thức bên ngoài
+
+Ví dụ câu trả lời ĐÚNG:
+Câu hỏi: "Thủ tục đăng ký hộ tịch cần gì?"
+Trả lời: "Theo quy định [1], thủ tục đăng ký hộ tịch cần các giấy tờ sau: ... Căn cứ [2], thời hạn giải quyết là 05 ngày làm việc."
+
+Ví dụ câu trả lời SAI (KHÔNG làm theo):
+"Theo Luật Hộ tịch 2014, thủ tục cần..." (sai vì không có citation [số])
 """
 
 _RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -179,11 +188,11 @@ class RAGService:
         chunks: list[dict],
     ) -> dict:
         """
-        Gọi LLM với context + query, rồi validate citations.
+        Gọi LLM với context + query, rồi validate đa chiều (citation + semantic).
         Nếu LLM chưa cấu hình → trả INSUFFICIENT_CONTEXT_MSG kèm chunks.
         """
         from app.services.llm_service import llm_service
-        from app.services import hallucination_guard
+        from app.services.hallucination_guard import validate_full
 
         messages = [
             {"role": "system", "content": _SYSTEM_PROMPT},
@@ -194,21 +203,36 @@ class RAGService:
         ]
 
         try:
-            answer = await llm_service.chat(messages, temperature=0.1, max_tokens=512)
+            answer = await llm_service.chat(messages, temperature=0.05, max_tokens=512)
         except ValueError:
-            # LLM_BASE_URL rỗng
             logger.warning("[rag] LLM not configured — returning chunks without answer")
             answer = INSUFFICIENT_CONTEXT_MSG
         except Exception as exc:
             logger.error("[rag] LLM generate failed: %s", exc, exc_info=True)
             answer = INSUFFICIENT_CONTEXT_MSG
 
-        validation = hallucination_guard.validate(answer, chunks)
+        validation = await validate_full(answer, chunks)
+
+        logger.info(
+            "[rag] validation: confidence=%.3f citation=%.3f semantic=%.3f",
+            validation.confidence_score,
+            validation.citation_score,
+            validation.semantic_score,
+        )
+
+        if validation.has_disclaimer:
+            answer = (
+                "⚠️ Lưu ý: Câu trả lời này cần được kiểm tra lại với văn bản gốc.\n\n"
+                + answer
+            )
 
         return {
             "answer": answer,
             "citations": validation.valid_citations,
             "confidence": validation.confidence_score,
+            "citation_score": validation.citation_score,
+            "semantic_score": validation.semantic_score,
+            "has_disclaimer": validation.has_disclaimer,
             "chunks_used": [
                 {
                     "document_title": c.get("document_title"),
@@ -244,6 +268,9 @@ class RAGService:
                 "answer": INSUFFICIENT_CONTEXT_MSG,
                 "citations": [],
                 "confidence": 0.0,
+                "citation_score": 0.0,
+                "semantic_score": 0.0,
+                "has_disclaimer": False,
                 "chunks_used": [],
             }
 
