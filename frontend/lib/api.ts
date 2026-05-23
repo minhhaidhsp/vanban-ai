@@ -217,6 +217,99 @@ export const ragApi = {
   },
 };
 
+export interface ChatCitation {
+  document_title: string | null;
+  so_ki_hieu: string | null;
+  dieu_khoan: string | null;
+  score: number;
+  content_preview: string;
+}
+
+export interface ChatHistoryItem {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatHistoryResponse {
+  doc_id: string;
+  history: ChatHistoryItem[];
+  total_turns: number;
+}
+
+export const chatApi = {
+  streamChat: async (
+    query: string,
+    docId: string,
+    docContext: string | undefined,
+    onToken?: (token: string) => void,
+    onCitations?: (citations: ChatCitation[]) => void,
+    onDone?: () => void,
+    onError?: (error: string) => void,
+  ): Promise<void> => {
+    try {
+      const token = Cookies.get("access_token");
+      const response = await fetch(`${BASE_URL}/api/v1/rag/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "Accept": "text/event-stream",
+          "Cache-Control": "no-cache",
+        },
+        body: JSON.stringify({ query, doc_id: docId, doc_context: docContext }),
+      });
+
+      if (!response.ok) {
+        onError?.(`HTTP ${response.status}`);
+        return;
+      }
+      if (!response.body) {
+        onError?.("Stream body không khả dụng");
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") {
+            onDone?.();
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "token") onToken?.(parsed.content);
+            else if (parsed.type === "citations") onCitations?.(parsed.data);
+            else if (parsed.type === "error") onError?.(parsed.content);
+          } catch {}
+        }
+      }
+    } catch (err) {
+      onError?.(String(err));
+    }
+  },
+
+  getHistory: async (docId: string): Promise<ChatHistoryResponse> => {
+    const { data } = await api.get("/rag/chat/history", { params: { doc_id: docId } });
+    return data as ChatHistoryResponse;
+  },
+
+  clearHistory: async (docId: string): Promise<void> => {
+    await api.delete("/rag/chat/history", { params: { doc_id: docId } });
+  },
+};
+
 export const documentApi = {
   list: async (skip = 0, limit = 20) => {
     const { data } = await api.get("/documents/", { params: { skip, limit } });

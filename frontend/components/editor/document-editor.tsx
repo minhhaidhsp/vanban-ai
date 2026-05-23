@@ -8,9 +8,10 @@ import { Nd30Document } from "./nd30-document";
 import { DocumentPreviewPaged } from "./DocumentPreviewPaged";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Check, AlertCircle, Loader2, Eye, Download } from "lucide-react";
+import { Save, Check, AlertCircle, Loader2, Eye, Download, MessageSquare } from "lucide-react";
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
+import { ChatPanel } from "./ChatPanel";
 
 interface DocumentEditorProps {
   documentId?: string;
@@ -49,6 +50,35 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   const isNew = !documentId;
   const dataRef = useRef<Nd30Data>(
     { ...defaultNd30Data(), ...parseContent(initialContent) }
+  );
+
+  // ── Chat panel ────────────────────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const getDocContext = useCallback(() => {
+    const d = dataRef.current;
+    const strip = (html: string) =>
+      (html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return [
+      d.loaiVanBan && `Loại: ${d.loaiVanBan}`,
+      d.soKyHieu && `Số ký hiệu: ${d.soKyHieu}`,
+      d.trichYeu && `Trích yếu: ${d.trichYeu}`,
+      d.canCu && `Căn cứ: ${strip(d.canCu).slice(0, 300)}`,
+      d.noiDung && `Nội dung: ${strip(d.noiDung).slice(0, 500)}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }, []);
+
+  const handleInsertText = useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text).then(() => {
+        toast({ title: "Đã copy vào clipboard", description: "Ctrl+V để dán vào văn bản" });
+      }).catch(() => {
+        toast({ title: "Không thể copy", variant: "destructive" });
+      });
+    },
+    [toast]
   );
 
   // ── Preview mode ──────────────────────────────────────────────────────────
@@ -171,6 +201,15 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         <div className="flex items-center gap-3">
           <SaveIndicator status={status} label={statusLabel} />
           <Button
+            variant={chatOpen ? "default" : "outline"}
+            size="sm"
+            onClick={() => setChatOpen((v) => !v)}
+            title="Trợ lý AI"
+          >
+            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+            Trợ lý AI
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={enterPreview}
@@ -212,6 +251,14 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
           isNew={isNew}
         />
       </div>
+
+      <ChatPanel
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        docId={docId || "new-doc"}
+        getDocContext={getDocContext}
+        onInsertText={handleInsertText}
+      />
     </div>
   );
 }
