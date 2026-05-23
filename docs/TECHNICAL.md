@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-05-23
-> Phiên bản: Tuần 10 (Phase 2 - AI/RAG hoàn thiện)
+> Cập nhật: 2026-05-24
+> Phiên bản: Tuần 11 (Phase 2 - AI/RAG hoàn thiện)
 
 ---
 
@@ -30,6 +30,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 8 | LLM trích xuất metadata tự động khi upload (metadata_extraction_service.py, 8 trường + confidence), Redis cache TTL 1h, MetadataReviewCard UI với polling 3s + confidence badges xanh/vàng/đỏ |
 | 9 | RAG pipeline đầy đủ: pgvector retrieve → CrossEncoder rerank → Qwen generate → HallucinationGuard validate, trang Tra cứu AI (/dashboard/rag-search) với citation badges, citation cards, LLM status badge |
 | 10 | `validate_full()` async (semantic+citation+length weighted confidence), fallback chain (LLM offline → trả chunks, retry 0.35→0.2, hybrid FTS+semantic), system prompt v2, UI: ConfidenceMeter/disclaimer/fallback/CopyButton, Benchmark 10 câu: avg confidence 0.645 |
+| 11 | Chat AI panel tích hợp trong editor: SSE token streaming (`chat_stream()`), `ChatPanel.tsx` fixed panel 380px slide animation, multi-turn context (Redis TTL 24h max 20 turns), citation mini cards, nút "Chèn vào văn bản", quick action chips, `doc_context` từ editor, `repetition_penalty=1.15` fix loop Qwen2.5-3B |
 
 ### Tech stack thực tế
 
@@ -39,6 +40,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - TipTap 3.23.6 (editor phong phú: StarterKit, Underline, TextAlign, Highlight, Placeholder)
 - TanStack Query 5.62.11 (data fetching và caching)
 - Axios 1.7.9 (HTTP client)
+- fetch ReadableStream API (SSE client cho streaming chat — thay axios)
 - Tailwind CSS 3.4.1 + Radix UI (shadcn/ui components)
 - Zod 3.24.1 + React Hook Form 7.54.2 (form validation)
 - Puppeteer 25.0.4 (xuất PDF phía server Next.js)
@@ -54,7 +56,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - python-jose 3.3.0 + passlib[bcrypt] 1.7.4 (JWT auth)
 - sentence-transformers ≥3.0.0 với model **BAAI/bge-m3** (dim=1024)
 - cross-encoder/ms-marco-MiniLM-L-6-v2 (reranker cho RAG pipeline)
-- httpx ≥0.27.0 (async HTTP client cho LLM API)
+- httpx ≥0.27.0 (async HTTP client cho LLM API — cả non-stream và stream)
+- FastAPI `StreamingResponse` (SSE streaming — built-in, không cần sse-starlette)
 - pdfplumber ≥0.11.0 (trích xuất text từ PDF)
 - python-docx ≥1.1.0 (trích xuất text từ DOCX)
 - xhtml2pdf ≥0.2.0 + ReportLab (xuất PDF phía backend)
@@ -162,7 +165,8 @@ frontend/
 │   │   └── document-dialog.tsx  # Dialog tạo tài liệu mới (title)
 │   ├── editor/
 │   │   ├── nd30-document.tsx    # Soạn thảo A4 NĐ30 (toàn bộ thể thức)
-│   │   ├── document-editor.tsx  # Wrapper: autosave, preview, PDF export
+│   │   ├── document-editor.tsx  # Wrapper: autosave, preview, PDF export, nút Trợ lý AI
+│   │   ├── ChatPanel.tsx        # Chat AI panel cố định bên phải 380px, SSE streaming
 │   │   ├── DocumentPreview.tsx  # Preview read-only A4 NĐ30
 │   │   ├── DocumentPreviewPaged.tsx # Preview có nút xuất PDF
 │   │   ├── editor-toolbar.tsx   # TipTap toolbar (bold, italic, align...)
@@ -174,7 +178,7 @@ frontend/
 │   │   └── MetadataReviewCard.tsx  # Dialog polling + review metadata từ LLM
 │   └── ui/                      # shadcn/ui components (Button, Input, Dialog...)
 ├── lib/
-│   ├── api.ts                   # Axios client + authApi, documentApi, refDocApi...
+│   ├── api.ts                   # Axios client + authApi, documentApi, refDocApi, chatApi (SSE)
 │   ├── nd30.ts                  # Hằng số NĐ30, kiểu Nd30Data, helper functions
 │   └── utils.ts                 # cn() utility (clsx + tailwind-merge)
 └── hooks/
@@ -201,7 +205,7 @@ backend/
 │   │           ├── recipient_suggestions.py  # GET /  POST /increment
 │   │           ├── reference_docs.py  # CRUD + upload + 3 search + metadata endpoints
 │   │           ├── llm.py             # GET /health, POST /test, PATCH /config
-│   │           ├── rag.py             # GET /health, POST /query, POST /query/stream
+│   │           ├── rag.py             # GET /health, POST /query, POST /query/stream, POST /chat/stream, GET+DELETE /chat/history
 │   │           └── constants.py # GET /nd30 (hằng số NĐ30)
 │   ├── core/
 │   │   ├── config.py            # Settings (pydantic-settings, .env)
@@ -225,10 +229,11 @@ backend/
 │   │   ├── chunking_service.py  # chunk_document() — Điều/Khoản/Mục + sliding window
 │   │   ├── pipeline_service.py  # process_document_embedding() BackgroundTask
 │   │   ├── pdf_service.py       # generate_pdf() — xhtml2pdf + DejaVu Serif
-│   │   ├── llm_service.py       # LLMService singleton — chat(), health_check(), update_base_url()
+│   │   ├── llm_service.py       # LLMService singleton — chat(), chat_stream(), health_check(), update_base_url()
 │   │   ├── metadata_extraction_service.py  # extract_metadata(), save/get_metadata_preview()
 │   │   ├── rag_service.py       # RAGService — retrieve, rerank, build_context, generate, query
-│   │   └── hallucination_guard.py  # validate(answer, chunks) → ValidationResult
+│   │   ├── hallucination_guard.py  # validate(answer, chunks) → ValidationResult
+│   │   └── chat_history_service.py  # get_history(), save_turn(), clear_history() — Redis TTL 24h
 │   └── constants/
 │       └── nd30_2020.py         # Hằng số NĐ30 (FontStyle, VAN_BAN_TYPES, templates...)
 ├── alembic/
@@ -447,6 +452,9 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | GET | `/rag/health` | Trạng thái retrieval + LLM, đếm chunks/docs | — | `{retrieval, llm, total_chunks, total_documents}` |
 | POST | `/rag/query` | Full RAG pipeline — yêu cầu auth | `{query, top_k=10, min_score=0.35}` | `RAGQueryResponse {answer, citations, chunks_used, confidence, citation_score, semantic_score, has_disclaimer, llm_available, fallback_mode, latency_ms}` |
 | POST | `/rag/query/stream` | SSE streaming response — yêu cầu auth | `{query, top_k, min_score}` | `text/event-stream`: `chunk` → `citations` → `chunks_used` → `done` |
+| POST | `/rag/chat/stream` | SSE streaming chat với RAG context + history — yêu cầu auth | `{query, doc_id, doc_context?, top_k?, min_score?}` | `text/event-stream`: `token` → `citations` → `[DONE]` |
+| GET | `/rag/chat/history` | Lấy lịch sử chat theo doc_id | `?doc_id=` | `{doc_id, history[], total_turns}` |
+| DELETE | `/rag/chat/history` | Xóa lịch sử chat | `?doc_id=` | `{status: "cleared", doc_id}` |
 
 ### Constants (`/constants`)
 
@@ -533,6 +541,13 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 **Lưu ý:** `LLMService()` singleton được tạo khi module import, trước khi `.env` được đọc qua `@lru_cache`. Nếu `LLM_BASE_URL` trong `.env` rỗng (hoặc server chưa restart sau khi thêm biến), dùng `PATCH /llm/config` để cập nhật runtime.
 
+**Bổ sung Tuần 11 — `chat_stream(messages, temperature) -> AsyncGenerator[str, None]`:**
+- Dùng `httpx.AsyncClient.stream()` + `aiter_lines()` để nhận SSE từ vLLM
+- Parse `data:` lines, yield từng token content string
+- Payload: `"stream": True`, `"max_tokens": 512`, `"repetition_penalty": 1.15`
+- Nếu `_base_url` rỗng: yield `"[LLM_OFFLINE]"` rồi return
+- Lỗi network: yield `"[ERROR: ...]"` rồi return
+
 ### `rag_service.py`
 
 **Mô tả:** Orchestrator RAG pipeline — kết hợp pgvector retrieval, CrossEncoder rerank, LLM generation và hallucination guard. Phiên bản Tuần 10 thêm hybrid search, fallback chain và system prompt v2.
@@ -574,6 +589,17 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 - `validate(answer, chunks) -> ValidationResult` (sync): Giữ lại để tương thích ngược. Chỉ tính `citation_score`, `semantic_score=0.0`. Parse `[N]` kiểm tra N ≤ len(chunks); parse `[Nguồn: xxx]` so với `so_ki_hieu`/`document_title`.
 - `semantic_similarity_check(answer, chunks) -> float` (async): Embed `answer[:500]` qua `asyncio.to_thread(embed_text)`, tính cosine với từng chunk embedding (cũng embed chunk[:500]) → trả max similarity.
 - `validate_full(answer, chunks) -> ValidationResult` (async): Gọi `validate()` lấy citation_score → gọi `semantic_similarity_check()` lấy semantic_score → `length_score = min(1.0, len(answer)/200)` → `confidence = 0.4×citation + 0.4×semantic + 0.2×length`.
+
+### `chat_history_service.py`
+
+**Mô tả:** Quản lý lịch sử hội thoại chat AI theo `(user_id, doc_id)`. Lưu trữ trong Redis (không dùng DB) vì history là session data, không cần persist lâu dài.
+
+**Hằng số:** `MAX_HISTORY_TURNS = 20`, `HISTORY_TTL = 86400` (24h). Key pattern: `chat_history:{user_id}:{doc_id}`.
+
+**Các hàm:**
+- `get_history(user_id, doc_id, redis, last_n=5) -> list[dict]`: Đọc key → deserialize JSON → trả `history[-(last_n*2):]` (last_n turns = last_n×2 messages). Trả `[]` nếu key không tồn tại hoặc lỗi.
+- `save_turn(user_id, doc_id, user_msg, assistant_msg, redis) -> None`: Append 2 messages (`{"role":"user",...}` + `{"role":"assistant",...}`) → cắt nếu vượt `MAX_HISTORY_TURNS*2` → `SETEX` với TTL 24h.
+- `clear_history(user_id, doc_id, redis) -> None`: `DEL` key. Silently ignore lỗi.
 
 ### `pdf_service.py`
 
@@ -756,6 +782,36 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
    - CopyButton: copy answer + sources ra clipboard
    - Right panel (40%): CitationCard với so_ki_hieu, dieu_khoan, content_preview, score
    - LLM status badge polling /rag/health mỗi 60 giây
+```
+
+### Luồng 7: Chat AI trong Editor
+
+```
+1. User nhấn "Trợ lý AI" (MessageSquare icon) trong toolbar DocumentEditor
+2. chatOpen state → true
+3. ChatPanel slide ra bên phải (translate-x-0)
+   Editor outer div thêm mr-[380px] → thu hẹp, không bị che
+4. User nhập câu hỏi vào textarea → Ctrl+Enter hoặc nút Send
+5. ChatPanel gọi chatApi.streamChat():
+   - fetch POST /api/v1/rag/chat/stream
+   - Headers: Authorization Bearer, Accept: text/event-stream, X-Accel-Buffering: no
+   - Body: {query, doc_id, doc_context}
+   - doc_context = text extract từ dataRef.current (loaiVanBan, soKyHieu, trichYeu, canCu, noiDung)
+6. Backend POST /rag/chat/stream:
+   a. retrieve(min_score=0.35) → retry(0.2) nếu rỗng
+   b. rerank(top_n=5) nếu có chunks
+   c. build_context(reranked)
+   d. get_history(user_id, doc_id, redis, last_n=5)
+   e. Build messages: [system_prompt] + [doc_context?] + [rag_context?] + history + [user_query]
+   f. llm_service.chat_stream(messages, temperature=0.05)
+      → httpx stream → yield từng token SSE
+   g. Sau stream: gửi citations event, save_turn() vào Redis
+7. Frontend nhận SSE:
+   - type=token: append vào assistant bubble real-time
+   - type=citations: hiện citation mini cards dưới bubble
+   - [DONE]: isStreaming=false
+8. User click "Chèn vào văn bản" → copy clipboard → toast "Ctrl+V để dán"
+9. Multi-turn: lần hỏi tiếp theo tự động include 5 turns gần nhất từ Redis
 ```
 
 ### Luồng 8: Xuất PDF
@@ -981,6 +1037,15 @@ Trước: endpoint có `if not llm_service._base_url: return error`. Sau: servic
 **15. Hybrid search score = 0.7×semantic + 0.3×FTS**
 Tỷ lệ 7:3 dựa trên thực nghiệm: semantic search bge-m3 cho precision cao với câu hỏi tự nhiên, FTS giúp khi query chứa tên văn bản/số ký hiệu chính xác (ví dụ "30/2020/NĐ-CP"). Merge ở cấp document (không phải chunk) để tránh trùng lặp: mỗi document chỉ xuất hiện một lần với chunk có score cao nhất.
 
+**16. SSE client dùng fetch thay axios**
+`axios` không hỗ trợ `ReadableStream` natively — response body bị buffer thành một lần. `fetch()` API chuẩn trình duyệt cho phép đọc `response.body.getReader()` từng chunk. `chatApi.streamChat()` dùng `fetch` + `TextDecoder` + buffer leftover để parse SSE lines chính xác, kể cả khi một SSE event bị chia thành nhiều TCP chunk.
+
+**17. Chat history trong Redis thay vì DB**
+History là session data ngắn hạn — không cần truy vấn phức tạp, không cần join, không cần index. Redis `SETEX` với TTL 24h đơn giản và đủ nhanh. Không tạo thêm bảng DB → migration đơn giản hơn. Nếu Redis restart, history mất — acceptable vì chat session tạm thời.
+
+**18. `repetition_penalty=1.15` fix Qwen2.5-3B loop**
+Qwen2.5-3B-Instruct hay lặp vô hạn khi context dài (>2000 token). `repetition_penalty > 1.0` phạt token đã xuất hiện trong output, giảm xác suất chọn lại. Giá trị 1.15 đủ mạnh để phá loop nhưng không làm câu văn bị lạ. Kết hợp với `max_tokens=512` để đảm bảo terminate trong mọi trường hợp.
+
 ### Known Issues và Workarounds
 
 **Issue 1: xhtml2pdf font loader lỗi trên Windows**
@@ -1018,3 +1083,12 @@ Một số PDF hành chính dùng font VNI/TCVN (không phải Unicode). `pdfplu
 
 **Issue 12: Benchmark keyword_hit thấp (4/10) không phản ánh chất lượng thực**
 Test cases trong `benchmark_rag.py` dùng `expected_keywords` là ASCII không dấu (vd: `"ho tich"`, `"can cu"`). Câu trả lời LLM trả về tiếng Việt có dấu Unicode (vd: `"hộ tịch"`, `"căn cứ"`). `str.lower()` match thất bại vì `"hộ tịch" != "ho tich"`. Confidence thực tế của 7 câu hỏi in-scope là 0.75-0.91 (cao). **Workaround:** Đọc `confidence` và `semantic_score` thay vì `keyword_hit` để đánh giá chất lượng. **Fix:** Dùng `unidecode` để normalize cả answer và keyword trước khi so sánh.
+
+**Issue 13: Qwen2.5-3B hay lặp vô hạn với context dài**
+Model 3B thiếu attention head đủ mạnh để maintain coherence qua nhiều token — dễ bị stuck ở một pattern và lặp vô hạn. **Fix hiện tại:** `repetition_penalty=1.15` + `max_tokens=512` trong cả `chat()` và `chat_stream()`. **Fix dài hạn tuần 13:** Nâng lên Qwen2.5-14B (hoặc 7B tối thiểu) sẽ hết vấn đề này.
+
+**Issue 14: `onInsertText` dùng clipboard thay vì insert thẳng TipTap**
+`Nd30Document` không expose editor ref hay callback ra ngoài — `SectionEditor` dùng `useEditor` locally, không có `useImperativeHandle`. Để insert thẳng vào TipTap cần refactor `SectionEditor` sang `forwardRef` + `useImperativeHandle`, thread ref qua `Nd30Document` → là thay đổi không nhỏ. **Workaround:** `handleInsertText()` trong `document-editor.tsx` dùng `navigator.clipboard.writeText()` + toast "Ctrl+V để dán vào văn bản". **Fix dài hạn:** Thêm `onInsertContent?: (text: string) => void` prop cho `Nd30Document` và `SectionEditor` của noiDung.
+
+**Issue 15: Cloudflare Tunnel buffer SSE khiến tokens bị gom thành batch**
+Cloudflare Tunnel mặc định buffer HTTP response — thay vì yield từng token ngay lập tức, frontend nhận một batch tokens sau vài giây. **Fix:** Thêm header `X-Accel-Buffering: no` + `Cache-Control: no-cache` vào `StreamingResponse` headers trong `POST /rag/chat/stream`. Thêm `Connection: keep-alive`. Test xác nhận tokens stream real-time sau fix.
