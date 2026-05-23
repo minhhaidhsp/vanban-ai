@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     minio_bucket_name: str = "vanban-ai"
     minio_use_ssl: bool = False
 
+    # LLM (vLLM / OpenAI-compatible)
+    llm_base_url: str = ""
+    llm_model_name: str = "Qwen/Qwen2.5-3B-Instruct"
+    llm_timeout: int = 60
+    llm_max_retries: int = 3
+    llm_temperature: float = 0.1
+    llm_max_tokens: int = 2048
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -205,7 +205,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
       </div>
 
       {/* A4 document */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 h-full">
         <Nd30Document
           initialData={{ ...defaultNd30Data(), ...parseContent(initialContent) }}
           onChange={handleChange}

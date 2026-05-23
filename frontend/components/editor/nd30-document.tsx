@@ -318,7 +318,7 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
       </div>
 
       {/* ── A4 scroll wrapper ─────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0">
+      <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible">
         <div
           className="a4-page mx-auto bg-white shadow-lg print:shadow-none"
           style={{
