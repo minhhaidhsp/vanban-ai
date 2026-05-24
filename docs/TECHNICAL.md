@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-05-24
-> Phiên bản: Tuần 11 (Phase 2 - AI/RAG hoàn thiện)
+> Phiên bản: Tuần 11+ (Phase 2 - Data lifecycle fix)
 
 ---
 
@@ -31,6 +31,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 9 | RAG pipeline đầy đủ: pgvector retrieve → CrossEncoder rerank → Qwen generate → HallucinationGuard validate, trang Tra cứu AI (/dashboard/rag-search) với citation badges, citation cards, LLM status badge |
 | 10 | `validate_full()` async (semantic+citation+length weighted confidence), fallback chain (LLM offline → trả chunks, retry 0.35→0.2, hybrid FTS+semantic), system prompt v2, UI: ConfidenceMeter/disclaimer/fallback/CopyButton, Benchmark 10 câu: avg confidence 0.645 |
 | 11 | Chat AI panel tích hợp trong editor: SSE token streaming (`chat_stream()`), `ChatPanel.tsx` fixed panel 380px slide animation, multi-turn context (Redis TTL 24h max 20 turns), citation mini cards, nút "Chèn vào văn bản", quick action chips, `doc_context` từ editor, `repetition_penalty=1.15` fix loop Qwen2.5-3B |
+| 11+ | Fix data lifecycle: RAG exclude văn bản `het_hieu_luc` (WHERE filter SQL), DELETE xóa MinIO file trước DB (tránh orphan file), CASCADE chunks tự động, PATCH `/hieu-luc` endpoint với validate 4 giá trị hợp lệ, `generate()` cảnh báo ⚠️ khi cite VB hết hiệu lực |
 
 ### Tech stack thực tế
 
@@ -323,7 +324,7 @@ backend/
 | `co_quan_ban_hanh` | VARCHAR(500) | Cơ quan ban hành |
 | `nguoi_ky` | VARCHAR(200) | Người ký văn bản |
 | `trich_yeu` | TEXT | Trích yếu nội dung |
-| `hieu_luc` | VARCHAR(20) | `chua` / `con_hieu_luc` / `het_hieu_luc` / `mot_phan` (indexed) |
+| `hieu_luc` | VARCHAR(20) | `"chua"` / `"con_hieu_luc"` / `"het_hieu_luc"` / `"mot_phan"` (indexed). **RAG filter:** chỉ search khi `!= "het_hieu_luc"` — VB hết hiệu lực vẫn lưu DB nhưng không được cite |
 | `file_path` | VARCHAR(1000) | Object path trong MinIO bucket `reference-docs` |
 | `file_size` | INTEGER | Kích thước file (bytes) |
 | `file_type` | VARCHAR(100) | MIME type |
@@ -432,7 +433,8 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | POST | `/reference-docs/` | Tạo văn bản tham chiếu mới | `RefDocCreate` | `RefDocResponse` (201) |
 | GET | `/reference-docs/{id}` | Lấy chi tiết | — | `RefDocResponse` |
 | PUT | `/reference-docs/{id}` | Cập nhật toàn bộ metadata | `RefDocUpdate` | `RefDocResponse` |
-| DELETE | `/reference-docs/{id}` | Xóa (kèm file MinIO) | — | 204 No Content |
+| PATCH | `/reference-docs/{id}/hieu-luc` | Cập nhật trạng thái hiệu lực; validate 422 nếu giá trị sai | `{hieu_luc: "con_hieu_luc"\|"het_hieu_luc"\|"mot_phan"\|"chua", ghi_chu?: str}` | `RefDocResponse` |
+| DELETE | `/reference-docs/{id}` | Xóa MinIO file trước → xóa DB record → CASCADE chunks | — | `{"status":"deleted","doc_id":"..."}` |
 | POST | `/reference-docs/{id}/upload` | Upload file + trigger embedding pipeline | `multipart: file` | `RefDocResponse` |
 | GET | `/reference-docs/{id}/metadata-preview` | Đọc Redis cache metadata từ LLM | — | `{doc_id, status: "ready"\|"processing"\|"not_available", fields, confidence}` |
 | POST | `/reference-docs/{id}/metadata-confirm` | Xác nhận metadata, UPDATE DB, xóa Redis key | `MetadataConfirmRequest` | `RefDocResponse` |
@@ -557,11 +559,11 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 - `MAX_CONTEXT_CHARS = 2500` (~1500 token Vietnamese, an toàn với Qwen2.5-3B max_model_len=4096)
 
 **Các phương thức:**
-- `retrieve(query, db, top_k=10, min_score=0.35) -> list[dict]`: Embed query bằng BAAI/bge-m3 → pgvector cosine distance ≤ `(1-min_score)` → JOIN `reference_documents` → trả danh sách chunk với `score`, `so_ki_hieu`, `document_title`, `dieu_khoan`.
+- `retrieve(query, db, top_k=10, min_score=0.35) -> list[dict]`: Embed query bằng BAAI/bge-m3 → pgvector cosine distance ≤ `(1-min_score)` → JOIN `reference_documents` → **filter `WHERE hieu_luc != 'het_hieu_luc'`** (chỉ search văn bản còn hiệu lực hoặc chưa xác định) → **SELECT thêm `hieu_luc`** vào kết quả → trả danh sách chunk với `score`, `so_ki_hieu`, `document_title`, `dieu_khoan`, `hieu_luc`.
 - `hybrid_search(query, db, top_k=5) -> list[dict]`: Kết hợp semantic search (min_score=0.2, top_k*2 chunk) với FTS rank ở cấp văn bản. Merge theo `hybrid_score = 0.7×semantic_score + 0.3×fts_rank`. Trả top_k chunk theo hybrid_score.
 - `rerank(query, chunks, top_n=5) -> list[dict]`: CrossEncoder `ms-marco-MiniLM-L-6-v2` (lazy-load), predict scores → sort descending → top_n chunks với field `rerank_score`. Fallback về pgvector order nếu model chưa load.
 - `build_context(chunks) -> str`: Format `[1] Nguồn: {so_ki_hieu} — {title}\n{dieu_khoan}:\n{content}` → cắt tại `MAX_CONTEXT_CHARS`.
-- `generate(query, context, chunks) -> dict`: Gọi `llm_service.chat()` với system prompt v2 (6 quy tắc + ví dụ positive/negative, `temperature=0.05`) → `hallucination_guard.validate_full()` async → thêm ⚠️ disclaimer nếu `confidence < 0.5` → trả `{answer, citations, confidence, citation_score, semantic_score, has_disclaimer, chunks_used}`.
+- `generate(query, context, chunks) -> dict`: Gọi `llm_service.chat()` với system prompt v2 (6 quy tắc + ví dụ positive/negative, `temperature=0.05`) → `hallucination_guard.validate_full()` async → thêm ⚠️ disclaimer nếu `confidence < 0.5` → **kiểm tra `expired_sources` (`hieu_luc == "het_hieu_luc"`) trong chunks; thêm ⚠️ warning nếu có VB hết hiệu lực** → trả `{answer, citations, confidence, citation_score, semantic_score, has_disclaimer, chunks_used}`.
 - `query(question, db, top_k, min_score) -> dict`: Orchestrator với fallback chain 4 bước:
   1. `retrieve(min_score=0.35)` — ngưỡng chuẩn
   2. Nếu rỗng: `retrieve(min_score=0.2)` — retry ngưỡng thấp hơn
@@ -814,7 +816,33 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 9. Multi-turn: lần hỏi tiếp theo tự động include 5 turns gần nhất từ Redis
 ```
 
-### Luồng 8: Xuất PDF
+### Luồng 8: Vòng đời văn bản (Data Lifecycle)
+
+```
+1. Upload VB → chunk → embed → lưu kho (hieu_luc = "chua" mặc định)
+
+2. VB còn hiệu lực → PATCH /hieu-luc {"hieu_luc": "con_hieu_luc"}
+   → RAG search bình thường (không bị filter)
+
+3. VB hết hiệu lực:
+   PATCH /hieu-luc {"hieu_luc": "het_hieu_luc", "ghi_chu": "Thay thế bởi QĐ xx/2026"}
+   → RAG tự động exclude khỏi retrieve() qua WHERE filter SQL
+   → VB vẫn còn trong kho để tra cứu lịch sử (không bị xóa)
+   → Nếu chunk nào lọt qua (edge case): generate() thêm ⚠️ warning
+
+4. Xóa hẳn:
+   DELETE /reference-docs/{id}
+   → Xóa MinIO file trước (nếu lỗi: log warning, tiếp tục)
+   → Xóa DB record → CASCADE tự động xóa reference_doc_chunks + embeddings
+   → Trả {"status":"deleted","doc_id":"..."}
+
+5. VB thay thế nhau (tuần 17+):
+   document_relations table (replaces/amends)
+   → RAG ưu tiên VB còn hiệu lực
+   → Cảnh báo khi cite VB đã bị thay thế (xem Issue 16)
+```
+
+### Luồng 9: Xuất PDF
 
 **Phương án A — Puppeteer (Next.js API Route, trả về pixel-perfect):**
 ```
@@ -1043,6 +1071,12 @@ Tỷ lệ 7:3 dựa trên thực nghiệm: semantic search bge-m3 cho precision 
 **17. Chat history trong Redis thay vì DB**
 History là session data ngắn hạn — không cần truy vấn phức tạp, không cần join, không cần index. Redis `SETEX` với TTL 24h đơn giản và đủ nhanh. Không tạo thêm bảng DB → migration đơn giản hơn. Nếu Redis restart, history mất — acceptable vì chat session tạm thời.
 
+**19. DELETE MinIO trước DB (Tuần 11+)**
+Thứ tự: MinIO `remove_object()` → `db.delete()` → `db.commit()` (CASCADE xóa chunks). Nếu ngược lại: DB delete thành công nhưng MinIO lỗi → orphan file không thể xóa vì `file_path` đã mất. MinIO lỗi → log warning, vẫn tiếp tục xóa DB (acceptable: orphan file nhỏ hơn orphan record trong DB). Thêm `await db.commit()` vì DELETE không auto-commit qua FastAPI session.
+
+**20. RAG filter `hieu_luc != "het_hieu_luc"` ở tầng SQL (Tuần 11+)**
+Văn bản hết hiệu lực vẫn giữ trong DB để: tra cứu lịch sử, audit trail, tham chiếu khi cần biết quy định cũ. Nhưng không được cite trong câu trả lời RAG mới. Filter ở tầng SQL (không phải application layer) — hiệu quả hơn, không tải chunk không cần thiết lên memory trước khi lọc. Các giá trị `"chua"`, `"con_hieu_luc"`, `"mot_phan"` đều được phép search bình thường.
+
 **18. `repetition_penalty=1.15` fix Qwen2.5-3B loop**
 Qwen2.5-3B-Instruct hay lặp vô hạn khi context dài (>2000 token). `repetition_penalty > 1.0` phạt token đã xuất hiện trong output, giảm xác suất chọn lại. Giá trị 1.15 đủ mạnh để phá loop nhưng không làm câu văn bị lạ. Kết hợp với `max_tokens=512` để đảm bảo terminate trong mọi trường hợp.
 
@@ -1089,6 +1123,9 @@ Model 3B thiếu attention head đủ mạnh để maintain coherence qua nhiề
 
 **Issue 14: `onInsertText` dùng clipboard thay vì insert thẳng TipTap**
 `Nd30Document` không expose editor ref hay callback ra ngoài — `SectionEditor` dùng `useEditor` locally, không có `useImperativeHandle`. Để insert thẳng vào TipTap cần refactor `SectionEditor` sang `forwardRef` + `useImperativeHandle`, thread ref qua `Nd30Document` → là thay đổi không nhỏ. **Workaround:** `handleInsertText()` trong `document-editor.tsx` dùng `navigator.clipboard.writeText()` + toast "Ctrl+V để dán vào văn bản". **Fix dài hạn:** Thêm `onInsertContent?: (text: string) => void` prop cho `Nd30Document` và `SectionEditor` của noiDung.
+
+**Issue 16: Chưa có `document_relations` table**
+Khi VB mới thay thế VB cũ, hiện tại chỉ đánh dấu `het_hieu_luc` thủ công qua PATCH endpoint. Chưa có liên kết cấu trúc "VB A thay thế VB B" (không biết VB nào là văn bản thay thế, không thể tự động redirect). **Fix tuần 17-18:** Tạo bảng `document_relations(source_doc_id, target_doc_id, relation_type ENUM["replaces","amends","supplements"], effective_date)` + index trên `source_doc_id`. RAG sẽ lookup relation khi trả kết quả để cảnh báo "VB này đã được thay thế bởi [X]".
 
 **Issue 15: Cloudflare Tunnel buffer SSE khiến tokens bị gom thành batch**
 Cloudflare Tunnel mặc định buffer HTTP response — thay vì yield từng token ngay lập tức, frontend nhận một batch tokens sau vài giây. **Fix:** Thêm header `X-Accel-Buffering: no` + `Cache-Control: no-cache` vào `StreamingResponse` headers trong `POST /rag/chat/stream`. Thêm `Connection: keep-alive`. Test xác nhận tokens stream real-time sau fix.
