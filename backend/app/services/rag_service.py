@@ -121,10 +121,12 @@ class RAGService:
                 ReferenceDocument.so_ki_hieu,
                 ReferenceDocument.co_quan_ban_hanh,
                 ReferenceDocument.loai_van_ban,
+                ReferenceDocument.hieu_luc,
                 (1 - ReferenceDocChunk.embedding.cosine_distance(query_vector)).label("score"),
             )
             .join(ReferenceDocument, ReferenceDocChunk.document_id == ReferenceDocument.id)
             .where(ReferenceDocChunk.embedding.is_not(None))
+            .where(ReferenceDocument.hieu_luc != "het_hieu_luc")
             .where(
                 ReferenceDocChunk.embedding.cosine_distance(query_vector) <= max_distance
             )
@@ -301,6 +303,13 @@ class RAGService:
         if validation.has_disclaimer:
             answer = (
                 "⚠️ Lưu ý: Câu trả lời này cần được kiểm tra lại với văn bản gốc.\n\n"
+                + answer
+            )
+
+        expired_sources = [c for c in chunks if c.get("hieu_luc") == "het_hieu_luc"]
+        if expired_sources:
+            answer = (
+                "⚠️ Lưu ý: Một số nguồn tham chiếu có thể đã hết hiệu lực.\n\n"
                 + answer
             )
 

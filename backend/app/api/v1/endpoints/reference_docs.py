@@ -14,12 +14,23 @@ from app.schemas.reference_document import (
     MetadataPreviewResponse, MetadataConfirmRequest, MetadataConfidence,
 )
 import asyncio
+import logging
 import uuid
 import io
+from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 REF_DOCS_BUCKET = "reference-docs"
+
+_VALID_HIEU_LUC = {"con_hieu_luc", "het_hieu_luc", "mot_phan", "chua"}
+
+
+class HieuLucUpdate(BaseModel):
+    hieu_luc: str
+    ghi_chu: str | None = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -344,9 +355,48 @@ async def update_ref_doc(
     return _add_url(doc)
 
 
+# ── Update hieu_luc ──────────────────────────────────────────────────────────
+
+@router.patch("/{doc_id}/hieu-luc", response_model=RefDocResponse)
+async def update_hieu_luc(
+    doc_id: str,
+    body: HieuLucUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.hieu_luc not in _VALID_HIEU_LUC:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"hieu_luc phải là một trong: {sorted(_VALID_HIEU_LUC)}",
+        )
+
+    result = await db.execute(
+        select(ReferenceDocument).where(
+            ReferenceDocument.id == doc_id,
+            ReferenceDocument.created_by == current_user.id,
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    old_val = doc.hieu_luc
+    doc.hieu_luc = body.hieu_luc
+    await db.flush()
+    await db.refresh(doc)
+
+    logger.info(
+        "[hieu_luc] doc %s: %s → %s%s",
+        doc_id, old_val, body.hieu_luc,
+        f" ({body.ghi_chu})" if body.ghi_chu else "",
+    )
+
+    return _add_url(doc)
+
+
 # ── Delete ───────────────────────────────────────────────────────────────────
 
-@router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{doc_id}")
 async def delete_ref_doc(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
@@ -366,10 +416,17 @@ async def delete_ref_doc(
         try:
             client = get_minio_client()
             client.remove_object(REF_DOCS_BUCKET, doc.file_path)
-        except Exception:
-            pass
+            logger.info("[ref_doc] deleted MinIO object: %s", doc.file_path)
+        except Exception as e:
+            logger.warning(
+                "[ref_doc] MinIO delete failed for %s: %s — continuing with DB delete",
+                doc.file_path, e,
+            )
 
     await db.delete(doc)
+    await db.commit()
+
+    return {"status": "deleted", "doc_id": doc_id}
 
 
 # ── Upload file + trigger embedding pipeline ─────────────────────────────────
