@@ -179,8 +179,9 @@ export const refDocApi = {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
     form.append("visibility", visibility);
-    // Do NOT set Content-Type manually — axios sets multipart/form-data with correct boundary automatically
-    const { data } = await api.post("/reference-docs/upload-batch", form);
+    const { data } = await api.post("/reference-docs/upload-batch", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return data as { jobs: Array<{ job_id: string; filename: string }> };
   },
 
@@ -483,7 +484,9 @@ export const documentApi = {
   uploadBatch: async (files: File[]) => {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
-    const { data } = await api.post("/documents/upload-batch", form);
+    const { data } = await api.post("/documents/upload-batch", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return data as { jobs: Array<{ job_id: string; filename: string }> };
   },
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func, or_, text
 from typing import List
@@ -317,7 +317,7 @@ async def confirm_metadata(
 async def upload_ref_batch(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    visibility: str = "private",
+    visibility: str = Form(default="private"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
