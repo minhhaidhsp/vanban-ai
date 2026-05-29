@@ -21,6 +21,7 @@ class ReferenceDocument(Base):
     nguoi_ky: Mapped[str | None] = mapped_column(String(200), nullable=True)
     trich_yeu: Mapped[str] = mapped_column(Text)
     hieu_luc: Mapped[str] = mapped_column(String(20), default="chua", index=True)
+    visibility: Mapped[str] = mapped_column(String(10), nullable=False, default="private", server_default="private", index=True)
     file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     file_type: Mapped[str | None] = mapped_column(String(100), nullable=True)

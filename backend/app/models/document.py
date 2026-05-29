@@ -18,11 +18,12 @@ class Document(Base):
     loai_vb: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
     so_van_ban: Mapped[int | None] = mapped_column(nullable=True)
     nam: Mapped[int | None] = mapped_column(nullable=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="editor", server_default="editor", index=True)
     owner_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(1536), nullable=True
+        Vector(1024), nullable=True
     )
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -1,11 +1,15 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func, or_, text
+from typing import List
+from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.core.storage import get_minio_client, ensure_bucket_exists, get_file_url
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.reference_document import ReferenceDocument
+from app.services.reference_pipeline_service import process_reference_background
 from app.schemas.reference_document import (
     RefDocCreate, RefDocUpdate, RefDocResponse,
     RefDocListResponse, RefDocSearchResponse,
@@ -14,6 +18,7 @@ from app.schemas.reference_document import (
     MetadataPreviewResponse, MetadataConfirmRequest, MetadataConfidence,
 )
 import asyncio
+import json
 import logging
 import uuid
 import io
@@ -56,10 +61,23 @@ async def list_ref_docs(
     loai: str | None = Query(None),
     hieu_luc: str | None = Query(None),
     q: str | None = Query(None),
+    visibility: str | None = Query(None),  # private | org | system
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    base = select(ReferenceDocument).where(ReferenceDocument.created_by == current_user.id)
+    if visibility == "private":
+        base = select(ReferenceDocument).where(
+            ReferenceDocument.created_by == current_user.id,
+            ReferenceDocument.visibility == "private",
+        )
+    elif visibility == "org":
+        base = select(ReferenceDocument).where(ReferenceDocument.visibility == "org")
+    elif visibility == "system":
+        base = select(ReferenceDocument).where(ReferenceDocument.visibility == "system")
+    else:
+        # Default: own documents (all visibilities)
+        base = select(ReferenceDocument).where(ReferenceDocument.created_by == current_user.id)
+
     if loai:
         base = base.where(ReferenceDocument.loai_van_ban == loai)
     if hieu_luc:
@@ -291,6 +309,112 @@ async def confirm_metadata(
     await redis.delete(f"metadata_preview:{doc_id}")
 
     return _add_url(doc)
+
+
+# ── Batch upload (AI auto-extract metadata) ──────────────────────────────────
+
+@router.post("/upload-batch", status_code=status.HTTP_202_ACCEPTED)
+async def upload_ref_batch(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    visibility: str = "private",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload nhiều file cùng lúc. AI tự trích xuất metadata. Trả 202 ngay."""
+    settings = get_settings()
+    if len(files) > settings.upload_max_files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tối đa {settings.upload_max_files} file mỗi lần upload",
+        )
+    if visibility not in ("private", "org", "system"):
+        visibility = "private"
+
+    redis = await get_redis()
+    jobs = []
+
+    for file in files:
+        file_data = await file.read()
+        filename = file.filename or "unknown"
+        file_type = file.content_type or "application/octet-stream"
+        doc_id = str(uuid.uuid4())
+        job_id = str(uuid.uuid4())
+
+        # Upload to MinIO
+        object_name = f"{current_user.id}/{doc_id}/{uuid.uuid4()}_{filename}"
+
+        def _upload(data=file_data, name=object_name, ct=file_type):
+            client = get_minio_client()
+            ensure_bucket_exists(client, REF_DOCS_BUCKET)
+            client.put_object(
+                bucket_name=REF_DOCS_BUCKET,
+                object_name=name,
+                data=io.BytesIO(data),
+                length=len(data),
+                content_type=ct,
+            )
+
+        await asyncio.get_event_loop().run_in_executor(None, _upload)
+
+        # Create ReferenceDocument with placeholder values (LLM fills later)
+        doc = ReferenceDocument(
+            id=doc_id,
+            title=filename,
+            loai_van_ban="",
+            so_ki_hieu="",
+            co_quan_ban_hanh="",
+            trich_yeu="",
+            hieu_luc="chua",
+            visibility=visibility,
+            file_path=object_name,
+            file_size=len(file_data),
+            file_type=file_type,
+            created_by=current_user.id,
+        )
+        db.add(doc)
+
+        # Redis job status
+        await redis.set(
+            f"ref_job:{job_id}",
+            json.dumps({"status": "pending", "filename": filename, "doc_id": doc_id}),
+            ex=settings.doc_job_ttl_seconds,
+        )
+
+        background_tasks.add_task(
+            process_reference_background,
+            job_id=job_id,
+            doc_id=doc_id,
+            file_data=file_data,
+            filename=filename,
+            file_type=file_type,
+            owner_id=str(current_user.id),
+        )
+
+        jobs.append({"job_id": job_id, "filename": filename})
+        logger.info("[ref_batch] queued job=%s doc=%s file=%s", job_id, doc_id, filename)
+
+    await db.flush()
+    return {"jobs": jobs}
+
+
+@router.get("/status/{job_id}")
+async def get_ref_job_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Poll trạng thái xử lý của một batch upload job (ref doc)."""
+    redis = await get_redis()
+    data = await redis.get(f"ref_job:{job_id}")
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found or expired")
+    info = json.loads(data)
+    return {
+        "job_id": job_id,
+        "status": info.get("status", "unknown"),
+        "filename": info.get("filename", ""),
+        "error": info.get("error", None),
+    }
 
 
 # ── Create ───────────────────────────────────────────────────────────────────

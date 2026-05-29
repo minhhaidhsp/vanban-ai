@@ -94,10 +94,12 @@ class RAGService:
         db: AsyncSession,
         top_k: int = DEFAULT_TOP_K,
         min_score: float = DEFAULT_MIN_SCORE,
+        source_ids: list[str] | None = None,
     ) -> list[dict]:
         """
         Embed query rồi tìm top-k chunks gần nhất bằng pgvector cosine.
         Chỉ trả về chunks có score >= min_score.
+        Nếu source_ids không rỗng → chỉ tìm trong reference docs đó.
         """
         from app.services.embedding_service import embed_text
         from app.models.reference_doc_chunk import ReferenceDocChunk
@@ -133,6 +135,9 @@ class RAGService:
             .order_by(ReferenceDocChunk.embedding.cosine_distance(query_vector))
             .limit(top_k)
         )
+
+        if source_ids:
+            stmt = stmt.where(ReferenceDocChunk.document_id.in_(source_ids))
 
         result = await db.execute(stmt)
         return [dict(row) for row in result.mappings().all()]

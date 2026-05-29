@@ -12,6 +12,7 @@ class RefDocBase(BaseModel):
     nguoi_ky: str | None = None
     trich_yeu: str
     hieu_luc: str = "chua"
+    visibility: str = "private"
     tom_tat: str | None = None
     tu_khoa: list[str] = []
 
@@ -29,6 +30,7 @@ class RefDocUpdate(BaseModel):
     nguoi_ky: str | None = None
     trich_yeu: str | None = None
     hieu_luc: str | None = None
+    visibility: str | None = None
     tom_tat: str | None = None
     tu_khoa: list[str] | None = None
 

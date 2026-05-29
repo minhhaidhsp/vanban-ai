@@ -25,3 +25,25 @@ Mở http://localhost:3000 — thấy giao diện Next.js là xong.
 account
 email: minhhaidhsp@gmail.com
 pass: 12345678
+
+========
+Lưu ý vận hành Colab:
+Mỗi lần mở lại Colab, chỉ cần chạy 3 cell theo thứ tự:
+Cell 1: pip install vllm -q
+Cell 2: Khởi động vLLM server (Qwen2.5-3B)
+Cell 3: Cloudflare Tunnel → lấy PUBLIC_URL mới
+
+
+===
+Làm theo thứ tự:
+Bước 1 — Restart tunnel Colab:
+python# Chạy lại cell Cloudflare trong Colab
+# Lấy PUBLIC_URL mới
+Bước 2 — Update URL:
+PATCH http://localhost:8000/api/v1/llm/config
+{"llm_base_url": "https://url-mới.trycloudflare.com"}
+Bước 3 — Kiểm tra health:
+GET http://localhost:8000/api/v1/rag/health
+→ llm: "ok"
+Bước 4 — Search lại trên UI → chụp màn hình kết quả có answer thật.
+Paste URL mới từ Colab ra đây nhé.

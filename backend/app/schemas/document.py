@@ -26,6 +26,7 @@ class DocumentResponse(DocumentBase):
     id: str
     file_path: str | None
     file_type: str | None
+    source: str = "editor"
     owner_id: str
     created_at: datetime
     updated_at: datetime

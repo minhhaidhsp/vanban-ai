@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.1
     llm_max_tokens: int = 2048
 
+    # Batch upload
+    upload_max_files: int = 20
+    upload_timeout_seconds: int = 300
+    doc_job_ttl_seconds: int = 86400  # 24h
+
 
 @lru_cache
 def get_settings() -> Settings:

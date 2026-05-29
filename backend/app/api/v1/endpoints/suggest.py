@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.models.trich_yeu_history import TrichYeuHistory
 from app.models.user import User
 
 router = APIRouter()
@@ -47,6 +49,18 @@ class SoKiHieuResponse(BaseModel):
     vi_du: str
 
 
+class TrichYeuHistoryItem(BaseModel):
+    trich_yeu: str
+    loai_van_ban: str
+    used_count: int
+    last_used_at: str | None
+
+
+class TrichYeuHistoryResponse(BaseModel):
+    items: list[TrichYeuHistoryItem]
+    total: int
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/can-cu", response_model=CanCuSuggestResponse)
@@ -87,3 +101,38 @@ async def suggest_so_ki_hieu(
     from app.services.suggest_service import suggest_so_ki_hieu as _suggest
 
     return SoKiHieuResponse(**_suggest(loai_vb, co_quan))
+
+
+@router.get("/trich-yeu-history", response_model=TrichYeuHistoryResponse)
+async def get_trich_yeu_history(
+    loai_vb: str = Query(..., description="Loại văn bản, vd: QĐ"),
+    limit: int = Query(10, ge=1, le=50),
+    q: str = Query("", description="Tìm kiếm trong trích yếu"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lấy lịch sử trích yếu đã dùng, sắp xếp theo tần suất sử dụng."""
+    query = select(TrichYeuHistory).where(
+        TrichYeuHistory.loai_van_ban == loai_vb,
+        TrichYeuHistory.created_by == str(current_user.id),
+    )
+    if q:
+        query = query.where(TrichYeuHistory.trich_yeu.ilike(f"%{q}%"))
+    query = query.order_by(
+        TrichYeuHistory.used_count.desc(),
+        TrichYeuHistory.last_used_at.desc(),
+    ).limit(limit)
+
+    result = await db.execute(query)
+    rows = result.scalars().all()
+
+    items = [
+        TrichYeuHistoryItem(
+            trich_yeu=r.trich_yeu,
+            loai_van_ban=r.loai_van_ban,
+            used_count=r.used_count,
+            last_used_at=r.last_used_at.isoformat() if r.last_used_at else None,
+        )
+        for r in rows
+    ]
+    return TrichYeuHistoryResponse(items=items, total=len(items))

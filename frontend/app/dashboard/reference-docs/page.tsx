@@ -1,22 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { refDocApi, type RefDoc } from "@/lib/api";
 import { RefDocTable } from "@/components/reference-docs/ref-doc-table";
 import { UploadModal } from "@/components/reference-docs/upload-modal";
+import { RefDocBatchUploadModal } from "@/components/reference-docs/RefDocBatchUploadModal";
 import { MetadataReviewCard } from "@/components/reference-docs/MetadataReviewCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, FolderOpen, Loader2 } from "lucide-react";
+import { Plus, Search, FolderOpen, Loader2, Upload } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { cn } from "@/lib/utils";
 
 const LOAI_OPTIONS = [
   "Nghị định", "Thông tư", "Quyết định", "Công văn",
@@ -30,47 +29,84 @@ const HIEU_LUC_OPTIONS = [
   { value: "mot_phan", label: "Một phần" },
 ];
 
+type TabId = "private" | "org" | "system";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "private", label: "Của tôi" },
+  { id: "org",     label: "Cơ quan" },
+  { id: "system",  label: "Hệ thống" },
+];
+
 const LIMIT = 20;
 
 export default function ReferenceDocsPage() {
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<TabId>("private");
   const [skip, setSkip] = useState(0);
   const [searchInput, setSearchInput] = useState("");
   const [loai, setLoai] = useState<string>("");
   const [hieuLuc, setHieuLuc] = useState<string>("");
-  const [modalOpen, setModalOpen] = useState(false);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [singleModalOpen, setSingleModalOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<RefDoc | null>(null);
   const [pendingMetadataDocId, setPendingMetadataDocId] = useState<string | null>(null);
 
   const q = useDebounce(searchInput, 300);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["reference-docs", { skip, limit: LIMIT, loai: loai || undefined, hieu_luc: hieuLuc || undefined, q: q || undefined }],
-    queryFn: () =>
-      refDocApi.list({
-        skip,
-        limit: LIMIT,
-        loai: loai || undefined,
-        hieu_luc: hieuLuc || undefined,
-        q: q || undefined,
-      }),
+  // Fetch counts per tab for badges
+  const { data: privateData } = useQuery({
+    queryKey: ["reference-docs-count", "private"],
+    queryFn: () => refDocApi.list({ skip: 0, limit: 1, visibility: "private" }),
+  });
+  const { data: orgData } = useQuery({
+    queryKey: ["reference-docs-count", "org"],
+    queryFn: () => refDocApi.list({ skip: 0, limit: 1, visibility: "org" }),
+  });
+  const { data: systemData } = useQuery({
+    queryKey: ["reference-docs-count", "system"],
+    queryFn: () => refDocApi.list({ skip: 0, limit: 1, visibility: "system" }),
   });
 
-  const handleEdit = (doc: RefDoc) => {
-    setEditingDoc(doc);
-    setModalOpen(true);
+  const tabCounts: Record<TabId, number | undefined> = {
+    private: privateData?.total,
+    org: orgData?.total,
+    system: systemData?.total,
   };
 
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setEditingDoc(null);
-  };
+  // Main data fetch
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["reference-docs", {
+      skip, limit: LIMIT, visibility: activeTab,
+      loai: loai || undefined, hieu_luc: hieuLuc || undefined, q: q || undefined,
+    }],
+    queryFn: () => refDocApi.list({
+      skip, limit: LIMIT,
+      visibility: activeTab,
+      loai: loai || undefined,
+      hieu_luc: hieuLuc || undefined,
+      q: q || undefined,
+    }),
+  });
 
-  const handleFilterChange = () => {
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
     setSkip(0);
   };
 
+  const handleFilterChange = () => setSkip(0);
+
+  const handleEdit = (doc: RefDoc) => {
+    setEditingDoc(doc);
+    setSingleModalOpen(true);
+  };
+
+  const handleCloseSingle = () => {
+    setSingleModalOpen(false);
+    setEditingDoc(null);
+  };
+
   return (
-    <div className="flex flex-col h-full p-6 gap-4">
+    <div className="flex flex-col h-full gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -80,10 +116,52 @@ export default function ReferenceDocsPage() {
             <span className="text-sm text-muted-foreground">({data.total})</span>
           )}
         </div>
-        <Button onClick={() => { setEditingDoc(null); setModalOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" />
-          Thêm văn bản
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline" size="sm"
+            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            onClick={() => setBatchModalOpen(true)}
+          >
+            <Upload className="h-4 w-4" />
+            Upload hàng loạt (AI)
+          </Button>
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => { setEditingDoc(null); setSingleModalOpen(true); }}
+          >
+            <Plus className="h-4 w-4" />
+            Nhập thủ công
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+              activeTab === tab.id
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            )}
+          >
+            {tab.label}
+            {tabCounts[tab.id] !== undefined && (
+              <span className={cn(
+                "rounded-full px-1.5 py-0.5 text-xs font-semibold",
+                activeTab === tab.id
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-gray-100 text-gray-500"
+              )}>
+                {tabCounts[tab.id]}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Filter bar */}
@@ -97,7 +175,6 @@ export default function ReferenceDocsPage() {
             className="pl-9"
           />
         </div>
-
         <Select
           value={loai || "__all__"}
           onValueChange={(v) => { setLoai(v === "__all__" ? "" : v); handleFilterChange(); }}
@@ -112,7 +189,6 @@ export default function ReferenceDocsPage() {
             ))}
           </SelectContent>
         </Select>
-
         <Select
           value={hieuLuc || "__all__"}
           onValueChange={(v) => { setHieuLuc(v === "__all__" ? "" : v); handleFilterChange(); }}
@@ -149,15 +225,25 @@ export default function ReferenceDocsPage() {
         />
       )}
 
-      {/* Modal */}
+      {/* Batch upload modal (AI) */}
+      <RefDocBatchUploadModal
+        open={batchModalOpen}
+        onClose={() => setBatchModalOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["reference-docs"] });
+          queryClient.invalidateQueries({ queryKey: ["reference-docs-count"] });
+        }}
+      />
+
+      {/* Single upload modal (manual) */}
       <UploadModal
-        open={modalOpen}
-        onClose={handleCloseModal}
+        open={singleModalOpen}
+        onClose={handleCloseSingle}
         editing={editingDoc}
         onUploaded={(id) => setPendingMetadataDocId(id)}
       />
 
-      {/* Metadata review after upload */}
+      {/* Metadata review after single upload */}
       <MetadataReviewCard
         docId={pendingMetadataDocId}
         onClose={() => setPendingMetadataDocId(null)}

@@ -4,5 +4,6 @@ from app.models.organization import Organization
 from app.models.recipient_suggestion import RecipientSuggestion
 from app.models.reference_document import ReferenceDocument
 from app.models.reference_doc_chunk import ReferenceDocChunk
+from app.models.trich_yeu_history import TrichYeuHistory
 
-__all__ = ["User", "Document", "Organization", "RecipientSuggestion", "ReferenceDocument", "ReferenceDocChunk"]
+__all__ = ["User", "Document", "Organization", "RecipientSuggestion", "ReferenceDocument", "ReferenceDocChunk", "TrichYeuHistory"]

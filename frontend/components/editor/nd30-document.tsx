@@ -19,9 +19,12 @@ import {
   defaultNd30Data,
   type Nd30Data,
 } from "@/lib/nd30";
-import { organizationApi, documentApi } from "@/lib/api";
+import { organizationApi, documentApi, suggestApi } from "@/lib/api";
+import { CanCuSuggestPanel } from "./CanCuSuggestPanel";
+import { TrichYeuSuggestPanel } from "./TrichYeuSuggestPanel";
 import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { ChevronDown } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // ── TipTap section editor ─────────────────────────────────────────────────
 
@@ -178,6 +181,10 @@ function DiaDanhSelect({ value, onChange, style }: {
 
 // ── Page-break visual overlay ─────────────────────────────────────────────
 
+// Map abbreviation key → full display name cho suggest API
+const getLoaiVbDisplay = (loaiVb: string) =>
+  VAN_BAN_TYPES[loaiVb]?.full_name || loaiVb || "Quyết định";
+
 // ── Main component ────────────────────────────────────────────────────────
 
 export interface Nd30DocumentProps {
@@ -193,6 +200,12 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
   }));
 
   const quocHieuRef = useRef<HTMLDivElement>(null);
+
+  // AI suggest state
+  const [trichYeuPanelOpen, setTrichYeuPanelOpen] = useState(false);
+  const [soKySuggesting, setSoKySuggesting] = useState(false);
+  const [canCuPanelOpen, setCanCuPanelOpen] = useState(false);
+  const { toast } = useToast();
 
   // Auto-shrink quốc hiệu nếu tràn cột
   useEffect(() => {
@@ -260,6 +273,44 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
     });
   }, [onChange]);
 
+  const handleSuggestTrichYeu = () => {
+    setTrichYeuPanelOpen(true);
+  };
+
+  const handleSuggestSoKyHieu = async () => {
+    console.log('loaiVanBan raw:', data.loaiVanBan);
+    console.log('loaiVbDisplay:', getLoaiVbDisplay(data.loaiVanBan));
+    setSoKySuggesting(true);
+    try {
+      const res = await suggestApi.getSoKiHieu(
+        getLoaiVbDisplay(data.loaiVanBan),
+        data.coQuanBanHanh || ""
+      );
+      update("soKyHieu", res.so_ki_hieu);
+    } catch (e) {
+      console.error("[suggest] so_ki_hieu:", e);
+      toast({ title: "Lỗi khi gợi ý số/ký hiệu", variant: "destructive" });
+    } finally {
+      setSoKySuggesting(false);
+    }
+  };
+
+  const handleApplyCanCu = (selectedTexts: string[]) => {
+    if (!selectedTexts.length) return;
+    const newHtml = selectedTexts.map((t) => `<p>${t};</p>`).join("");
+    const current = data.canCu || "";
+    const isEmpty = !current || current === "<p></p>";
+    update("canCu", isEmpty ? newHtml : current + newHtml);
+  };
+
+  const handleAIFillAll = async () => {
+    await handleSuggestSoKyHieu();
+    if (!data.trichYeu) {
+      setTrichYeuPanelOpen(true);
+    }
+    setCanCuPanelOpen(true);
+  };
+
   const handleTypeChange = (loai: string) => {
     setData((prev) => {
       const next = { ...prev, loaiVanBan: loai, soKyHieu: "" };
@@ -315,7 +366,61 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
             <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
           </div>
         </div>
+
+        {/* AI Gợi ý */}
+        <div className="ml-auto flex items-center gap-1 border-l pl-3">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">AI:</span>
+
+          {/* Trích yếu */}
+          <button
+            type="button"
+            onClick={handleSuggestTrichYeu}
+            title="AI gợi ý trích yếu"
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
+          >
+            ✨ Trích yếu
+          </button>
+
+          {/* Số/KH */}
+          <button
+            type="button"
+            onClick={handleSuggestSoKyHieu}
+            disabled={soKySuggesting}
+            title="AI gợi ý số/ký hiệu theo NĐ30"
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded text-purple-600 hover:bg-purple-50 disabled:opacity-40 transition-colors whitespace-nowrap"
+          >
+            <span className={soKySuggesting ? "animate-spin inline-block" : ""}>
+              {soKySuggesting ? "⟳" : "✨"}
+            </span>
+            Số/KH
+          </button>
+
+          {/* Căn cứ */}
+          <button
+            type="button"
+            onClick={() => setCanCuPanelOpen(true)}
+            title="Gợi ý căn cứ pháp lý từ kho văn bản"
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
+          >
+            ✨ Căn cứ
+          </button>
+        </div>
       </div>
+
+      {/* ── Banner AI điền thông minh (chỉ hiện khi tạo mới) ─── */}
+      {isNew && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border-b border-purple-100 text-sm text-purple-700 print:hidden">
+          <span>✨</span>
+          <span>Văn bản mới — dùng AI để điền nhanh:</span>
+          <button
+            type="button"
+            onClick={handleAIFillAll}
+            className="font-medium underline hover:text-purple-900 transition-colors"
+          >
+            Điền thông minh
+          </button>
+        </div>
+      )}
 
       {/* ── A4 scroll wrapper ─────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible">
@@ -552,6 +657,22 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
 
         </div>
       </div>
+
+      <TrichYeuSuggestPanel
+        isOpen={trichYeuPanelOpen}
+        onClose={() => setTrichYeuPanelOpen(false)}
+        loaiVb={getLoaiVbDisplay(data.loaiVanBan)}
+        loaiVbRaw={data.loaiVanBan || ""}
+        currentTrichYeu={data.trichYeu || ""}
+        onSelect={(val) => update("trichYeu", val)}
+      />
+      <CanCuSuggestPanel
+        isOpen={canCuPanelOpen}
+        onClose={() => setCanCuPanelOpen(false)}
+        loaiVb={getLoaiVbDisplay(data.loaiVanBan)}
+        trichYeu={data.trichYeu || ""}
+        onApply={handleApplyCanCu}
+      />
     </div>
   );
 }

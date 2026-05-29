@@ -59,6 +59,7 @@ class ChatStreamRequest(BaseModel):
     doc_context: str | None = None
     top_k: int = 10
     min_score: float = 0.35
+    source_ids: list[str] = []  # if non-empty, RAG restricted to these reference_doc ids
 
 
 class ChatHistoryItem(BaseModel):
@@ -206,13 +207,14 @@ async def chat_stream(
         chunks_used: list[dict] = []
 
         try:
-            # 1. Retrieve + rerank
+            # 1. Retrieve + rerank (scoped to source_ids if provided)
+            src = body.source_ids or None
             chunks = await rag_service.retrieve(
-                body.query, db, body.top_k, body.min_score
+                body.query, db, body.top_k, body.min_score, source_ids=src
             )
             if not chunks:
                 chunks = await rag_service.retrieve(
-                    body.query, db, body.top_k, min_score=0.2
+                    body.query, db, body.top_k, min_score=0.2, source_ids=src
                 )
 
             if chunks:

@@ -82,6 +82,7 @@ export interface RefDoc {
   nguoi_ky: string | null;
   trich_yeu: string;
   hieu_luc: string;
+  visibility: "private" | "org" | "system";
   file_path: string | null;
   file_size: number | null;
   file_type: string | null;
@@ -128,7 +129,7 @@ export interface MetadataConfirmRequest {
 }
 
 export const refDocApi = {
-  list: async (params?: { skip?: number; limit?: number; loai?: string; hieu_luc?: string; q?: string }) => {
+  list: async (params?: { skip?: number; limit?: number; loai?: string; hieu_luc?: string; q?: string; visibility?: "private" | "org" | "system" }) => {
     const { data } = await api.get("/reference-docs/", { params });
     return data as RefDocListResponse;
   },
@@ -172,6 +173,26 @@ export const refDocApi = {
   confirmMetadata: async (id: string, payload: MetadataConfirmRequest) => {
     const { data } = await api.post(`/reference-docs/${id}/metadata-confirm`, payload);
     return data as RefDoc;
+  },
+
+  uploadBatch: async (files: File[], visibility: "private" | "org" | "system" = "private") => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    form.append("visibility", visibility);
+    const { data } = await api.post("/reference-docs/upload-batch", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data as { jobs: Array<{ job_id: string; filename: string }> };
+  },
+
+  getJobStatus: async (jobId: string) => {
+    const { data } = await api.get(`/reference-docs/status/${jobId}`);
+    return data as {
+      job_id: string;
+      status: "pending" | "processing" | "done" | "failed";
+      filename: string;
+      error: string | null;
+    };
   },
 };
 
@@ -236,6 +257,19 @@ export interface ChatHistoryResponse {
   total_turns: number;
 }
 
+export const documentSourcesApi = {
+  list: async (documentId: string) => {
+    const { data } = await api.get(`/documents/${documentId}/sources`);
+    return data as RefDoc[];
+  },
+  add: async (documentId: string, referenceDocId: string) => {
+    await api.post(`/documents/${documentId}/sources`, { reference_doc_id: referenceDocId });
+  },
+  remove: async (documentId: string, referenceDocId: string) => {
+    await api.delete(`/documents/${documentId}/sources/${referenceDocId}`);
+  },
+};
+
 export const chatApi = {
   streamChat: async (
     query: string,
@@ -245,6 +279,7 @@ export const chatApi = {
     onCitations?: (citations: ChatCitation[]) => void,
     onDone?: () => void,
     onError?: (error: string) => void,
+    sourceIds?: string[],
   ): Promise<void> => {
     try {
       const token = Cookies.get("access_token");
@@ -256,7 +291,12 @@ export const chatApi = {
           "Accept": "text/event-stream",
           "Cache-Control": "no-cache",
         },
-        body: JSON.stringify({ query, doc_id: docId, doc_context: docContext }),
+        body: JSON.stringify({
+          query,
+          doc_id: docId,
+          doc_context: docContext,
+          source_ids: sourceIds ?? [],
+        }),
       });
 
       if (!response.ok) {
@@ -310,10 +350,77 @@ export const chatApi = {
   },
 };
 
+export const suggestApi = {
+  getCanCu: async (loai_vb: string, trich_yeu: string, top_k: number = 5) => {
+    const res = await api.post("/suggest/can-cu", { loai_vb, trich_yeu, top_k });
+    return res.data as {
+      items: Array<{
+        text: string;
+        source_doc: string;
+        so_ki_hieu: string | null;
+        score: number;
+        rerank_score: number;
+      }>;
+      total: number;
+      query_used: string;
+    };
+  },
+
+  getTrichYeu: async (loai_vb: string, mo_ta: string = "") => {
+    const res = await api.post("/suggest/trich-yeu", { loai_vb, mo_ta });
+    return res.data as { suggestions: string[]; fallback: boolean };
+  },
+
+  getSoKiHieu: async (loai_vb: string, co_quan: string = "") => {
+    const res = await api.get("/suggest/so-ki-hieu", { params: { loai_vb, co_quan } });
+    return res.data as {
+      so_ki_hieu: string;
+      format_giai_thich: string;
+      vi_du: string;
+    };
+  },
+
+  getTrichYeuHistory: async (loai_vb: string, q: string = "", limit: number = 10) => {
+    const res = await api.get("/suggest/trich-yeu-history", { params: { loai_vb, q, limit } });
+    return res.data as {
+      items: Array<{ trich_yeu: string; loai_van_ban: string; used_count: number; last_used_at: string | null }>;
+      total: number;
+    };
+  },
+};
+
+export interface DocumentDto {
+  id: string;
+  title: string;
+  content?: string | null;
+  file_path?: string | null;
+  file_type?: string | null;
+  loai_vb?: string | null;
+  so_van_ban?: number | null;
+  nam?: number | null;
+  source: "editor" | "upload";
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentStats {
+  total: number;
+  editor_count: number;
+  upload_count: number;
+  by_type: Record<string, number>;
+  recent_7_days: number;
+}
+
 export const documentApi = {
-  list: async (skip = 0, limit = 20) => {
-    const { data } = await api.get("/documents/", { params: { skip, limit } });
-    return data as Document[];
+  list: async (params?: { skip?: number; limit?: number; source?: "editor" | "upload"; sort?: "created_at" | "updated_at" }) => {
+    const { data } = await api.get("/documents/", { params });
+    return data as DocumentDto[];
+  },
+
+  getStats: async () => {
+    const { data } = await api.get("/documents/stats");
+    return data as DocumentStats;
   },
 
   create: async (payload: { title: string; content?: string }) => {
@@ -354,5 +461,24 @@ export const documentApi = {
       responseType: "blob",
     });
     return data as Blob;
+  },
+
+  uploadBatch: async (files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    const { data } = await api.post("/documents/upload-batch", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data as { jobs: Array<{ job_id: string; filename: string }> };
+  },
+
+  getJobStatus: async (jobId: string) => {
+    const { data } = await api.get(`/documents/status/${jobId}`);
+    return data as {
+      job_id: string;
+      status: "pending" | "processing" | "done" | "failed";
+      filename: string;
+      error: string | null;
+    };
   },
 };

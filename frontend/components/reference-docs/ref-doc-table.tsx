@@ -6,7 +6,8 @@ import { refDocApi, type RefDoc } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Pencil, Trash2, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Pencil, Trash2, FileText } from "lucide-react";
+import { Pagination } from "@/components/ui/Pagination";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,11 +19,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const HIEU_LUC_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  "con_hieu_luc": { label: "Còn hiệu lực", variant: "default" },
-  "het_hieu_luc": { label: "Hết hiệu lực", variant: "destructive" },
-  "chua": { label: "Chưa xác định", variant: "secondary" },
-  "mot_phan": { label: "Một phần", variant: "outline" },
+const HIEU_LUC_LABELS: Record<string, { label: string; className: string }> = {
+  "con_hieu_luc": { label: "Còn hiệu lực", className: "bg-green-600 text-white border-green-600" },
+  "het_hieu_luc": { label: "Hết hiệu lực", className: "bg-red-600 text-white border-red-600" },
+  "chua":         { label: "Chưa xác định", className: "bg-gray-200 text-gray-600 border-gray-200" },
+  "mot_phan":     { label: "Một phần",      className: "bg-yellow-500 text-white border-yellow-500" },
+};
+
+const VISIBILITY_LABELS: Record<string, { label: string; className: string }> = {
+  "private": { label: "Riêng tư", className: "bg-gray-200 text-gray-800 border-gray-200" },
+  "org":     { label: "Cơ quan",  className: "bg-blue-600 text-white border-blue-600" },
+  "system":  { label: "Hệ thống", className: "bg-green-600 text-white border-green-600" },
 };
 
 function formatDate(d: string | null) {
@@ -86,12 +93,13 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit }:
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[160px]">Cơ quan</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px]">Ngày BH</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[140px]">Hiệu lực</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[100px] hidden sm:table-cell">Phạm vi</th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[100px]">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {items.map((doc) => {
-              const hl = HIEU_LUC_LABELS[doc.hieu_luc] ?? { label: doc.hieu_luc, variant: "secondary" as const };
+              const hl = HIEU_LUC_LABELS[doc.hieu_luc] ?? { label: doc.hieu_luc, className: "bg-gray-200 text-gray-600 border-gray-200" };
               return (
                 <tr key={doc.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{doc.so_ki_hieu || "—"}</td>
@@ -105,7 +113,17 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit }:
                   <td className="px-4 py-3 text-xs text-muted-foreground line-clamp-2">{doc.co_quan_ban_hanh}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(doc.ngay_ban_hanh)}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={hl.variant}>{hl.label}</Badge>
+                    <Badge className={`text-xs border ${hl.className} hover:opacity-90`}>{hl.label}</Badge>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    {(() => {
+                      const vis = VISIBILITY_LABELS[doc.visibility ?? "private"] ?? VISIBILITY_LABELS.private;
+                      return (
+                        <Badge className={`text-xs border ${vis.className} hover:${vis.className}`}>
+                          {vis.label}
+                        </Badge>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
@@ -143,35 +161,14 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit }:
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
-          <span>
-            {skip + 1}–{Math.min(skip + limit, total)} / {total} văn bản
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-7 w-7"
-              disabled={page === 1}
-              onClick={() => onPageChange(skip - limit)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span>{page} / {totalPages}</span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-7 w-7"
-              disabled={page >= totalPages}
-              onClick={() => onPageChange(skip + limit)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        pageSize={limit}
+        onPageChange={(p) => onPageChange((p - 1) * limit)}
+        className="mt-4"
+      />
 
       <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>

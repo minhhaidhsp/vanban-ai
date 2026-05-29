@@ -6,12 +6,16 @@ import { documentApi } from "@/lib/api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { Nd30Document } from "./nd30-document";
 import { DocumentPreviewPaged } from "./DocumentPreviewPaged";
+import { SourcesPanel } from "./SourcesPanel";
+import { RightPanel } from "./RightPanel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Check, AlertCircle, Loader2, Eye, Download, MessageSquare } from "lucide-react";
+import {
+  Save, Check, AlertCircle, Loader2, Eye, Download,
+  PanelLeft, PanelRight,
+} from "lucide-react";
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
-import { ChatPanel } from "./ChatPanel";
 
 interface DocumentEditorProps {
   documentId?: string;
@@ -44,44 +48,22 @@ function parseContent(content?: string): Partial<Nd30Data> {
 }
 
 export function DocumentEditor({ documentId, initialContent, initialTitle }: DocumentEditorProps) {
-  const queryClient  = useQueryClient();
-  const { toast }    = useToast();
+  const queryClient = useQueryClient();
+  const { toast }   = useToast();
   const [docId, setDocId] = useState(documentId);
   const isNew = !documentId;
   const dataRef = useRef<Nd30Data>(
     { ...defaultNd30Data(), ...parseContent(initialContent) }
   );
 
-  // ── Chat panel ────────────────────────────────────────────────────────────
-  const [chatOpen, setChatOpen] = useState(false);
+  // Source IDs for RAG scoping
+  const [sourceIds, setSourceIds] = useState<string[]>([]);
 
-  const getDocContext = useCallback(() => {
-    const d = dataRef.current;
-    const strip = (html: string) =>
-      (html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-    return [
-      d.loaiVanBan && `Loại: ${d.loaiVanBan}`,
-      d.soKyHieu && `Số ký hiệu: ${d.soKyHieu}`,
-      d.trichYeu && `Trích yếu: ${d.trichYeu}`,
-      d.canCu && `Căn cứ: ${strip(d.canCu).slice(0, 300)}`,
-      d.noiDung && `Nội dung: ${strip(d.noiDung).slice(0, 500)}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }, []);
+  // Mobile panel toggles
+  const [showLeft,  setShowLeft]  = useState(false);
+  const [showRight, setShowRight] = useState(false);
 
-  const handleInsertText = useCallback(
-    (text: string) => {
-      navigator.clipboard.writeText(text).then(() => {
-        toast({ title: "Đã copy vào clipboard", description: "Ctrl+V để dán vào văn bản" });
-      }).catch(() => {
-        toast({ title: "Không thể copy", variant: "destructive" });
-      });
-    },
-    [toast]
-  );
-
-  // ── Preview mode ──────────────────────────────────────────────────────────
+  // Preview mode
   const [previewMode, setPreviewMode] = useState(false);
   const [previewData, setPreviewData] = useState<Nd30Data | null>(null);
 
@@ -95,7 +77,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     setPreviewData(null);
   }, []);
 
-  // ── PDF export ────────────────────────────────────────────────────────────
+  // PDF export
   const [exporting, setExporting] = useState(false);
 
   const handleExportPdf = useCallback(async () => {
@@ -130,8 +112,9 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     }
   }, [docId, toast]);
 
+  // Keyboard shortcut: Ctrl+Shift+P = preview
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === "P") {
         e.preventDefault();
         setPreviewMode((prev) => {
@@ -141,10 +124,11 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         });
       }
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Autosave
   const saveMutation = useMutation({
     mutationFn: async (data: Nd30Data) => {
       const soNum = parseInt(data.soKyHieu.split("/")[0]) || undefined;
@@ -180,6 +164,31 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     markDirty();
   }, [markDirty]);
 
+  const getDocContext = useCallback(() => {
+    const d = dataRef.current;
+    const strip = (html: string) =>
+      (html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return [
+      d.loaiVanBan && `Loại: ${d.loaiVanBan}`,
+      d.soKyHieu   && `Số ký hiệu: ${d.soKyHieu}`,
+      d.trichYeu   && `Trích yếu: ${d.trichYeu}`,
+      d.canCu      && `Căn cứ: ${strip(d.canCu).slice(0, 300)}`,
+      d.noiDung    && `Nội dung: ${strip(d.noiDung).slice(0, 500)}`,
+    ].filter(Boolean).join("\n");
+  }, []);
+
+  const handleInsertText = useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text).then(() => {
+        toast({ title: "Đã copy", description: "Ctrl+V để dán vào văn bản" });
+      }).catch(() => {
+        toast({ title: "Không thể copy", variant: "destructive" });
+      });
+    },
+    [toast]
+  );
+
+  // ── Preview mode ───────────────────────────────────────────────────────────
   if (previewMode && previewData) {
     return (
       <DocumentPreviewPaged
@@ -191,47 +200,45 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     );
   }
 
+  // ── 3-column layout ────────────────────────────────────────────────────────
   return (
-    <div className={`flex flex-col h-full transition-all duration-300 ${chatOpen ? "mr-[380px]" : ""}`}>
-      {/* Save bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-card print:hidden">
-        <span className="text-sm font-medium text-muted-foreground">
-          {docId ? "Chỉnh sửa văn bản" : "Văn bản mới"}
-        </span>
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col h-full">
+      {/* ── Save bar (full width) ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0 print:hidden h-14">
+        <div className="flex items-center gap-2">
+          {/* Mobile toggles */}
+          <button
+            onClick={() => { setShowLeft((v) => !v); setShowRight(false); }}
+            className="lg:hidden p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+            title="Tài liệu tham chiếu"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium text-muted-foreground">
+            {docId ? "Chỉnh sửa văn bản" : "Văn bản mới"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
           <SaveIndicator status={status} label={statusLabel} />
-          <Button
-            variant={chatOpen ? "default" : "outline"}
-            size="sm"
-            onClick={() => setChatOpen((v) => !v)}
-            title="Trợ lý AI"
-          >
-            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-            Trợ lý AI
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={enterPreview}
-            title="Xem trước (Ctrl+Shift+P)"
-          >
+          <Button variant="outline" size="sm" onClick={enterPreview} title="Xem trước (Ctrl+Shift+P)">
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Xem trước
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="outline" size="sm"
             onClick={handleExportPdf}
             disabled={exporting || !docId}
-            title={!docId ? "Lưu văn bản trước" : "Xuất PDF"}
+            title={!docId ? "Lưu trước" : "Xuất PDF"}
           >
             {exporting
               ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
               : <Download className="h-3.5 w-3.5 mr-1.5" />}
-            Xuất PDF
+            PDF
           </Button>
           <Button
             size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
             onClick={() => saveNow()}
             disabled={saveMutation.isPending}
           >
@@ -240,25 +247,57 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
               : <Save className="h-3.5 w-3.5" />}
             Lưu
           </Button>
+          <button
+            onClick={() => { setShowRight((v) => !v); setShowLeft(false); }}
+            className="lg:hidden p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+            title="Công cụ AI"
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* A4 document */}
-      <div className="flex-1 min-h-0 h-full">
-        <Nd30Document
-          initialData={{ ...defaultNd30Data(), ...parseContent(initialContent) }}
-          onChange={handleChange}
-          isNew={isNew}
-        />
-      </div>
+      {/* ── 3 columns ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
-      <ChatPanel
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        docId={docId || "new-doc"}
-        getDocContext={getDocContext}
-        onInsertText={handleInsertText}
-      />
+        {/* Left: Sources panel — hidden on mobile unless toggled */}
+        <div className={`
+          w-64 shrink-0 overflow-hidden
+          lg:flex lg:flex-col
+          ${showLeft ? "flex flex-col" : "hidden"}
+          lg:!flex
+        `}>
+          <SourcesPanel
+            documentId={docId || "new-doc"}
+            onSourcesChange={setSourceIds}
+          />
+        </div>
+
+        {/* Middle: Editor */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <Nd30Document
+            initialData={{ ...defaultNd30Data(), ...parseContent(initialContent) }}
+            onChange={handleChange}
+            isNew={isNew}
+          />
+        </div>
+
+        {/* Right: Tools + Chat — hidden on mobile unless toggled */}
+        <div className={`
+          w-80 shrink-0 overflow-hidden
+          lg:flex lg:flex-col
+          ${showRight ? "flex flex-col" : "hidden"}
+          lg:!flex
+        `}>
+          <RightPanel
+            docId={docId || "new-doc"}
+            getDocContext={getDocContext}
+            onInsertText={handleInsertText}
+            sourceIds={sourceIds}
+          />
+        </div>
+
+      </div>
     </div>
   );
 }
