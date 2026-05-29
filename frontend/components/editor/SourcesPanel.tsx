@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { documentSourcesApi, type RefDoc } from "@/lib/api";
 import { FileText, Plus, X, BookOpen } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { SourcePickerModal } from "./SourcePickerModal";
 
 interface SourcesPanelProps {
@@ -13,23 +14,44 @@ interface SourcesPanelProps {
 
 export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const openPicker = () => {
+    if (!documentId || documentId === "new-doc") {
+      toast({ title: "Lưu văn bản trước khi thêm tài liệu", variant: "destructive" });
+      return;
+    }
+    console.log("picker open:", true);
+    setPickerOpen(true);
+  };
+
+  console.log("SourcesPanel documentId:", documentId);
 
   const { data: sources = [] } = useQuery<RefDoc[]>({
     queryKey: ["document-sources", documentId],
     queryFn: () => documentSourcesApi.list(documentId),
     enabled: !!documentId && documentId !== "new-doc",
-    onSuccess: (data) => onSourcesChange(data.map((d) => d.id)),
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
+
+  // React Query v5: onSuccess removed — use useEffect to sync source IDs
+  useEffect(() => {
+    onSourcesChange(sources.map((s) => s.id));
+  }, [sources, onSourcesChange]);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["document-sources", documentId] });
 
   const removeMutation = useMutation({
     mutationFn: (refDocId: string) => documentSourcesApi.remove(documentId, refDocId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["document-sources", documentId] }),
+    onSuccess: invalidate,
   });
 
   const handleAdded = () => {
-    queryClient.invalidateQueries({ queryKey: ["document-sources", documentId] });
+    invalidate();
     setPickerOpen(false);
   };
 
@@ -42,9 +64,8 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
           <span className="text-sm font-semibold text-gray-800">Tài liệu tham chiếu</span>
         </div>
         <button
-          onClick={() => setPickerOpen(true)}
-          disabled={!documentId || documentId === "new-doc"}
-          className="p-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          onClick={openPicker}
+          className="p-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
           title="Thêm từ kho"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -65,9 +86,8 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
               Thêm tài liệu để AI tìm kiếm chính xác hơn
             </p>
             <button
-              onClick={() => setPickerOpen(true)}
-              disabled={!documentId || documentId === "new-doc"}
-              className="text-xs text-blue-600 hover:text-blue-700 disabled:opacity-40 font-medium"
+              onClick={openPicker}
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
             >
               + Thêm từ kho
             </button>

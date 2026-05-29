@@ -413,6 +413,7 @@ async def get_ref_job_status(
         "job_id": job_id,
         "status": info.get("status", "unknown"),
         "filename": info.get("filename", ""),
+        "doc_id": info.get("doc_id", None),
         "error": info.get("error", None),
     }
 

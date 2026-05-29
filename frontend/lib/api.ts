@@ -179,9 +179,8 @@ export const refDocApi = {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
     form.append("visibility", visibility);
-    const { data } = await api.post("/reference-docs/upload-batch", form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    // Do NOT set Content-Type manually — axios sets multipart/form-data with correct boundary automatically
+    const { data } = await api.post("/reference-docs/upload-batch", form);
     return data as { jobs: Array<{ job_id: string; filename: string }> };
   },
 
@@ -191,6 +190,7 @@ export const refDocApi = {
       job_id: string;
       status: "pending" | "processing" | "done" | "failed";
       filename: string;
+      doc_id: string | null;
       error: string | null;
     };
   },
@@ -456,8 +456,25 @@ export const documentApi = {
     return data;
   },
 
+  generate: async (payload: {
+    document_id: string;
+    loai_van_ban: string;
+    yeu_cau: string;
+    source_ids?: string[];
+  }) => {
+    const { data } = await api.post("/documents/generate", payload);
+    return data as { status: "done" | "skipped"; document_id: string; content?: Record<string, unknown> };
+  },
+
   exportPdf: async (id: string): Promise<Blob> => {
     const { data } = await api.post(`/documents/${id}/export/pdf`, null, {
+      responseType: "blob",
+    });
+    return data as Blob;
+  },
+
+  exportDocx: async (id: string): Promise<Blob> => {
+    const { data } = await api.post(`/documents/${id}/export/docx`, null, {
       responseType: "blob",
     });
     return data as Blob;
@@ -466,9 +483,7 @@ export const documentApi = {
   uploadBatch: async (files: File[]) => {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
-    const { data } = await api.post("/documents/upload-batch", form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const { data } = await api.post("/documents/upload-batch", form);
     return data as { jobs: Array<{ job_id: string; filename: string }> };
   },
 

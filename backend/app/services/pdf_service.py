@@ -9,6 +9,7 @@ import html as _html
 import io
 import logging
 import os
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -267,6 +268,30 @@ def _e(v: Any) -> str:
     return _html.escape(str(v or ""))
 
 
+def _plain(v: Any) -> str:
+    """Strip HTML tags from v, decode basic entities, then escape for PDF template.
+    Use for fields that should be plain text but may contain AI-generated HTML."""
+    text = str(v or "")
+    text = re.sub(r"<[^>]+>", "", text)
+    text = (text
+            .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            .replace("&nbsp;", " ").replace("&quot;", '"'))
+    return _html.escape(text.strip())
+
+
+def _noi_nhan_html(items: list) -> str:
+    """Render noiNhan list as HTML divs, splitting on embedded <BR> tags."""
+    parts: list[str] = []
+    for x in items:
+        lines = re.split(r"<[Bb][Rr]\s*/?>", str(x))
+        for line in lines:
+            clean = re.sub(r"<[^>]+>", "", line).strip()
+            if clean:
+                text = clean if clean.startswith("-") else f"- {clean}"
+                parts.append(f'<div class="nn-item">{_html.escape(text)}</div>')
+    return "".join(parts)
+
+
 def _build_body(data: dict[str, Any]) -> str:
     loai            = data.get("loaiVanBan", "QĐ")
     full_name, has_type_name, has_kinh_gui = _VB.get(loai, ("Văn bản", True, False))
@@ -292,11 +317,11 @@ def _build_body(data: dict[str, Any]) -> str:
     # ── Header 2 cột ─────────────────────────────────────────────
     col_l_parts: list[str] = []
     if cq_chu_quan:
-        col_l_parts.append(f'<div class="cq-chu-quan">{_e(cq_chu_quan)}</div>')
-    col_l_parts.append(f'<div class="cq-ban-hanh">{_e(cq_ban_hanh)}</div>')
+        col_l_parts.append(f'<div class="cq-chu-quan">{_plain(cq_chu_quan)}</div>')
+    col_l_parts.append(f'<div class="cq-ban-hanh">{_plain(cq_ban_hanh)}</div>')
     col_l_parts.append('<hr style="height:1.5px;background:#000;width:50%;margin:2px auto 4px;border:none;" />')
     col_l_parts.append(
-        f'<div class="so-kh">Số: <i>{_e(so_ky_hieu)}</i></div>'
+        f'<div class="so-kh">Số: <i>{_plain(so_ky_hieu)}</i></div>'
     )
     if do_mat != "Thường":
         col_l_parts.append(f'<div class="do-box">{_e(do_mat)}</div>')
@@ -309,7 +334,7 @@ def _build_body(data: dict[str, Any]) -> str:
         '<div class="tieu-ngu-wrap">'
         '<span class="tieu-ngu">Độc lập - Tự do - Hạnh phúc</span>'
         '</div>'
-        f'<div class="dia-danh">{_e(dia_danh_ngay)}</div>'
+        f'<div class="dia-danh">{_plain(dia_danh_ngay)}</div>'
     )
 
     parts.append(
@@ -323,22 +348,22 @@ def _build_body(data: dict[str, Any]) -> str:
     if has_type_name:
         parts.append(
             '<div class="ten-loai-sec">'
-            f'<div class="ten-loai-vb">{_e(full_name.upper())}</div>'
-            f'<div class="trich-yeu-c">{_e(trich_yeu)}</div>'
+            f'<div class="ten-loai-vb">{_plain(full_name.upper())}</div>'
+            f'<div class="trich-yeu-c">{_plain(trich_yeu)}</div>'
             '<hr style="height:1.5px;background:#000;width:40%;margin:3px auto 0;border:none;" />'
             '</div>'
         )
     else:
         parts.append(
             '<div class="ten-loai-sec">'
-            f'<div class="trich-yeu-cv">{_e(trich_yeu)}</div>'
+            f'<div class="trich-yeu-cv">{_plain(trich_yeu)}</div>'
             '</div>'
         )
 
     # ── Kính gửi ─────────────────────────────────────────────────
     if has_kinh_gui and kinh_gui:
         parts.append(
-            f'<div class="kinh-gui">Kính gửi: {_e(kinh_gui)}</div>'
+            f'<div class="kinh-gui">Kính gửi: {_plain(kinh_gui)}</div>'
         )
 
     # ── Căn cứ ───────────────────────────────────────────────────
@@ -349,17 +374,14 @@ def _build_body(data: dict[str, Any]) -> str:
     parts.append(f'<div class="noi-dung">{noi_dung or ""}</div>')
 
     # ── Footer: Nơi nhận + Chữ ký ────────────────────────────────
-    nn_items = "".join(
-        f'<div class="nn-item">{_e(x if x.startswith("-") else f"- {x}")}</div>'
-        for x in noi_nhan
-    )
+    nn_items = _noi_nhan_html(noi_nhan)
     quyen_han_full = " ".join(filter(None, [quyen_han, chuc_danh_tt]))
-    sig_parts = [f'<div class="quyen-han">{_e(quyen_han_full)}</div>']
+    sig_parts = [f'<div class="quyen-han">{_plain(quyen_han_full)}</div>']
     if chuc_vu:
-        sig_parts.append(f'<div class="chuc-vu">{_e(chuc_vu)}</div>')
+        sig_parts.append(f'<div class="chuc-vu">{_plain(chuc_vu)}</div>')
     sig_parts.append('<div class="ky-gap">&nbsp;</div>')
     if ho_ten:
-        sig_parts.append(f'<div class="ho-ten">{_e(ho_ten)}</div>')
+        sig_parts.append(f'<div class="ho-ten">{_plain(ho_ten)}</div>')
 
     parts.append(
         '<table class="ftr"><tr>'

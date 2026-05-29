@@ -1,7 +1,7 @@
 "use client";
 
 import "./editor.css";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
@@ -34,11 +34,15 @@ interface SectionEditorProps {
   placeholder: string;
   minHeight?: string;
   italic?: boolean;
+  isActive?: boolean;
+  onEditorFocused?: (editor: Editor) => void;
 }
 
 function SectionEditor({
   content, onChange, placeholder,
   minHeight = "80px", italic = false,
+  isActive = false,
+  onEditorFocused,
 }: SectionEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -50,6 +54,7 @@ function SectionEditor({
     ],
     content,
     onUpdate({ editor }) { onChange(editor.getHTML()); },
+    onFocus({ editor }) { onEditorFocused?.(editor); },
     editorProps: {
       attributes: {
         class: "focus:outline-none",
@@ -73,10 +78,9 @@ function SectionEditor({
   }, [content]);
 
   return (
-    <div className="relative group">
-      <div className="mb-1 opacity-0 group-focus-within:opacity-100 transition-opacity print:hidden">
-        <EditorToolbar editor={editor} />
-      </div>
+    <div className={`relative rounded transition-colors print:rounded-none ${
+      isActive ? "ring-2 ring-blue-400 ring-offset-1" : ""
+    }`}>
       <EditorContent editor={editor} />
     </div>
   );
@@ -206,6 +210,15 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
   const [soKySuggesting, setSoKySuggesting] = useState(false);
   const [canCuPanelOpen, setCanCuPanelOpen] = useState(false);
   const { toast } = useToast();
+
+  // Shared TipTap toolbar state
+  const [activeEditor, setActiveEditor] = useState<Editor | null>(null);
+  const [activeFieldId, setActiveFieldId] = useState<string>("");
+
+  const handleEditorFocused = useCallback((fieldId: string, editor: Editor) => {
+    setActiveEditor(editor);
+    setActiveFieldId(fieldId);
+  }, []);
 
   // Auto-shrink quốc hiệu nếu tràn cột
   useEffect(() => {
@@ -422,6 +435,13 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
         </div>
       )}
 
+      {/* ── Shared TipTap toolbar (shown when a rich-text field is focused) ── */}
+      <div className={`shrink-0 border-b bg-white print:hidden transition-all duration-150 ${
+        activeEditor ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden"
+      }`}>
+        <EditorToolbar editor={activeEditor} />
+      </div>
+
       {/* ── A4 scroll wrapper ─────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible">
         <div
@@ -585,6 +605,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
               placeholder="Căn cứ [tên văn bản] số [số/KH] ngày ... tháng ... năm ... của [cơ quan] về ...;"
               minHeight="60px"
               italic
+              isActive={activeFieldId === "canCu"}
+              onEditorFocused={(ed) => handleEditorFocused("canCu", ed)}
             />
           </div>
 
@@ -595,6 +617,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
               onChange={(v) => update("noiDung", v)}
               placeholder="Nội dung chính của văn bản..."
               minHeight="200px"
+              isActive={activeFieldId === "noiDung"}
+              onEditorFocused={(ed) => handleEditorFocused("noiDung", ed)}
             />
           </div>
 

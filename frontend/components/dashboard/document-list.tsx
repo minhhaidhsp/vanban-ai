@@ -18,6 +18,7 @@ import { Pagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { BatchUploadModal } from "./BatchUploadModal";
+import { NewDocumentModal } from "./NewDocumentModal";
 import { cn } from "@/lib/utils";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ export function DocumentList() {
   const { toast } = useToast();
 
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
+  const [newDocModalOpen, setNewDocModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loaiFilter, setLoaiFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
@@ -101,12 +103,14 @@ export function DocumentList() {
             <Upload className="h-4 w-4" />
             Upload hàng loạt
           </Button>
-          <Link href="/dashboard/documents/new">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Plus className="h-4 w-4" />
-              Soạn thảo mới
-            </Button>
-          </Link>
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => setNewDocModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Soạn thảo mới
+          </Button>
         </div>
       </div>
 
@@ -292,6 +296,14 @@ export function DocumentList() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["documents"] });
           toast({ title: "Upload hoàn thành", description: "Danh sách đã được cập nhật." });
+        }}
+      />
+
+      <NewDocumentModal
+        open={newDocModalOpen}
+        onClose={() => {
+          setNewDocModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
         }}
       />
     </div>

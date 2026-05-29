@@ -1,5 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func, case
 from datetime import timedelta
@@ -19,6 +20,7 @@ import json
 import logging
 import re
 import uuid
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +162,117 @@ async def get_document_stats(
     }
 
 
+_LOAI_TO_ABBR: dict[str, str] = {
+    "Quyết định": "QĐ", "Công văn": "CV", "Báo cáo": "BC",
+    "Hướng dẫn": "HD", "Tờ trình": "TTr", "Thông báo": "TB",
+    "Nghị quyết": "NQ", "Kế hoạch": "KH", "Chỉ thị": "CT",
+}
+
+_GENERATE_SYSTEM = (
+    "Bạn là chuyên gia soạn thảo văn bản hành chính Việt Nam theo NĐ30/2020.\n"
+    "Tạo mẫu {loai_van_ban} theo yêu cầu: {yeu_cau}\n\n"
+    "Tài liệu tham chiếu:\n{context}\n\n"
+    'Trả về JSON hợp lệ (không markdown, không giải thích):\n'
+    '{{\n'
+    '  "loaiVanBan": "{abbr}",\n'
+    '  "soKyHieu": "gợi ý số/ký hiệu hoặc rỗng",\n'
+    '  "trichYeu": "trích yếu ngắn gọn 1 câu",\n'
+    '  "canCu": "<p>Căn cứ ... </p>",\n'
+    '  "noiDung": "<p>Nội dung chính...</p>",\n'
+    '  "coQuanBanHanh": "",\n'
+    '  "chucVuKy": "chức vụ người ký phù hợp"\n'
+    '}}'
+)
+
+
+class GenerateDocumentRequest(BaseModel):
+    document_id: str
+    loai_van_ban: str       # "Quyết định" | "QĐ" | ...
+    yeu_cau: str
+    source_ids: list[str] = []
+
+
+@router.post("/generate")
+async def generate_document(
+    body: GenerateDocumentRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gọi LLM để soạn thảo văn bản từ mô tả + tài liệu tham chiếu."""
+    from app.services.llm_service import llm_service
+    from app.services.rag_service import rag_service
+
+    # Resolve abbreviation
+    abbr = _LOAI_TO_ABBR.get(body.loai_van_ban, body.loai_van_ban)
+    display = body.loai_van_ban if body.loai_van_ban not in _LOAI_TO_ABBR.values() \
+        else next((k for k, v in _LOAI_TO_ABBR.items() if v == body.loai_van_ban), body.loai_van_ban)
+
+    # Verify document ownership
+    doc_result = await db.execute(
+        select(Document).where(
+            Document.id == body.document_id,
+            Document.owner_id == current_user.id,
+        )
+    )
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # If LLM not available → skip
+    if not llm_service._base_url:
+        logger.warning("[generate] LLM not configured — skipping")
+        return {"status": "skipped", "document_id": body.document_id}
+
+    # Build RAG context from source_ids (if any)
+    context = ""
+    if body.source_ids:
+        try:
+            chunks = await rag_service.retrieve(
+                body.yeu_cau, db, top_k=5, min_score=0.2,
+                source_ids=body.source_ids,
+            )
+            context = rag_service.build_context(chunks) if chunks else ""
+        except Exception as exc:
+            logger.warning("[generate] RAG retrieval failed: %s", exc)
+
+    # Build prompt and call LLM
+    system_prompt = _GENERATE_SYSTEM.format(
+        loai_van_ban=display, yeu_cau=body.yeu_cau,
+        context=context or "Không có tài liệu tham chiếu.",
+        abbr=abbr,
+    )
+
+    try:
+        raw = await llm_service.chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": body.yeu_cau},
+            ],
+            temperature=0.2,
+            max_tokens=1500,
+            json_mode=True,
+        )
+        generated = json.loads(raw)
+    except Exception as exc:
+        logger.error("[generate] LLM call failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"LLM error: {exc}")
+
+    # Ensure loaiVanBan is abbreviation
+    generated["loaiVanBan"] = abbr
+    generated["ai_generated"] = True
+
+    # Save to document
+    content_str = json.dumps({"version": "nd30", **generated}, ensure_ascii=False)
+    document.content = content_str
+    document.title = generated.get("trichYeu") or body.yeu_cau[:100] or "Văn bản mới"
+    document.loai_vb = abbr
+    await db.flush()
+
+    logger.info("[generate] doc=%s loai=%s", body.document_id, abbr)
+    return {"status": "done", "document_id": body.document_id, "content": generated}
+
+
 @router.get("/next-number")
 async def get_next_number(
     loai: str,
@@ -262,6 +375,39 @@ async def get_job_status(
     }
 
 
+@router.get("/test-docx")
+async def test_docx_export(current_user: User = Depends(get_current_user)):
+    """Test endpoint: generate DOCX với data mẫu cứng để isolate lỗi."""
+    sample = {
+        "loaiVanBan": "QĐ",
+        "coQuanChuQuan": "UỶ BAN NHÂN DÂN TỈNH",
+        "coQuanBanHanh": "SỞ GIÁO DỤC VÀ ĐÀO TẠO",
+        "soKyHieu": "123/QĐ-SGD",
+        "diaDanh": "Hà Nội",
+        "ngayThang": "ngày 15 tháng 05 năm 2025",
+        "trichYeu": "Quyết định về việc phê duyệt kế hoạch đào tạo năm 2025",
+        "canCu": "<p>Căn cứ Luật Giáo dục số 43/2019/QH14 ngày 14/6/2019;</p>",
+        "noiDung": "<p>Điều 1. Phê duyệt kế hoạch đào tạo năm học 2025-2026.</p><p>Điều 2. Quyết định này có hiệu lực kể từ ngày ký.</p>",
+        "quyenHanKy": "KT. GIÁM ĐỐC",
+        "chucDanhTapThe": "",
+        "chucVuKy": "PHÓ GIÁM ĐỐC",
+        "hoTenKy": "Nguyễn Văn An",
+        "noiNhan": ["- Ban Giám đốc Sở", "- Các phòng ban trực thuộc", "- Lưu: VT, VP."],
+    }
+    try:
+        from app.services.docx_service import generate_docx
+        docx_bytes = await generate_docx(sample)
+    except Exception as exc:
+        logger.error("test-docx failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Test DOCX thất bại: {exc}")
+
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": 'attachment; filename="test_vanban.docx"'},
+    )
+
+
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: str,
@@ -348,11 +494,54 @@ async def export_document_pdf(
     so_ky = data.get("soKyHieu") or document.title or document_id
     raw_name = f"{so_ky}_{document.title or ''}".strip("_")
     safe_name = re.sub(r'[/\\:*?"<>|]', "-", raw_name)[:120] + ".pdf"
+    encoded_name = quote(safe_name, safe="")
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+        headers={"Content-Disposition": f"attachment; filename=\"document.pdf\"; filename*=UTF-8''{encoded_name}"},
+    )
+
+
+@router.post("/{document_id}/export/docx")
+async def export_document_docx(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Document).where(
+            Document.id == document_id, Document.owner_id == current_user.id
+        )
+    )
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    try:
+        data = json.loads(document.content or "{}")
+    except Exception:
+        data = {}
+
+    try:
+        from app.services.docx_service import generate_docx
+        docx_bytes = await generate_docx(data)
+    except Exception as exc:
+        logger.error("export/docx failed for %s: %s", document_id, exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tạo DOCX thất bại: {exc}",
+        )
+
+    so_ky = data.get("soKyHieu") or document.title or document_id
+    raw_name = f"{so_ky}_{document.title or ''}".strip("_")
+    safe_name = re.sub(r'[/\\:*?"<>|]', "-", raw_name)[:120] + ".docx"
+    encoded_name = quote(safe_name, safe="")
+
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=\"document.docx\"; filename*=UTF-8''{encoded_name}"},
     )
 
 

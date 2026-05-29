@@ -11,7 +11,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-LLM_URL = "https://write-link-wed-asus.trycloudflare.com"
+LLM_URL = "https://gpl-checking-seo-must.trycloudflare.com"
 
 PASS = "[PASS]"
 FAIL = "[FAIL]"

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { documentApi } from "@/lib/api";
 import { useAutosave } from "@/hooks/use-autosave";
@@ -11,11 +13,113 @@ import { RightPanel } from "./RightPanel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Save, Check, AlertCircle, Loader2, Eye, Download,
-  PanelLeft, PanelRight,
+  Save, Check, AlertCircle, Loader2, Eye, Download, ChevronDown,
+  PanelLeft, PanelRight, ArrowLeft, ArrowRight, X,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
+
+// ── Welcome panel constants ────────────────────────────────────────────────────
+
+const LOAI_OPTIONS = [
+  { abbr: "QĐ",  label: "Quyết định", emoji: "📋" },
+  { abbr: "CV",  label: "Công văn",   emoji: "📨" },
+  { abbr: "BC",  label: "Báo cáo",    emoji: "📊" },
+  { abbr: "HD",  label: "Hướng dẫn",  emoji: "📝" },
+  { abbr: "TTr", label: "Tờ trình",   emoji: "📑" },
+  { abbr: "TB",  label: "Thông báo",  emoji: "📃" },
+];
+
+// ── WelcomePanel ──────────────────────────────────────────────────────────────
+
+interface WelcomePanelProps {
+  yeuCau: string;
+  onYeuCauChange: (v: string) => void;
+  loaiSelected: string;
+  onLoaiSelect: (abbr: string, label: string) => void;
+  onGenerate: () => void;
+  onSkip: () => void;
+  generating: boolean;
+  canGenerate: boolean;
+}
+
+function WelcomePanel({
+  yeuCau, onYeuCauChange, loaiSelected, onLoaiSelect,
+  onGenerate, onSkip, generating, canGenerate,
+}: WelcomePanelProps) {
+  return (
+    <div className="h-full overflow-y-auto bg-[#e5e7eb] py-6">
+      <div
+        className="mx-auto bg-white shadow-lg"
+        style={{ width: "210mm", minHeight: "297mm", padding: "25mm 20mm 25mm 30mm", boxSizing: "border-box" }}
+      >
+        {generating ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+            <p className="text-lg font-medium text-gray-700">AI đang soạn thảo...</p>
+            <p className="text-sm text-gray-400">Thường mất 15–30 giây</p>
+          </div>
+        ) : (
+          <div className="space-y-6 max-w-md mx-auto">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
+              <textarea
+                value={yeuCau}
+                onChange={(e) => onYeuCauChange(e.target.value)}
+                placeholder={"Mô tả văn bản bạn muốn tạo...\nVí dụ: Quyết định phê duyệt danh sách học sinh xuất sắc năm học 2025-2026"}
+                className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500 mb-2 font-medium">Loại văn bản</p>
+              <div className="grid grid-cols-3 gap-2">
+                {LOAI_OPTIONS.map((o) => (
+                  <button
+                    key={o.abbr}
+                    type="button"
+                    onClick={() => onLoaiSelect(o.abbr, o.label)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                      loaiSelected === o.abbr
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-gray-200 hover:border-blue-300 text-gray-700"
+                    )}
+                  >
+                    <span>{o.emoji}</span> {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+                disabled={!canGenerate}
+                onClick={onGenerate}
+              >
+                Tạo văn bản <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full text-gray-500 border-gray-200"
+                onClick={onSkip}
+              >
+                Bỏ qua → vào editor trống
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── DocumentEditor ────────────────────────────────────────────────────────────
 
 interface DocumentEditorProps {
   documentId?: string;
@@ -47,11 +151,27 @@ function parseContent(content?: string): Partial<Nd30Data> {
   return {};
 }
 
+function isAiGenerated(content?: string): boolean {
+  if (!content) return false;
+  try { return JSON.parse(content)?.ai_generated === true; } catch { return false; }
+}
+
 export function DocumentEditor({ documentId, initialContent, initialTitle }: DocumentEditorProps) {
   const queryClient = useQueryClient();
   const { toast }   = useToast();
+  const router      = useRouter();
   const [docId, setDocId] = useState(documentId);
   const isNew = !documentId;
+  const [showAiBanner, setShowAiBanner] = useState(() => isAiGenerated(initialContent));
+
+  // Welcome panel state (shown when navigated from modal with ?new=true)
+  const wasNewDoc = useRef(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<Partial<Nd30Data> | null>(null);
+  const [yeuCau, setYeuCau] = useState("");
+  const [loaiSelected, setLoaiSelected] = useState("");
+  const searchParams = useSearchParams();
   const dataRef = useRef<Nd30Data>(
     { ...defaultNd30Data(), ...parseContent(initialContent) }
   );
@@ -112,6 +232,32 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     }
   }, [docId, toast]);
 
+  const handleExportDocx = useCallback(async () => {
+    if (!docId) {
+      toast({ title: "Lưu văn bản trước khi xuất DOCX", variant: "destructive" });
+      return;
+    }
+    setExporting(true);
+    try {
+      const blob = await documentApi.exportDocx(docId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const d = dataRef.current;
+      const raw = [d.soKyHieu, d.trichYeu || "vanban"].filter(Boolean).join("_");
+      a.download = raw.replace(/[/\\:*?"<>|]/g, "-").substring(0, 120) + ".docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Xuất DOCX thành công" });
+    } catch {
+      toast({ title: "Xuất DOCX thất bại", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }, [docId, toast]);
+
   // Keyboard shortcut: Ctrl+Shift+P = preview
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -127,6 +273,40 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // ?new=true → show welcome panel, clear URL param
+  useEffect(() => {
+    const isNewDoc = searchParams.get("new") === "true";
+    if (isNewDoc) {
+      wasNewDoc.current = true;
+      setShowWelcome(true);
+      if (documentId) router.replace(`/dashboard/documents/${documentId}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!docId || !yeuCau.trim()) return;
+    setGeneratingAi(true);
+    try {
+      await documentApi.generate({
+        document_id: docId,
+        loai_van_ban: loaiSelected || "Quyết định",
+        yeu_cau: yeuCau,
+        source_ids: sourceIds,
+      });
+      const updated = await documentApi.get(docId);
+      const parsedContent = parseContent(updated.content);
+      dataRef.current = { ...defaultNd30Data(), ...parsedContent };
+      setGeneratedContent(parsedContent);
+      setShowAiBanner(true);
+      setShowWelcome(false);
+    } catch {
+      toast({ title: "Tạo văn bản thất bại", variant: "destructive" });
+    } finally {
+      setGeneratingAi(false);
+    }
+  }, [docId, loaiSelected, yeuCau, sourceIds, toast]);
 
   // Autosave
   const saveMutation = useMutation({
@@ -206,7 +386,15 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
       {/* ── Save bar (full width) ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0 print:hidden h-14">
         <div className="flex items-center gap-2">
-          {/* Mobile toggles */}
+          {/* Back button */}
+          <button
+            onClick={() => router.push("/dashboard/documents")}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            title="Quay lại danh sách"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          {/* Mobile toggle: sources */}
           <button
             onClick={() => { setShowLeft((v) => !v); setShowRight(false); }}
             className="lg:hidden p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
@@ -225,17 +413,29 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Xem trước
           </Button>
-          <Button
-            variant="outline" size="sm"
-            onClick={handleExportPdf}
-            disabled={exporting || !docId}
-            title={!docId ? "Lưu trước" : "Xuất PDF"}
-          >
-            {exporting
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-              : <Download className="h-3.5 w-3.5 mr-1.5" />}
-            PDF
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline" size="sm"
+                disabled={exporting || !docId}
+                title={!docId ? "Lưu trước" : "Tải xuống"}
+              >
+                {exporting
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  : <Download className="h-3.5 w-3.5 mr-1.5" />}
+                Tải xuống
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportDocx} disabled={!docId}>
+                Tải DOCX
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdf} disabled={!docId}>
+                Tải PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -257,6 +457,19 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         </div>
       </div>
 
+      {/* ── AI-generated banner ───────────────────────────────────────────── */}
+      {showAiBanner && (
+        <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-2 shrink-0 print:hidden">
+          <span>✨ AI đã tạo mẫu — hãy xem lại và chỉnh sửa trước khi ban hành</span>
+          <button
+            onClick={() => setShowAiBanner(false)}
+            className="ml-3 text-amber-600 hover:text-amber-900 transition-colors p-0.5 rounded"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── 3 columns ─────────────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
@@ -273,29 +486,52 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
           />
         </div>
 
-        {/* Middle: Editor */}
+        {/* Middle: WelcomePanel or Editor */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          <Nd30Document
-            initialData={{ ...defaultNd30Data(), ...parseContent(initialContent) }}
-            onChange={handleChange}
-            isNew={isNew}
-          />
+          {showWelcome ? (
+            <WelcomePanel
+              yeuCau={yeuCau}
+              onYeuCauChange={setYeuCau}
+              loaiSelected={loaiSelected}
+              onLoaiSelect={(abbr, label) => {
+                setLoaiSelected(abbr);
+                if (!yeuCau.trim()) setYeuCau(`Tạo ${label}: `);
+              }}
+              onGenerate={handleGenerate}
+              onSkip={() => setShowWelcome(false)}
+              generating={generatingAi}
+              canGenerate={!!docId && yeuCau.trim().length > 0}
+            />
+          ) : (
+            <Nd30Document
+              key={generatedContent ? "generated" : "initial"}
+              initialData={
+                generatedContent
+                  ? { ...defaultNd30Data(), ...generatedContent }
+                  : { ...defaultNd30Data(), ...parseContent(initialContent) }
+              }
+              onChange={handleChange}
+              isNew={!generatedContent && wasNewDoc.current}
+            />
+          )}
         </div>
 
-        {/* Right: Tools + Chat — hidden on mobile unless toggled */}
-        <div className={`
-          w-80 shrink-0 overflow-hidden
-          lg:flex lg:flex-col
-          ${showRight ? "flex flex-col" : "hidden"}
-          lg:!flex
-        `}>
-          <RightPanel
-            docId={docId || "new-doc"}
-            getDocContext={getDocContext}
-            onInsertText={handleInsertText}
-            sourceIds={sourceIds}
-          />
-        </div>
+        {/* Right: Tools + Chat — hidden on mobile unless toggled, hidden during welcome */}
+        {!showWelcome && (
+          <div className={`
+            w-80 shrink-0 overflow-hidden
+            lg:flex lg:flex-col
+            ${showRight ? "flex flex-col" : "hidden"}
+            lg:!flex
+          `}>
+            <RightPanel
+              docId={docId || "new-doc"}
+              getDocContext={getDocContext}
+              onInsertText={handleInsertText}
+              sourceIds={sourceIds}
+            />
+          </div>
+        )}
 
       </div>
     </div>
