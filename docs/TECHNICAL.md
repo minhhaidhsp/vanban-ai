@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-05-24
-> Phiên bản: Tuần 11+ (Phase 2 - Data lifecycle fix)
+> Cập nhật: 2026-05-30
+> Phiên bản: Tuần 12-13 (UI Redesign + Editor 3 cột)
 
 ---
 
@@ -32,6 +32,10 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 10 | `validate_full()` async (semantic+citation+length weighted confidence), fallback chain (LLM offline → trả chunks, retry 0.35→0.2, hybrid FTS+semantic), system prompt v2, UI: ConfidenceMeter/disclaimer/fallback/CopyButton, Benchmark 10 câu: avg confidence 0.645 |
 | 11 | Chat AI panel tích hợp trong editor: SSE token streaming (`chat_stream()`), `ChatPanel.tsx` fixed panel 380px slide animation, multi-turn context (Redis TTL 24h max 20 turns), citation mini cards, nút "Chèn vào văn bản", quick action chips, `doc_context` từ editor, `repetition_penalty=1.15` fix loop Qwen2.5-3B |
 | 11+ | Fix data lifecycle: RAG exclude văn bản `het_hieu_luc` (WHERE filter SQL), DELETE xóa MinIO file trước DB (tránh orphan file), CASCADE chunks tự động, PATCH `/hieu-luc` endpoint với validate 4 giá trị hợp lệ, `generate()` cảnh báo ⚠️ khi cite VB hết hiệu lực |
+| 12 | Batch upload nhiều văn bản (BackgroundTasks + Redis job tracking + poll status), fix embedding dimension 1536→1024 (BAAI/bge-m3), migration 0008 |
+| 12+ | Tách source field documents: 'editor' vs 'upload', migration 0009, filter ?source=editor\|upload, endpoint GET /stats |
+| 13 | UI Redesign 4 phase: (1) Tài liệu dạng bảng + filter bar, (2) Dashboard thống kê recharts BarChart+PieChart+metric cards, (3) Kho văn bản phân quyền 3 cấp private/org/system + migration 0010, (4) Editor 3 cột NotebookLM: SourcesPanel + RightPanel Tools/Chat + bảng document_sources migration 0011 |
+| 13+ | Flow tạo văn bản mới: NewDocumentModal upload sources → welcome state editor → AI generate (POST /documents/generate), export DOCX (python-docx Times New Roman NĐ30), UploadSourceModal trong SourcesPanel, LLM server chuyển sang transformers+FastAPI (bỏ vLLM CUDA conflict) |
 
 ### Tech stack thực tế
 
@@ -65,7 +69,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - Pydantic 2.10.3 + pydantic-settings 2.6.1
 
 **External services:**
-- vLLM 0.21.0 (LLM inference server, chạy trên Google Colab Pro T4 GPU)
+- transformers + FastAPI (LLM inference server thay vLLM, tránh CUDA 12.8 conflict)
+- Groq API (plan: OpenAI-compatible, Qwen2.5-7B-Instruct, free tier 6000 token/phút)
 - Qwen/Qwen2.5-3B-Instruct (LLM model, max_model_len=4096 token)
 - Cloudflare Tunnel (expose Colab → internet; URL thay đổi mỗi session)
 
@@ -1080,6 +1085,12 @@ Văn bản hết hiệu lực vẫn giữ trong DB để: tra cứu lịch sử,
 **18. `repetition_penalty=1.15` fix Qwen2.5-3B loop**
 Qwen2.5-3B-Instruct hay lặp vô hạn khi context dài (>2000 token). `repetition_penalty > 1.0` phạt token đã xuất hiện trong output, giảm xác suất chọn lại. Giá trị 1.15 đủ mạnh để phá loop nhưng không làm câu văn bị lạ. Kết hợp với `max_tokens=512` để đảm bảo terminate trong mọi trường hợp.
 
+**21. Editor 3 cột layout (Tuần 13)**
+Layout `grid-cols-[256px_1fr_320px]`. Cột trái: `SourcesPanel` (document_sources). Cột giữa: `Nd30Document` + shared TipTap toolbar (1 toolbar track `activeEditor`). Cột phải: `RightPanel` tabs Tools/Chat. Mobile: ẩn cột trái/phải, toggle button. Editor route dùng layout riêng không có sidebar (fixed inset-0 z-50).
+
+**22. Transformers server thay vLLM (Tuần 13)**
+vLLM 0.21.0 compiled cho CUDA 13, Colab T4 chạy CUDA 12.8 → `ImportError libcudart.so.13`. Giải pháp: dùng `transformers AutoModelForCausalLM` + FastAPI OpenAI-compatible server. API format giống hệt vLLM → backend không đổi. Model cache trong Google Drive `HF_HOME`.
+
 ### Known Issues và Workarounds
 
 **Issue 1: xhtml2pdf font loader lỗi trên Windows**
@@ -1129,3 +1140,9 @@ Khi VB mới thay thế VB cũ, hiện tại chỉ đánh dấu `het_hieu_luc` t
 
 **Issue 15: Cloudflare Tunnel buffer SSE khiến tokens bị gom thành batch**
 Cloudflare Tunnel mặc định buffer HTTP response — thay vì yield từng token ngay lập tức, frontend nhận một batch tokens sau vài giây. **Fix:** Thêm header `X-Accel-Buffering: no` + `Cache-Control: no-cache` vào `StreamingResponse` headers trong `POST /rag/chat/stream`. Thêm `Connection: keep-alive`. Test xác nhận tokens stream real-time sau fix.
+
+**Issue 17: Content-Type axios override multipart/form-data**
+axios instance tạo với default header `Content-Type: application/json`. Khi gửi FormData, header này override `multipart/form-data` → backend trả 422. **Fix:** Truyền explicit header `{Content-Type: multipart/form-data}` trong từng request upload (`refDocApi.uploadBatch`, `documentApi.uploadBatch`).
+
+**Issue 18: document_sources chưa có bảng (đã fix migration 0011)**
+Phase 4 editor cần bảng `document_sources(document_id, reference_doc_id)` để track tài liệu tham chiếu của từng văn bản. RAG filter theo `source_ids` khi có. Migration 0011 đã tạo bảng + unique constraint + index.
