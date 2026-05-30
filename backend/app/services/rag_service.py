@@ -30,31 +30,31 @@ LLM_OFFLINE_MSG = (
     "Dưới đây là các đoạn văn bản liên quan nhất từ kho tài liệu:"
 )
 
-_SYSTEM_PROMPT = """Bạn là trợ lý tra cứu văn bản hành chính Việt Nam chuyên nghiệp.
-Nhiệm vụ: Trả lời câu hỏi DỰA TRÊN các đoạn văn bản được đánh số [1], [2], [3]... dưới đây.
+_SYSTEM_PROMPT = """Bạn là chuyên gia văn bản hành chính Việt Nam.
+Nhiệm vụ: Trả lời câu hỏi DỰA TRÊN các văn bản được cung cấp trong [CONTEXT].
 
 QUY TẮC BẮT BUỘC:
-1. CHỈ dùng thông tin từ các đoạn [1][2][3]...
-2. SAU MỖI thông tin PHẢI ghi citation: "...quy định [1]"
-3. KHÔNG bịa đặt số văn bản, ngày tháng, tên người
-4. KHÔNG thêm thông tin ngoài context
-5. Nếu không đủ thông tin → trả lời: "Không tìm thấy thông tin liên quan."
-6. Trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc
+1. CHỈ dùng thông tin có trong [CONTEXT] — KHÔNG suy diễn, KHÔNG bịa
+2. MỖI luận điểm PHẢI có trích dẫn: [Nguồn: tên văn bản] hoặc [Nguồn: số/ký hiệu]
+3. Nếu [CONTEXT] KHÔNG có thông tin liên quan → trả lời ĐÚNG:
+   "Kho tài liệu hiện tại không có thông tin về vấn đề này."
+   KHÔNG được đoán mò hoặc dùng kiến thức chung.
+4. Trả lời bằng tiếng Việt, ngắn gọn, đủ ý
 
-KHÔNG được làm:
-- Bịa số văn bản: "Theo Nghị định 999/2020..."
-- Trả lời chung chung không có citation
-- Thêm thông tin từ kiến thức bên ngoài
+VÍ DỤ TRẢ LỜI ĐÚNG:
+Câu hỏi: "Thủ tục chứng thực chữ ký gồm những bước nào?"
+Trả lời: "Theo danh mục TTHC lĩnh vực chứng thực [Nguồn: QĐ-UBND TP.HCM], thủ tục chứng thực chữ ký gồm: [các bước]. [Nguồn: QĐ công bố TTHC chứng thực]"
 
-Ví dụ câu trả lời ĐÚNG:
-Câu hỏi: "Thủ tục đăng ký hộ tịch cần gì?"
-Trả lời: "Theo quy định [1], thủ tục đăng ký hộ tịch cần các giấy tờ sau: ... Căn cứ [2], thời hạn giải quyết là 05 ngày làm việc."
+VÍ DỤ TRẢ LỜI SAI (KHÔNG được làm):
+- Trả lời khi không có căn cứ trong context
+- Trả lời mà không có [Nguồn: ...]
+- Bịa số văn bản hoặc ngày tháng
 
-Ví dụ câu trả lời SAI (KHÔNG làm theo):
-"Theo Luật Hộ tịch 2014, thủ tục cần..." (sai vì không có citation [số])
+[CONTEXT]
+{context}
+[/CONTEXT]
 
-Trả lời NGẮN GỌN tối đa 3-5 câu. KHÔNG lặp lại thông tin.
-"""
+Câu hỏi: {query}"""
 
 _RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 _reranker = None  # lazy-loaded
@@ -280,10 +280,9 @@ class RAGService:
         from app.services.hallucination_guard import validate_full
 
         messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
             {
-                "role": "user",
-                "content": f"Ngữ cảnh:\n\n{context}\n\nCâu hỏi: {query}",
+                "role": "system",
+                "content": _SYSTEM_PROMPT.format(context=context, query=query),
             },
         ]
 
@@ -298,14 +297,34 @@ class RAGService:
 
         validation = await validate_full(answer, chunks)
 
+        confidence = validation.confidence_score
+        fallback_mode = False
+
+        # FIX 2: Nếu LLM tự nhận "không có thông tin" → cap confidence thấp
+        _OUT_OF_SCOPE_PHRASES = [
+            "kho tài liệu hiện tại không có thông tin",
+            "không có thông tin về vấn đề này",
+            "không tìm thấy thông tin liên quan",
+            "không có thông tin liên quan",
+            "ngoài phạm vi",
+            "không có trong kho",
+        ]
+        if any(p in answer.lower() for p in _OUT_OF_SCOPE_PHRASES):
+            confidence = min(confidence, 0.2)
+            fallback_mode = True
+            logger.info("[rag] out-of-scope detected in answer — confidence capped to %.2f", confidence)
+
         logger.info(
-            "[rag] validation: confidence=%.3f citation=%.3f semantic=%.3f",
-            validation.confidence_score,
+            "[rag] validation: confidence=%.3f citation=%.3f semantic=%.3f fallback=%s",
+            confidence,
             validation.citation_score,
             validation.semantic_score,
+            fallback_mode,
         )
 
-        if validation.has_disclaimer:
+        # Only prepend disclaimer for in-scope low-confidence answers,
+        # not for out-of-scope rejections (which already have a clear message)
+        if (validation.has_disclaimer or confidence < 0.5) and not fallback_mode:
             answer = (
                 "⚠️ Lưu ý: Câu trả lời này cần được kiểm tra lại với văn bản gốc.\n\n"
                 + answer
@@ -321,10 +340,11 @@ class RAGService:
         return {
             "answer": answer,
             "citations": validation.valid_citations,
-            "confidence": validation.confidence_score,
+            "confidence": confidence,
             "citation_score": validation.citation_score,
             "semantic_score": validation.semantic_score,
-            "has_disclaimer": validation.has_disclaimer,
+            "has_disclaimer": validation.has_disclaimer or confidence < 0.5,
+            "fallback_mode": fallback_mode,
             "chunks_used": [_chunk_row(c) for c in chunks],
         }
 
@@ -418,8 +438,18 @@ class RAGService:
         result = await self.generate(question, context, reranked)
         result["query"] = question
         result["llm_available"] = True
-        result["fallback_mode"] = False
+        # fallback_mode may be set True by generate() (out-of-scope detection)
+        result.setdefault("fallback_mode", False)
         return result
 
 
 rag_service = RAGService()
+
+
+async def warm_up_reranker() -> None:
+    """Trigger lazy load of CrossEncoder at startup to avoid cold-start latency."""
+    try:
+        await asyncio.to_thread(_get_reranker)
+        logger.info("[rag] reranker warmed up")
+    except Exception as exc:
+        logger.warning("[rag] reranker warm up failed: %s", exc)

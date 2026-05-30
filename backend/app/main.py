@@ -29,6 +29,13 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Embedding service failed to load: %s", exc)
 
+    # Warm up reranker to avoid cold-start latency on first RAG query
+    try:
+        from app.services.rag_service import warm_up_reranker
+        await warm_up_reranker()
+    except Exception as exc:
+        logger.warning("Reranker warm up failed: %s", exc)
+
     yield
     await close_redis()
 
