@@ -129,7 +129,7 @@ export interface MetadataConfirmRequest {
 }
 
 export const refDocApi = {
-  list: async (params?: { skip?: number; limit?: number; loai?: string; hieu_luc?: string; q?: string; visibility?: "private" | "org" | "system" }) => {
+  list: async (params?: { skip?: number; limit?: number; loai?: string; hieu_luc?: string; q?: string; visibility?: "private" | "org" | "system"; sort?: string; order?: "asc" | "desc" }) => {
     const { data } = await api.get("/reference-docs/", { params });
     return data as RefDocListResponse;
   },

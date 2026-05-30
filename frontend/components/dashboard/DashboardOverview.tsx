@@ -330,7 +330,7 @@ export function DashboardOverview() {
                   </p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {doc.loai_vb && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 whitespace-nowrap inline-flex items-center">
                         {loaiLabel(doc.loai_vb)}
                       </Badge>
                     )}

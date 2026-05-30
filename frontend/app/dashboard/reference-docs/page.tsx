@@ -46,6 +46,8 @@ export default function ReferenceDocsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [loai, setLoai] = useState<string>("");
   const [hieuLuc, setHieuLuc] = useState<string>("");
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [singleModalOpen, setSingleModalOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<RefDoc | null>(null);
@@ -78,6 +80,7 @@ export default function ReferenceDocsPage() {
     queryKey: ["reference-docs", {
       skip, limit: LIMIT, visibility: activeTab,
       loai: loai || undefined, hieu_luc: hieuLuc || undefined, q: q || undefined,
+      sort: sortBy, order: sortOrder,
     }],
     queryFn: () => refDocApi.list({
       skip, limit: LIMIT,
@@ -85,6 +88,8 @@ export default function ReferenceDocsPage() {
       loai: loai || undefined,
       hieu_luc: hieuLuc || undefined,
       q: q || undefined,
+      sort: sortBy,
+      order: sortOrder,
     }),
   });
 
@@ -152,7 +157,7 @@ export default function ReferenceDocsPage() {
             {tab.label}
             {tabCounts[tab.id] !== undefined && (
               <span className={cn(
-                "rounded-full px-1.5 py-0.5 text-xs font-semibold",
+                "rounded-full px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap inline-flex items-center",
                 activeTab === tab.id
                   ? "bg-blue-100 text-blue-700"
                   : "bg-gray-100 text-gray-500"
@@ -222,6 +227,17 @@ export default function ReferenceDocsPage() {
           limit={LIMIT}
           onPageChange={setSkip}
           onEdit={handleEdit}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(col) => {
+            if (col === sortBy) {
+              setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+            } else {
+              setSortBy(col);
+              setSortOrder("desc");
+            }
+            setSkip(0);
+          }}
         />
       )}
 

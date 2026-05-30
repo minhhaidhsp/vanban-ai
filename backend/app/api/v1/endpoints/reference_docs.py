@@ -54,6 +54,14 @@ def _add_url(doc: ReferenceDocument, score: float | None = None) -> RefDocRespon
 
 # ── List ─────────────────────────────────────────────────────────────────────
 
+_SORT_COLUMNS = {
+    "created_at": ReferenceDocument.created_at,
+    "title":      ReferenceDocument.title,
+    "loai_van_ban": ReferenceDocument.loai_van_ban,
+    "ngay_ban_hanh": ReferenceDocument.ngay_ban_hanh,
+}
+
+
 @router.get("/", response_model=RefDocListResponse)
 async def list_ref_docs(
     skip: int = Query(0, ge=0),
@@ -62,6 +70,8 @@ async def list_ref_docs(
     hieu_luc: str | None = Query(None),
     q: str | None = Query(None),
     visibility: str | None = Query(None),  # private | org | system
+    sort: str = Query(default="created_at"),   # created_at | title | loai_van_ban | ngay_ban_hanh
+    order: str = Query(default="desc"),        # asc | desc
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -96,8 +106,10 @@ async def list_ref_docs(
     total_result = await db.execute(select(sql_func.count()).select_from(base.subquery()))
     total = total_result.scalar() or 0
 
+    sort_col = _SORT_COLUMNS.get(sort, ReferenceDocument.created_at)
+    sort_expr = sort_col.asc() if order == "asc" else sort_col.desc()
     result = await db.execute(
-        base.order_by(ReferenceDocument.created_at.desc()).offset(skip).limit(limit)
+        base.order_by(sort_expr).offset(skip).limit(limit)
     )
     items = [_add_url(d) for d in result.scalars().all()]
     return RefDocListResponse(items=items, total=total, skip=skip, limit=limit)

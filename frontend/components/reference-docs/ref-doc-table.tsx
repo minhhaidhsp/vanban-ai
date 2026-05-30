@@ -6,7 +6,7 @@ import { refDocApi, type RefDoc } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Pencil, Trash2, FileText } from "lucide-react";
+import { Download, Pencil, Trash2, FileText, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import {
   AlertDialog,
@@ -37,6 +37,14 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("vi-VN");
 }
 
+function formatDateTime(d: string | null) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  const date = dt.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const time = dt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return `${date} ${time}`;
+}
+
 function formatSize(bytes: number | null) {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
@@ -51,9 +59,19 @@ interface RefDocTableProps {
   limit: number;
   onPageChange: (skip: number) => void;
   onEdit: (doc: RefDoc) => void;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  onSort?: (col: string) => void;
 }
 
-export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit }: RefDocTableProps) {
+function SortIcon({ col, sortBy, sortOrder }: { col: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
+  if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 ml-1 inline opacity-40" />;
+  return sortOrder === "asc"
+    ? <ArrowUp className="h-3 w-3 ml-1 inline text-primary" />
+    : <ArrowDown className="h-3 w-3 ml-1 inline text-primary" />;
+}
+
+export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit, sortBy, sortOrder, onSort }: RefDocTableProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -94,6 +112,13 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit }:
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px]">Ngày BH</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[140px]">Hiệu lực</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[100px] hidden sm:table-cell">Phạm vi</th>
+              <th
+                className="px-4 py-3 text-left font-medium text-muted-foreground w-[145px] hidden lg:table-cell cursor-pointer select-none hover:text-foreground"
+                onClick={() => onSort?.("created_at")}
+              >
+                Ngày upload
+                <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder} />
+              </th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[100px]">Thao tác</th>
             </tr>
           </thead>
@@ -113,17 +138,20 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit }:
                   <td className="px-4 py-3 text-xs text-muted-foreground line-clamp-2">{doc.co_quan_ban_hanh}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(doc.ngay_ban_hanh)}</td>
                   <td className="px-4 py-3">
-                    <Badge className={`text-xs border ${hl.className} hover:opacity-90`}>{hl.label}</Badge>
+                    <Badge className={`text-xs border whitespace-nowrap inline-flex items-center ${hl.className} hover:opacity-90`}>{hl.label}</Badge>
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell">
                     {(() => {
                       const vis = VISIBILITY_LABELS[doc.visibility ?? "private"] ?? VISIBILITY_LABELS.private;
                       return (
-                        <Badge className={`text-xs border ${vis.className} hover:${vis.className}`}>
+                        <Badge className={`text-xs border whitespace-nowrap inline-flex items-center ${vis.className}`}>
                           {vis.label}
                         </Badge>
                       );
                     })()}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap hidden lg:table-cell">
+                    {formatDateTime(doc.created_at)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">

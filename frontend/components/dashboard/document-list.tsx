@@ -237,11 +237,11 @@ export function DocumentList() {
                   {/* Nguồn */}
                   <td className="px-4 py-3 hidden md:table-cell">
                     {doc.source === "editor" ? (
-                      <Badge className="text-xs bg-teal-600 text-white border-teal-600 hover:bg-teal-600">
+                      <Badge className="text-xs whitespace-nowrap inline-flex items-center bg-teal-600 text-white border-teal-600 hover:bg-teal-600">
                         Soạn thảo
                       </Badge>
                     ) : (
-                      <Badge className="text-xs bg-gray-600 text-white border-gray-600 hover:bg-gray-600">
+                      <Badge className="text-xs whitespace-nowrap inline-flex items-center bg-gray-600 text-white border-gray-600 hover:bg-gray-600">
                         Upload
                       </Badge>
                     )}
