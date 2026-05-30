@@ -37,6 +37,12 @@ const HIEU_LUC_OPTIONS = [
   { value: "mot_phan", label: "Một phần" },
 ];
 
+const VISIBILITY_OPTIONS = [
+  { value: "private", label: "Riêng tư (chỉ mình tôi)" },
+  { value: "org",     label: "Cơ quan" },
+  { value: "system",  label: "Hệ thống (mọi người)" },
+];
+
 interface FormState {
   title: string;
   loai_van_ban: string;
@@ -46,13 +52,14 @@ interface FormState {
   nguoi_ky: string;
   trich_yeu: string;
   hieu_luc: string;
+  visibility: string;
   tu_khoa: string;
 }
 
 const emptyForm = (): FormState => ({
   title: "", loai_van_ban: "", so_ki_hieu: "",
   ngay_ban_hanh: "", co_quan_ban_hanh: "", nguoi_ky: "",
-  trich_yeu: "", hieu_luc: "chua", tu_khoa: "",
+  trich_yeu: "", hieu_luc: "chua", visibility: "private", tu_khoa: "",
 });
 
 interface UploadModalProps {
@@ -78,6 +85,7 @@ export function UploadModal({ open, onClose, editing, onUploaded }: UploadModalP
           nguoi_ky: editing.nguoi_ky ?? "",
           trich_yeu: editing.trich_yeu,
           hieu_luc: editing.hieu_luc,
+          visibility: editing.visibility ?? "private",
           tu_khoa: editing.tu_khoa.join(", "),
         }
       : emptyForm()
@@ -104,6 +112,7 @@ export function UploadModal({ open, onClose, editing, onUploaded }: UploadModalP
     nguoi_ky: form.nguoi_ky || null,
     trich_yeu: form.trich_yeu,
     hieu_luc: form.hieu_luc,
+    visibility: form.visibility,
     tu_khoa: form.tu_khoa ? form.tu_khoa.split(",").map((s) => s.trim()).filter(Boolean) : [],
   });
 
@@ -282,6 +291,20 @@ export function UploadModal({ open, onClose, editing, onUploaded }: UploadModalP
                 </SelectTrigger>
                 <SelectContent>
                   {HIEU_LUC_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Phạm vi</Label>
+              <Select value={form.visibility} onValueChange={set("visibility")}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISIBILITY_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
