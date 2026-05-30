@@ -19,6 +19,27 @@
   margin: 0;
 }
 
+/* List markers — inherit font properties from the li chain so markers
+   match the editor base font (set via editorProps.attributes.style).
+   Also use :has() to mirror bold/italic/strike applied to inline content. */
+.tiptap ol li::marker,
+.tiptap ul li::marker {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+}
+/* Bold content → bold marker */
+.tiptap ol li:has(strong)::marker,
+.tiptap ul li:has(strong)::marker {
+  font-weight: bold;
+}
+/* Italic content → italic marker */
+.tiptap ol li:has(em)::marker,
+.tiptap ul li:has(em)::marker {
+  font-style: italic;
+}
+
 .tiptap p.is-editor-empty:first-child::before {
   color: hsl(var(--muted-foreground));
   content: attr(data-placeholder);
