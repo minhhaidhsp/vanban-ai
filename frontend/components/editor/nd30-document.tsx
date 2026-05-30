@@ -13,15 +13,19 @@ import {
   VAN_BAN_TYPES, QUYEN_HAN_KY,
   getFontStyle, getPageMargins, getSoKHFormat, generateSoKH,
   getTemplateForType, hasTenLoai, hasKinhGui,
-  defaultNd30Data,
+  defaultNd30Data, PAGE_MARGIN,
   type Nd30Data,
 } from "@/lib/nd30";
 import { organizationApi, documentApi, suggestApi } from "@/lib/api";
 import { CanCuSuggestPanel } from "./CanCuSuggestPanel";
 import { TrichYeuSuggestPanel } from "./TrichYeuSuggestPanel";
+import { Nd30StaticContent } from "./nd30-static-content";
 import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const PAGE_H    = 297;
+const CONTENT_H = PAGE_H - PAGE_MARGIN.top - PAGE_MARGIN.bottom; // 247mm
 
 // ── TipTap section editor ─────────────────────────────────────────────────
 
@@ -198,6 +202,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
   }));
 
   const quocHieuRef = useRef<HTMLDivElement>(null);
+  const measureRef  = useRef<HTMLDivElement>(null);
+  const [numPages, setNumPages] = useState(1);
 
   // AI suggest state
   const [trichYeuPanelOpen, setTrichYeuPanelOpen] = useState(false);
@@ -237,6 +243,18 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Measure static content height → numPages (same approach as DocumentPreviewPaged)
+  useEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+    const contentHpx = CONTENT_H * (96 / 25.4);
+    const recalc = () => setNumPages(Math.max(1, Math.ceil(el.scrollHeight / contentHpx)));
+    const ro = new ResizeObserver(recalc);
+    ro.observe(el);
+    recalc();
+    return () => ro.disconnect();
+  }, [data]);
 
   // Auto-fill từ organization API (chỉ khi tạo mới)
   useEffect(() => {
@@ -437,11 +455,63 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
       </div>
 
       {/* ── A4 scroll wrapper ─────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible">
+      {/* position:relative anchors the full-width gap bands */}
+      <div
+        className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible"
+        style={{ position: "relative" }}
+      >
+        {/* Hidden measurement div */}
+        <div
+          ref={measureRef}
+          aria-hidden
+          style={{
+            position: "fixed", left: "-9999px", top: 0,
+            visibility: "hidden", pointerEvents: "none",
+            width: `${210 - PAGE_MARGIN.left - PAGE_MARGIN.right}mm`,
+            fontFamily: "'Times New Roman', Times, serif",
+            fontSize: "14pt",
+          }}
+        >
+          <Nd30StaticContent data={data} />
+        </div>
+
+        {/* Page-gap bands — full-width, same color as outer bg → visually splits pages.
+            top = py-6 (1.5rem) + N×PAGE_H - half-height */}
+        {Array.from({ length: numPages - 1 }, (_, i) => (
+          <div
+            key={i}
+            aria-hidden
+            className="print:hidden"
+            style={{
+              position: "absolute",
+              top: `calc(1.5rem + ${(i + 1) * PAGE_H}mm - 4mm)`,
+              left: 0, right: 0,
+              height: "8mm",
+              background: "#e5e7eb",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
+          >
+            <span style={{
+              background: "white",
+              border: "1px solid #d1d5db",
+              padding: "1px 12px",
+              fontSize: "9pt", color: "#6b7280",
+              whiteSpace: "nowrap", borderRadius: "4px",
+              letterSpacing: "0.04em", userSelect: "none",
+            }}>
+              Trang {i + 1} / {numPages}
+            </span>
+          </div>
+        ))}
+
+        {/* ── Single A4 content div — all pages editable ─── */}
         <div
           className="a4-page mx-auto bg-white shadow-lg print:shadow-none"
           style={{
-            width: "210mm", minHeight: "297mm",
+            width: "210mm",
+            minHeight: `${PAGE_H}mm`,
             ...getPageMargins(),
             fontFamily: "'Times New Roman', Times, serif",
             fontSize: "14pt", color: "#000", boxSizing: "border-box",
@@ -455,59 +525,29 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
 
             {/* Cột trái: Ô 2 + Ô 3 */}
             <div>
-              <Nd30Field
-                value={data.coQuanChuQuan}
-                onChange={(v) => update("coQuanChuQuan", v)}
-                style={getFontStyle("co_quan_chu_quan")}
-                placeholder="TÊN CƠ QUAN CHỦ QUẢN"
-              />
-              <Nd30Field
-                value={data.coQuanBanHanh}
-                onChange={(v) => update("coQuanBanHanh", v)}
-                style={getFontStyle("co_quan_ban_hanh")}
-                placeholder="TÊN CƠ QUAN BAN HÀNH"
-              />
+              <Nd30Field value={data.coQuanChuQuan} onChange={(v) => update("coQuanChuQuan", v)}
+                style={getFontStyle("co_quan_chu_quan")} placeholder="TÊN CƠ QUAN CHỦ QUẢN" />
+              <Nd30Field value={data.coQuanBanHanh} onChange={(v) => update("coQuanBanHanh", v)}
+                style={getFontStyle("co_quan_ban_hanh")} placeholder="TÊN CƠ QUAN BAN HÀNH" />
               <div style={{ height: "1.5px", background: "#000", width: "50%", margin: "2px auto 4px" }} />
-              {/* Số/KH — inline để không có khoảng cách thừa */}
               <div style={{ textAlign: "center" }}>
                 <span style={getFontStyle("so_ky_hieu")}>Số: </span>
-                <Nd30Field
-                  value={data.soKyHieu}
-                  onChange={(v) => update("soKyHieu", v)}
+                <Nd30Field value={data.soKyHieu} onChange={(v) => update("soKyHieu", v)}
                   style={{ ...getFontStyle("so_ky_hieu"), display: "inline", fontStyle: "italic" }}
-                  placeholder={soKHHint}
-                />
+                  placeholder={soKHHint} />
               </div>
-
-              {/* Ô 10a: Độ mật — chỉ hiện khi khác Thường */}
               {showDoMat && (
                 <div style={{ textAlign: "center", marginTop: "3mm" }}>
-                  <span style={{
-                    display: "inline-block",
-                    border: "1px solid #000",
-                    padding: "2px 8px",
-                    fontFamily: "'Times New Roman', serif",
-                    fontSize: "13pt",
-                    fontWeight: "bold",
-                    textTransform: "uppercase",
-                  }}>
+                  <span style={{ display: "inline-block", border: "1px solid #000", padding: "2px 8px",
+                    fontFamily: "'Times New Roman', serif", fontSize: "13pt", fontWeight: "bold", textTransform: "uppercase" }}>
                     {data.doMat}
                   </span>
                 </div>
               )}
-
-              {/* Ô 10b: Độ khẩn — chỉ hiện khi khác Thường */}
               {showDoKhan && (
                 <div style={{ textAlign: "center", marginTop: "2mm" }}>
-                  <span style={{
-                    display: "inline-block",
-                    border: "1px solid #000",
-                    padding: "2px 8px",
-                    fontFamily: "'Times New Roman', serif",
-                    fontSize: "13pt",
-                    fontWeight: "bold",
-                    textTransform: "uppercase",
-                  }}>
+                  <span style={{ display: "inline-block", border: "1px solid #000", padding: "2px 8px",
+                    fontFamily: "'Times New Roman', serif", fontSize: "13pt", fontWeight: "bold", textTransform: "uppercase" }}>
                     {data.doKhan}
                   </span>
                 </div>
@@ -516,160 +556,96 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
 
             {/* Cột phải: Ô 1 + Ô 4 */}
             <div>
-              <div
-                ref={quocHieuRef}
-                style={{ ...getFontStyle("quoc_huy"), fontSize: "12pt", letterSpacing: "0.5px", whiteSpace: "nowrap", overflow: "visible" }}
-              >
+              <div ref={quocHieuRef}
+                style={{ ...getFontStyle("quoc_huy"), fontSize: "12pt", letterSpacing: "0.5px", whiteSpace: "nowrap", overflow: "visible" }}>
                 {QUOC_HUY}
               </div>
-
               <div style={{ textAlign: "center", marginBottom: "4mm" }}>
                 <span style={{ ...getFontStyle("tieu_ngu"), display: "inline-block", borderBottom: "1.5px solid #000", paddingBottom: "2px", whiteSpace: "nowrap" }}>
                   {TIEU_NGU}
                 </span>
               </div>
-
-              {/* Địa danh + ngày tháng — 1 dòng, nowrap */}
               <div style={{ display: "flex", justifyContent: "center", alignItems: "baseline", gap: 0, whiteSpace: "nowrap" }}>
-                <DiaDanhSelect
-                  value={data.diaDanh}
-                  onChange={(v) => update("diaDanh", v)}
-                  style={getFontStyle("dia_danh_ngay")}
-                />
+                <DiaDanhSelect value={data.diaDanh} onChange={(v) => update("diaDanh", v)} style={getFontStyle("dia_danh_ngay")} />
                 <span style={{ ...getFontStyle("dia_danh_ngay"), flexShrink: 0 }}>,&nbsp;</span>
-                <Nd30Field
-                  value={data.ngayThang}
-                  onChange={(v) => update("ngayThang", v)}
+                <Nd30Field value={data.ngayThang} onChange={(v) => update("ngayThang", v)}
                   style={{ ...getFontStyle("dia_danh_ngay"), textAlign: "left", whiteSpace: "nowrap" }}
-                  placeholder="ngày ... tháng ... năm ..."
-                />
+                  placeholder="ngày ... tháng ... năm ..." />
               </div>
             </div>
           </div>
 
-          {/* ── Ô 5a: Tên loại VB + trích yếu ──────────────────────── */}
+          {/* ── Tên loại VB + trích yếu ─────────────────────────────── */}
           {showTenLoai && (
             <div style={{ textAlign: "center", margin: "4mm 0 2mm" }}>
-              <div style={getFontStyle("ten_loai_vb")}>
-                {vbInfo?.full_name?.toUpperCase() ?? data.loaiVanBan}
-              </div>
-              <Nd30Field
-                value={data.trichYeu}
-                onChange={(v) => update("trichYeu", v)}
-                style={getFontStyle("trich_yeu_co_ten_loai")}
-                placeholder="Trích yếu nội dung văn bản"
-              />
+              <div style={getFontStyle("ten_loai_vb")}>{vbInfo?.full_name?.toUpperCase() ?? data.loaiVanBan}</div>
+              <Nd30Field value={data.trichYeu} onChange={(v) => update("trichYeu", v)}
+                style={getFontStyle("trich_yeu_co_ten_loai")} placeholder="Trích yếu nội dung văn bản" />
               <div style={{ height: "1.5px", background: "#000", width: "40%", margin: "3px auto 0" }} />
             </div>
           )}
-
-          {/* ── Ô 5b: Trích yếu công văn ────────────────────────────── */}
           {!showTenLoai && (
             <div style={{ textAlign: "center", margin: "4mm 0 2mm" }}>
-              <Nd30Field
-                value={data.trichYeu}
-                onChange={(v) => update("trichYeu", v)}
-                style={getFontStyle("trich_yeu_cong_van")}
-                placeholder="V/v ..."
-              />
+              <Nd30Field value={data.trichYeu} onChange={(v) => update("trichYeu", v)}
+                style={getFontStyle("trich_yeu_cong_van")} placeholder="V/v ..." />
             </div>
           )}
 
-          {/* ── Ô 9a: Kính gửi ──────────────────────────────────────── */}
+          {/* ── Kính gửi ─────────────────────────────────────────────── */}
           {showKinhGui && (
             <div style={{ marginBottom: "3mm", marginTop: "2mm", display: "flex", gap: "4px", alignItems: "flex-start" }}>
-              <span style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", whiteSpace: "nowrap" }}>
-                Kính gửi:
-              </span>
-              <Nd30Field
-                value={data.kinhGui}
-                onChange={(v) => update("kinhGui", v)}
+              <span style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", whiteSpace: "nowrap" }}>Kính gửi:</span>
+              <Nd30Field value={data.kinhGui} onChange={(v) => update("kinhGui", v)}
                 style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", flex: 1 }}
-                placeholder="Tên cơ quan / cá nhân nhận"
-                multiline
-              />
+                placeholder="Tên cơ quan / cá nhân nhận" multiline />
             </div>
           )}
 
           {/* ══ VÙNG B — CĂN CỨ ════════════════════════════════════════ */}
           <div style={{ marginBottom: "3mm" }}>
-            <SectionEditor
-              content={data.canCu}
-              onChange={(v) => update("canCu", v)}
+            <SectionEditor content={data.canCu} onChange={(v) => update("canCu", v)}
               placeholder="Căn cứ [tên văn bản] số [số/KH] ngày ... tháng ... năm ... của [cơ quan] về ...;"
-              minHeight="60px"
-              italic
+              minHeight="60px" italic
               isActive={activeFieldId === "canCu"}
-              onEditorFocused={(ed) => handleEditorFocused("canCu", ed)}
-            />
+              onEditorFocused={(ed) => handleEditorFocused("canCu", ed)} />
           </div>
 
           {/* ══ VÙNG C — NỘI DUNG ══════════════════════════════════════ */}
           <div style={{ marginBottom: "6mm" }}>
-            <SectionEditor
-              content={data.noiDung}
-              onChange={(v) => update("noiDung", v)}
+            <SectionEditor content={data.noiDung} onChange={(v) => update("noiDung", v)}
               placeholder="Nội dung chính của văn bản..."
               minHeight="200px"
               isActive={activeFieldId === "noiDung"}
-              onEditorFocused={(ed) => handleEditorFocused("noiDung", ed)}
-            />
+              onEditorFocused={(ed) => handleEditorFocused("noiDung", ed)} />
           </div>
 
           {/* ══ PHẦN KÝ ════════════════════════════════════════════════ */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginTop: "4mm" }}>
-
-            {/* Cột trái: Nơi nhận */}
             <div style={{ paddingRight: "4mm" }}>
               <div style={getFontStyle("noi_nhan_label")}>Nơi nhận:</div>
-              <RecipientTagInput
-                value={data.noiNhan}
-                onChange={(v) => update("noiNhan", v)}
-                style={getFontStyle("noi_nhan_list")}
-                placeholder="- Như trên; (Enter để thêm)"
-              />
+              <RecipientTagInput value={data.noiNhan} onChange={(v) => update("noiNhan", v)}
+                style={getFontStyle("noi_nhan_list")} placeholder="- Như trên; (Enter để thêm)" />
             </div>
-
-            {/* Cột phải: Ký */}
             <div style={{ textAlign: "center", paddingLeft: "4mm" }}>
               <div style={{ display: "flex", justifyContent: "center", alignItems: "baseline", gap: "4px", marginBottom: "2px" }}>
                 <div className="print:hidden" style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-                  <select
-                    value={data.quyenHanKy}
-                    onChange={(e) => update("quyenHanKy", e.target.value)}
+                  <select value={data.quyenHanKy} onChange={(e) => update("quyenHanKy", e.target.value)}
                     className="appearance-none"
-                    style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", fontWeight: "bold", color: "#000", background: "transparent", border: "none", outline: "none", cursor: "pointer", paddingRight: "14px" }}
-                  >
-                    {Object.values(QUYEN_HAN_KY).map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
+                    style={{ fontFamily: "'Times New Roman',serif", fontSize: "14pt", fontWeight: "bold", color: "#000", background: "transparent", border: "none", outline: "none", cursor: "pointer", paddingRight: "14px" }}>
+                    {Object.values(QUYEN_HAN_KY).map((v) => (<option key={v} value={v}>{v}</option>))}
                   </select>
-                  <ChevronDown className="pointer-events-none text-muted-foreground" style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: "12px", height: "12px" }} />
+                  <ChevronDown className="pointer-events-none text-muted-foreground"
+                    style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: "12px", height: "12px" }} />
                 </div>
                 <span className="hidden print:inline" style={getFontStyle("quyen_han_ky")}>{data.quyenHanKy}</span>
-                <Nd30Field
-                  value={data.chucDanhTapThe}
-                  onChange={(v) => update("chucDanhTapThe", v)}
-                  style={getFontStyle("quyen_han_ky")}
-                  placeholder="TÊN TẬP THỂ LÃNH ĐẠO"
-                />
+                <Nd30Field value={data.chucDanhTapThe} onChange={(v) => update("chucDanhTapThe", v)}
+                  style={getFontStyle("quyen_han_ky")} placeholder="TÊN TẬP THỂ LÃNH ĐẠO" />
               </div>
-
-              <Nd30Field
-                value={data.chucVuKy}
-                onChange={(v) => update("chucVuKy", v)}
-                style={getFontStyle("chuc_vu_ky")}
-                placeholder="CHỨC VỤ NGƯỜI KÝ"
-              />
-
+              <Nd30Field value={data.chucVuKy} onChange={(v) => update("chucVuKy", v)}
+                style={getFontStyle("chuc_vu_ky")} placeholder="CHỨC VỤ NGƯỜI KÝ" />
               <div style={{ height: "18mm" }} />
-
-              <Nd30Field
-                value={data.hoTenKy}
-                onChange={(v) => update("hoTenKy", v)}
-                style={getFontStyle("ho_ten_ky")}
-                placeholder="Họ và tên người ký"
-              />
+              <Nd30Field value={data.hoTenKy} onChange={(v) => update("hoTenKy", v)}
+                style={getFontStyle("ho_ten_ky")} placeholder="Họ và tên người ký" />
             </div>
           </div>
 
