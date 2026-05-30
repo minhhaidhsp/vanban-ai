@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { documentSourcesApi, refDocApi, type RefDoc } from "@/lib/api";
-import { FileText, Plus, X, BookOpen, Loader2, Upload, Search, Check } from "lucide-react";
+import { FileText, X, BookOpen, Loader2, Upload, Search, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SourcePickerModal } from "./SourcePickerModal";
 import {
@@ -14,28 +14,19 @@ import { cn } from "@/lib/utils";
 
 // ── UploadSourceModal ─────────────────────────────────────────────────────────
 
-type FileStatus = "idle" | "uploading" | "done" | "failed";
-
 interface UploadSourceModalProps {
   open: boolean;
   onClose: () => void;
-  documentId: string;
-  onUploaded: () => void;
+  onStartUpload: (files: File[]) => void;
 }
 
-function UploadSourceModal({ open, onClose, documentId, onUploaded }: UploadSourceModalProps) {
+function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalProps) {
   const [files, setFiles] = useState<File[]>([]);
-  const [statuses, setStatuses] = useState<Map<string, FileStatus>>(new Map());
-  const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) {
-      setFiles([]);
-      setStatuses(new Map());
-      setUploading(false);
-    }
+    if (!open) setFiles([]);
   }, [open]);
 
   const addFiles = (incoming: File[]) => {
@@ -59,65 +50,13 @@ function UploadSourceModal({ open, onClose, documentId, onUploaded }: UploadSour
     e.target.value = "";
   };
 
-  const handleUpload = async () => {
-    if (files.length === 0 || uploading) return;
-    setUploading(true);
-
-    // Mark all as uploading
-    setStatuses(new Map(files.map((f) => [f.name, "uploading"])));
-
-    try {
-      const batchRes = await refDocApi.uploadBatch(files, "private");
-      const jobs = batchRes.jobs; // [{job_id, filename}]
-
-      // Track per-job result
-      type JobResult = { docId: string | null; done: boolean };
-      const results: JobResult[] = jobs.map(() => ({ docId: null, done: false }));
-
-      await new Promise<void>((resolve) => {
-        const check = async () => {
-          const statList = await Promise.all(
-            results.map((r, i) =>
-              r.done
-                ? Promise.resolve(null)
-                : refDocApi.getJobStatus(jobs[i].job_id).catch(() => null)
-            )
-          );
-
-          statList.forEach((s, i) => {
-            if (!s) return;
-            if (s.status === "done" || s.status === "failed") {
-              results[i].done = true;
-              results[i].docId = s.doc_id;
-              const fileStatus: FileStatus = s.status === "done" ? "done" : "failed";
-              setStatuses((prev) => new Map(prev).set(jobs[i].filename, fileStatus));
-            }
-          });
-
-          if (results.every((r) => r.done)) resolve();
-          else setTimeout(check, 2500);
-        };
-        check();
-      });
-
-      // Add done sources to document
-      await Promise.all(
-        results
-          .filter((r, i) => r.done && r.docId && jobs[i])
-          .map((r) => documentSourcesApi.add(documentId, r.docId!).catch(() => {}))
-      );
-
-      onUploaded();
-    } catch (err) {
-      console.error("[UploadSourceModal] failed:", err);
-      setStatuses(new Map(files.map((f) => [f.name, "failed"])));
-    } finally {
-      setUploading(false);
-    }
+  const handleUpload = () => {
+    if (files.length === 0) return;
+    onStartUpload(files); // SourcesPanel closes modal + handles background upload
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o && !uploading) onClose(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Upload tài liệu tham chiếu</DialogTitle>
@@ -127,14 +66,13 @@ function UploadSourceModal({ open, onClose, documentId, onUploaded }: UploadSour
           {/* Drop zone */}
           <div
             className={cn(
-              "border-2 border-dashed rounded-xl p-5 text-center transition-colors",
-              uploading ? "pointer-events-none opacity-50" : "cursor-pointer",
+              "border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors",
               dragOver ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"
             )}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={() => !uploading && fileInputRef.current?.click()}
+            onClick={() => fileInputRef.current?.click()}
           >
             <input ref={fileInputRef} type="file" className="hidden"
               accept=".pdf,.doc,.docx" multiple onChange={handleFileInput} />
@@ -143,42 +81,32 @@ function UploadSourceModal({ open, onClose, documentId, onUploaded }: UploadSour
             <p className="text-xs text-gray-400 mt-1">Tối đa 10 file</p>
           </div>
 
-          {/* File list with status */}
+          {/* File list */}
           {files.length > 0 && (
             <div className="space-y-1 max-h-44 overflow-y-auto">
-              {files.map((f, i) => {
-                const st = statuses.get(f.name) ?? "idle";
-                return (
-                  <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border bg-white">
-                    <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                    <span className="text-sm truncate max-w-[200px] block" title={f.name}>
-                      {f.name}
-                    </span>
-                    {st === "idle" && (
-                      <button onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
-                        <X className="h-3 w-3 text-gray-400 hover:text-red-500" />
-                      </button>
-                    )}
-                    {st === "uploading" && <Loader2 className="h-3 w-3 animate-spin text-blue-400 shrink-0" />}
-                    {st === "done"      && <Check className="h-3 w-3 text-green-500 shrink-0" />}
-                    {st === "failed"    && <X className="h-3 w-3 text-red-500 shrink-0" />}
-                  </div>
-                );
-              })}
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border bg-white">
+                  <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                  <span className="text-sm truncate max-w-[200px] block" title={f.name}>
+                    {f.name}
+                  </span>
+                  <button onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
+                    <X className="h-3 w-3 text-gray-400 hover:text-red-500" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={onClose} disabled={uploading}
+            <Button variant="outline" size="sm" onClick={onClose}
               className="text-gray-500 border-gray-200">
               Huỷ
             </Button>
             <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={handleUpload} disabled={files.length === 0 || uploading}>
-              {uploading
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Đang tải lên...</>
-                : <><Upload className="h-3.5 w-3.5 mr-1.5" />Upload</>}
+              onClick={handleUpload} disabled={files.length === 0}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />Upload
             </Button>
           </div>
         </div>
@@ -188,6 +116,9 @@ function UploadSourceModal({ open, onClose, documentId, onUploaded }: UploadSour
 }
 
 // ── SourcesPanel ──────────────────────────────────────────────────────────────
+
+type PendingStatus = "uploading" | "done" | "failed";
+interface PendingUpload { filename: string; status: PendingStatus; }
 
 interface SourcesPanelProps {
   documentId: string;
@@ -199,6 +130,7 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
   const { toast } = useToast();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
 
   const guardNewDoc = () => {
     if (!documentId || documentId === "new-doc") {
@@ -229,9 +161,64 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
     onSuccess: invalidate,
   });
 
-  const handleUploaded = () => {
-    invalidate();
+  const handleStartUpload = (files: File[]) => {
+    // 1. Set pending items immediately
+    setPendingUploads(files.map((f) => ({ filename: f.name, status: "uploading" })));
+
+    // 2. Close modal right away
     setUploadOpen(false);
+
+    // 3. Upload + poll in background (intentionally not awaited)
+    ;(async () => {
+      try {
+        const batchRes = await refDocApi.uploadBatch(files, "private");
+        const jobs = batchRes.jobs;
+        const done = new Set<string>(); // completed job_ids
+
+        await new Promise<void>((resolve) => {
+          const check = async () => {
+            const statList = await Promise.all(
+              jobs.map((j) =>
+                done.has(j.job_id)
+                  ? Promise.resolve(null)
+                  : refDocApi.getJobStatus(j.job_id).catch(() => null)
+              )
+            );
+
+            statList.forEach((s, i) => {
+              if (!s) return;
+              if (s.status === "done" || s.status === "failed") {
+                done.add(jobs[i].job_id);
+                const fileStatus: PendingStatus = s.status === "done" ? "done" : "failed";
+                setPendingUploads((prev) =>
+                  prev.map((p) =>
+                    p.filename === jobs[i].filename ? { ...p, status: fileStatus } : p
+                  )
+                );
+                if (s.status === "done" && s.doc_id) {
+                  documentSourcesApi.add(documentId, s.doc_id)
+                    .then(() =>
+                      queryClient.invalidateQueries({ queryKey: ["document-sources", documentId] })
+                    )
+                    .catch(() => {});
+                }
+              }
+            });
+
+            if (done.size === jobs.length) resolve();
+            else setTimeout(check, 2500);
+          };
+          check();
+        });
+
+        // Clear pending after 2s so user sees the result
+        setTimeout(() => setPendingUploads([]), 2000);
+      } catch (err) {
+        console.error("[handleStartUpload] failed:", err);
+        setPendingUploads((prev) => prev.map((p) => ({ ...p, status: "failed" })));
+        setTimeout(() => setPendingUploads([]), 3000);
+      }
+    })();
   };
 
   const handleAdded = () => {
@@ -272,7 +259,22 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
-        {sources.length === 0 ? (
+
+        {/* Pending uploads — shown above DB sources while processing */}
+        {pendingUploads.map((p) => (
+          <div key={p.filename} className="flex items-center gap-2 px-3 py-2 text-sm">
+            <FileText className="w-4 h-4 shrink-0 text-gray-400" />
+            <span className="truncate flex-1 text-gray-500 text-xs" title={p.filename}>
+              {p.filename}
+            </span>
+            {p.status === "uploading" && <Loader2 className="w-3 h-3 animate-spin text-blue-500 shrink-0" />}
+            {p.status === "done"      && <Check className="w-3 h-3 text-green-500 shrink-0" />}
+            {p.status === "failed"    && <X className="w-3 h-3 text-red-500 shrink-0" />}
+          </div>
+        ))}
+
+        {/* Empty state — only when nothing at all */}
+        {sources.length === 0 && pendingUploads.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-8 px-3 gap-2">
             <FileText className="h-8 w-8 text-gray-200" />
             <p className="text-xs text-gray-400 leading-relaxed">
@@ -294,39 +296,40 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
               </button>
             </div>
           </div>
-        ) : (
-          sources.map((src) => (
-            <div
-              key={src.id}
-              className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-blue-200 group transition-colors"
-            >
-              <FileText className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-800 truncate leading-tight">
-                  {src.so_ki_hieu || src.title}
-                </p>
-                {src.loai_van_ban && (
-                  <span className="inline-block text-[10px] bg-blue-100 text-blue-700 rounded px-1 mt-0.5">
-                    {src.loai_van_ban}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => removeMutation.mutate(src.id)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all shrink-0"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))
         )}
+
+        {/* DB sources — fully processed */}
+        {sources.map((src) => (
+          <div
+            key={src.id}
+            className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-blue-200 group transition-colors"
+          >
+            <FileText className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-800 truncate leading-tight"
+                 title={src.title}>
+                {src.so_ki_hieu || src.title}
+              </p>
+              {src.loai_van_ban && (
+                <span className="inline-block text-[10px] bg-blue-100 text-blue-700 rounded px-1 mt-0.5">
+                  {src.loai_van_ban}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => removeMutation.mutate(src.id)}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all shrink-0"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
       </div>
 
       <UploadSourceModal
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        documentId={documentId}
-        onUploaded={handleUploaded}
+        onStartUpload={handleStartUpload}
       />
 
       <SourcePickerModal

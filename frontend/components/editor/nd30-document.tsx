@@ -2,11 +2,8 @@
 
 import "./editor.css";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import TextAlign from "@tiptap/extension-text-align";
-import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
+import { sharedExtensions } from "./extensions";
 import { EditorToolbar } from "./editor-toolbar";
 import { Nd30Field } from "./nd30-field";
 import { RecipientTagInput } from "./recipient-tag-input";
@@ -46,10 +43,7 @@ function SectionEditor({
 }: SectionEditorProps) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Underline,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Highlight,
+      ...sharedExtensions,
       Placeholder.configure({ placeholder }),
     ],
     content,

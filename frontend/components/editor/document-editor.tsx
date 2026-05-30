@@ -163,6 +163,8 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   const [docId, setDocId] = useState(documentId);
   const isNew = !documentId;
   const [showAiBanner, setShowAiBanner] = useState(() => isAiGenerated(initialContent));
+  const [documentTitle, setDocumentTitle] = useState(initialTitle || "Văn bản mới");
+  const [editingTitle, setEditingTitle] = useState(false);
 
   // Welcome panel state (shown when navigated from modal with ?new=true)
   const wasNewDoc = useRef(false);
@@ -402,9 +404,35 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
           >
             <PanelLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-medium text-muted-foreground">
-            {docId ? "Chỉnh sửa văn bản" : "Văn bản mới"}
-          </span>
+          {!editingTitle ? (
+            <button
+              onClick={() => setEditingTitle(true)}
+              className="text-sm font-medium text-gray-700 hover:text-gray-900
+                         truncate max-w-[250px] text-left hover:underline
+                         decoration-dashed underline-offset-2"
+              title={documentTitle}
+            >
+              {documentTitle}
+            </button>
+          ) : (
+            <input
+              autoFocus
+              value={documentTitle}
+              onChange={(e) => setDocumentTitle(e.target.value)}
+              onBlur={() => {
+                setEditingTitle(false);
+                if (docId) documentApi.update(docId, { title: documentTitle });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "Escape") {
+                  setEditingTitle(false);
+                  if (docId) documentApi.update(docId, { title: documentTitle });
+                }
+              }}
+              className="text-sm font-medium border-b border-gray-400
+                         outline-none bg-transparent w-[250px]"
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-2">

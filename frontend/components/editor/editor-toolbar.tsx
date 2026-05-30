@@ -169,6 +169,29 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         <option value="2">Tiêu đề 2</option>
         <option value="3">Tiêu đề 3</option>
       </select>
+
+      <Divider />
+
+      {/* Font size — only shown when editor supports textStyle mark */}
+      {editor.schema.marks["textStyle"] && (
+        <select
+          value={(() => {
+            const style = editor.getAttributes("textStyle").fontSize;
+            return style ? parseInt(style) : 13;
+          })()}
+          onChange={(e) => {
+            if (!editor.schema.marks["textStyle"]) return;
+            editor.chain().focus()
+              .setMark("textStyle", { fontSize: `${e.target.value}pt` })
+              .run();
+          }}
+          className="h-7 text-xs border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {[10, 11, 12, 13, 14, 16, 18, 20, 24].map((s) => (
+            <option key={s} value={s}>{s}pt</option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
