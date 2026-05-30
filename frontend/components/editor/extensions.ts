@@ -1,12 +1,12 @@
+import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { TextStyle } from "@tiptap/extension-text-style";
+import { TextStyle, FontFamily } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Highlight from "@tiptap/extension-highlight";
 import CharacterCount from "@tiptap/extension-character-count";
 
-// TextStyle extended with fontSize attribute.
-// Using .extend() registers the textStyle mark AND adds fontSize — no need for TextStyle separately.
+// TextStyle extended with fontSize — registers textStyle mark + adds fontSize attr
 export const FontSizeExtension = TextStyle.extend({
   addAttributes() {
     return {
@@ -21,11 +21,45 @@ export const FontSizeExtension = TextStyle.extend({
   },
 });
 
-// Shared extensions for all TipTap editor instances (RichEditor + SectionEditor in nd30-document).
+// Line height + paragraph spacing for paragraph/heading nodes
+export const ParagraphFormatExtension = Extension.create({
+  name: "paragraphFormat",
+  addGlobalAttributes() {
+    return [
+      {
+        types: ["paragraph", "heading"],
+        attributes: {
+          lineHeight: {
+            default: null,
+            parseHTML: (el) => (el as HTMLElement).style.lineHeight || null,
+            renderHTML: (attrs) =>
+              attrs.lineHeight ? { style: `line-height: ${attrs.lineHeight}` } : {},
+          },
+          marginTop: {
+            default: null,
+            parseHTML: (el) => (el as HTMLElement).style.marginTop || null,
+            renderHTML: (attrs) =>
+              attrs.marginTop ? { style: `margin-top: ${attrs.marginTop}` } : {},
+          },
+          marginBottom: {
+            default: null,
+            parseHTML: (el) => (el as HTMLElement).style.marginBottom || null,
+            renderHTML: (attrs) =>
+              attrs.marginBottom ? { style: `margin-bottom: ${attrs.marginBottom}` } : {},
+          },
+        },
+      },
+    ];
+  },
+});
+
+// Shared extensions for all TipTap editor instances.
 // Do NOT include Placeholder — each editor configures its own placeholder text.
 export const sharedExtensions = [
   StarterKit,
-  FontSizeExtension,  // IS TextStyle.extend() → registers textStyle mark + fontSize attr
+  FontSizeExtension,        // TextStyle mark + fontSize attr
+  FontFamily,               // fontFamily attr on textStyle mark
+  ParagraphFormatExtension, // lineHeight + marginTop/Bottom on paragraphs
   Underline,
   TextAlign.configure({ types: ["heading", "paragraph"] }),
   Highlight,
