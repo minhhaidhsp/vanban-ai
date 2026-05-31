@@ -130,8 +130,8 @@ function LLMStatusBadge() {
   const { data } = useQuery({
     queryKey: ["rag-health"],
     queryFn: ragApi.health,
-    refetchInterval: 60_000,
-    staleTime: 55_000,
+    refetchInterval: 30_000,
+    staleTime: 0,
   });
 
   if (!data) return null;

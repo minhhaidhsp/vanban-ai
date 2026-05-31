@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     # LLM (vLLM / OpenAI-compatible)
     llm_base_url: str = ""
+    llm_api_key: str = ""
     llm_model_name: str = "Qwen/Qwen2.5-3B-Instruct"
     llm_timeout: int = 60
     llm_max_retries: int = 3

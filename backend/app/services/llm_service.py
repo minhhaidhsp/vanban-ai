@@ -16,6 +16,7 @@ class LLMService:
     def __init__(self) -> None:
         s = get_settings()
         self._base_url: str = s.llm_base_url.rstrip("/")
+        self._api_key: str = s.llm_api_key
         self._model: str = s.llm_model_name
         self._timeout: int = s.llm_timeout
         self._max_retries: int = s.llm_max_retries
@@ -44,19 +45,25 @@ class LLMService:
             "messages": messages,
             "temperature": temperature if temperature is not None else self._temperature,
             "max_tokens": max_tokens if max_tokens is not None else 512,
-            "repetition_penalty": 1.15,
+            "stream": False,
         }
+        if "groq.com" not in self._base_url:
+            payload["repetition_penalty"] = 1.15
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
 
         last_exc: Exception = RuntimeError("No attempts made")
         for attempt in range(1, self._max_retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     resp = await client.post(
-                        f"{self._base_url}/v1/chat/completions",
+                        f"{self._base_url}/chat/completions",
                         json=payload,
-                        headers={"Content-Type": "application/json"},
+                        headers=headers,
                     )
                     resp.raise_for_status()
                     data = resp.json()
@@ -88,17 +95,22 @@ class LLMService:
             "messages": messages,
             "temperature": temperature if temperature is not None else self._temperature,
             "max_tokens": 512,
-            "repetition_penalty": 1.15,
             "stream": True,
         }
+        if "groq.com" not in self._base_url:
+            payload["repetition_penalty"] = 1.15
+
+        stream_headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            stream_headers["Authorization"] = f"Bearer {self._api_key}"
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 async with client.stream(
                     "POST",
-                    f"{self._base_url}/v1/chat/completions",
+                    f"{self._base_url}/chat/completions",
                     json=payload,
-                    headers={"Content-Type": "application/json"},
+                    headers=stream_headers,
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
@@ -122,10 +134,14 @@ class LLMService:
         if not self._base_url:
             return {"status": "not_configured"}
 
+        health_headers = {}
+        if self._api_key:
+            health_headers["Authorization"] = f"Bearer {self._api_key}"
+
         start = time.monotonic()
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(f"{self._base_url}/v1/models")
+                resp = await client.get(f"{self._base_url}/models", headers=health_headers)
                 resp.raise_for_status()
                 data = resp.json()
 

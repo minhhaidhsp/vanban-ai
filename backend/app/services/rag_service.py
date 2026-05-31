@@ -31,24 +31,35 @@ LLM_OFFLINE_MSG = (
 )
 
 _SYSTEM_PROMPT = """Bạn là chuyên gia văn bản hành chính Việt Nam.
-Nhiệm vụ: Trả lời câu hỏi DỰA TRÊN các văn bản được cung cấp trong [CONTEXT].
+Nhiệm vụ: Trả lời câu hỏi DỰA TRÊN các văn bản trong [CONTEXT].
 
 QUY TẮC BẮT BUỘC:
-1. CHỈ dùng thông tin có trong [CONTEXT] — KHÔNG suy diễn, KHÔNG bịa
-2. MỖI luận điểm PHẢI có trích dẫn: [Nguồn: tên văn bản] hoặc [Nguồn: số/ký hiệu]
-3. Nếu [CONTEXT] KHÔNG có thông tin liên quan → trả lời ĐÚNG:
-   "Kho tài liệu hiện tại không có thông tin về vấn đề này."
-   KHÔNG được đoán mò hoặc dùng kiến thức chung.
+1. CHỈ dùng thông tin có trong [CONTEXT] — KHÔNG suy diễn, KHÔNG dùng kiến thức chung
+2. MỖI câu trả lời PHẢI kết thúc bằng ít nhất 1 trích dẫn: [Nguồn: tên/số văn bản]
+3. Kiểm tra chủ đề trước khi trả lời:
+   - Nếu câu hỏi về: giá cả, thị trường, tài chính, thuế, tuyển sinh, thời tiết,
+     lịch nghỉ, kết hôn người nước ngoài, hay bất kỳ chủ đề KHÔNG LIÊN QUAN đến
+     thủ tục hành chính/văn bản pháp lý trong [CONTEXT] →
+     Trả lời ĐÚNG 1 câu: "Kho tài liệu hiện tại không có thông tin về vấn đề này."
+   - Nếu câu hỏi liên quan đến nội dung trong [CONTEXT] →
+     Trả lời đầy đủ với trích dẫn [Nguồn: ...]
 4. Trả lời bằng tiếng Việt, ngắn gọn, đủ ý
 
-VÍ DỤ TRẢ LỜI ĐÚNG:
-Câu hỏi: "Thủ tục chứng thực chữ ký gồm những bước nào?"
-Trả lời: "Theo danh mục TTHC lĩnh vực chứng thực [Nguồn: QĐ-UBND TP.HCM], thủ tục chứng thực chữ ký gồm: [các bước]. [Nguồn: QĐ công bố TTHC chứng thực]"
+VÍ DỤ ĐÚNG — câu hỏi in-scope:
+Hỏi: "Thủ tục chứng thực chữ ký gồm gì?"
+Đáp: "Theo [Nguồn: QĐ-UBND TP.HCM công bố TTHC chứng thực], thủ tục gồm:
+(1) Nộp hồ sơ tại UBND cấp xã...
+(2) Cán bộ kiểm tra giấy tờ...
+[Nguồn: Danh mục TTHC lĩnh vực chứng thực]"
 
-VÍ DỤ TRẢ LỜI SAI (KHÔNG được làm):
-- Trả lời khi không có căn cứ trong context
+VÍ DỤ ĐÚNG — câu hỏi out-of-scope:
+Hỏi: "Giá vàng hôm nay là bao nhiêu?"
+Đáp: "Kho tài liệu hiện tại không có thông tin về vấn đề này."
+
+VÍ DỤ SAI (KHÔNG làm):
+- Trả lời câu hỏi không có trong context
+- Bịa số văn bản, ngày tháng
 - Trả lời mà không có [Nguồn: ...]
-- Bịa số văn bản hoặc ngày tháng
 
 [CONTEXT]
 {context}
@@ -302,12 +313,13 @@ class RAGService:
 
         # FIX 2: Nếu LLM tự nhận "không có thông tin" → cap confidence thấp
         _OUT_OF_SCOPE_PHRASES = [
-            "kho tài liệu hiện tại không có thông tin",
+            "kho tài liệu hiện tại không có thông tin về vấn đề này",
+            "ngoài phạm vi tài liệu",
+            "không có trong kho tài liệu",
             "không có thông tin về vấn đề này",
             "không tìm thấy thông tin liên quan",
-            "không có thông tin liên quan",
-            "ngoài phạm vi",
-            "không có trong kho",
+            "nằm ngoài phạm vi",
+            "không thuộc phạm vi",
         ]
         if any(p in answer.lower() for p in _OUT_OF_SCOPE_PHRASES):
             confidence = min(confidence, 0.2)
