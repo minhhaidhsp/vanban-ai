@@ -27,8 +27,4 @@ COPY . .
 
 EXPOSE 8000
 
-# Tạo entrypoint script
-RUN echo '#!/bin/sh\nexec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}' > /app/start.sh \
-    && chmod +x /app/start.sh
-
-CMD ["/bin/sh", "/app/start.sh"]
+ENTRYPOINT ["/bin/sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
