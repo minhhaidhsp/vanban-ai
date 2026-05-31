@@ -50,3 +50,7 @@ minio-data/
 
 # Uploads
 uploads/
+
+backend/.env.production
+backend/clear_data.py
+backend/*.sql
