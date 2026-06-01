@@ -21,12 +21,18 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379"
 
-    # MinIO
+    # MinIO (local dev only)
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_bucket_name: str = "vanban-ai"
     minio_use_ssl: bool = False
+
+    # Cloudflare R2 (production) — S3-compatible object storage
+    r2_endpoint: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = "vanban-ai"
 
     # LLM (vLLM / OpenAI-compatible)
     llm_base_url: str = ""

@@ -5,7 +5,7 @@ from typing import List
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.redis import get_redis
-from app.core.storage import get_minio_client, ensure_bucket_exists, get_file_url
+from app.core.storage import get_storage_client as get_minio_client, ensure_bucket_exists, get_file_url
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.reference_document import ReferenceDocument
@@ -360,11 +360,10 @@ async def upload_ref_batch(
             client = get_minio_client()
             ensure_bucket_exists(client, REF_DOCS_BUCKET)
             client.put_object(
-                bucket_name=REF_DOCS_BUCKET,
-                object_name=name,
-                data=io.BytesIO(data),
-                length=len(data),
-                content_type=ct,
+                Bucket=REF_DOCS_BUCKET,
+                Key=name,
+                Body=data,
+                ContentType=ct,
             )
 
         await asyncio.get_event_loop().run_in_executor(None, _upload)
@@ -552,8 +551,8 @@ async def delete_ref_doc(
     if doc.file_path:
         try:
             client = get_minio_client()
-            client.remove_object(REF_DOCS_BUCKET, doc.file_path)
-            logger.info("[ref_doc] deleted MinIO object: %s", doc.file_path)
+            client.delete_object(Bucket=REF_DOCS_BUCKET, Key=doc.file_path)
+            logger.info("[ref_doc] deleted storage object: %s", doc.file_path)
         except Exception as e:
             logger.warning(
                 "[ref_doc] MinIO delete failed for %s: %s — continuing with DB delete",
@@ -590,16 +589,15 @@ async def upload_ref_doc_file(
     object_name = f"{current_user.id}/{doc_id}/{uuid.uuid4()}_{file.filename}"
     content_type = file.content_type or "application/octet-stream"
 
-    # Upload to MinIO in a thread (blocking I/O)
+    # Upload to storage in a thread (blocking I/O)
     def _upload():
         client = get_minio_client()
         ensure_bucket_exists(client, REF_DOCS_BUCKET)
         client.put_object(
-            bucket_name=REF_DOCS_BUCKET,
-            object_name=object_name,
-            data=io.BytesIO(file_data),
-            length=len(file_data),
-            content_type=content_type,
+            Bucket=REF_DOCS_BUCKET,
+            Key=object_name,
+            Body=file_data,
+            ContentType=content_type,
         )
 
     await asyncio.get_event_loop().run_in_executor(None, _upload)
@@ -616,7 +614,7 @@ async def upload_ref_doc_file(
         # DB update failed — clean up the just-uploaded MinIO object
         def _cleanup():
             try:
-                get_minio_client().remove_object(REF_DOCS_BUCKET, object_name)
+                get_minio_client().delete_object(Bucket=REF_DOCS_BUCKET, Key=object_name)
             except Exception:
                 pass
         await asyncio.get_event_loop().run_in_executor(None, _cleanup)
@@ -626,7 +624,7 @@ async def upload_ref_doc_file(
     if old_path and old_path != object_name:
         def _remove_old():
             try:
-                get_minio_client().remove_object(REF_DOCS_BUCKET, old_path)
+                get_minio_client().delete_object(Bucket=REF_DOCS_BUCKET, Key=old_path)
             except Exception:
                 pass
         await asyncio.get_event_loop().run_in_executor(None, _remove_old)
