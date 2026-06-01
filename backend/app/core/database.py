@@ -41,7 +41,6 @@ if _is_remote:
     _connect_args: dict = {
         "ssl": _ssl_ctx,
         "statement_cache_size": 0,
-        "server_settings": {"application_name": "vanban-ai"},
     }
     logger.info("[db] SSL enabled (cert verify disabled) for remote host: %s", _parsed.hostname)
 else:
@@ -53,7 +52,7 @@ engine = create_async_engine(
     echo=settings.debug,
     poolclass=NullPool,
     connect_args=_connect_args,
-)
+).execution_options(compiled_cache=None)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
