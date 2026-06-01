@@ -515,7 +515,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         </div>
 
         {/* Middle: WelcomePanel or Editor */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-y-auto">
           {showWelcome ? (
             <WelcomePanel
               yeuCau={yeuCau}

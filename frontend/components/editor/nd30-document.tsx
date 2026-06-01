@@ -76,9 +76,7 @@ function SectionEditor({
   }, [content]);
 
   return (
-    <div className={`relative rounded transition-colors print:rounded-none ${
-      isActive ? "ring-2 ring-blue-400 ring-offset-1" : ""
-    }`}>
+    <div className="relative print:rounded-none">
       <EditorContent editor={editor} />
     </div>
   );
@@ -508,7 +506,7 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
 
         {/* ── Single A4 content div — all pages editable ─── */}
         <div
-          className="a4-page mx-auto bg-white shadow-lg print:shadow-none"
+          className="a4-page mx-auto bg-white shadow-[0_1px_4px_rgba(0,0,0,0.15)] print:shadow-none relative"
           style={{
             width: "210mm",
             minHeight: `${PAGE_H}mm`,
@@ -517,6 +515,20 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
             fontSize: "14pt", color: "#000", boxSizing: "border-box",
           }}
         >
+          {/* Page break indicator — shows ranh giới trang 1 */}
+          {numPages > 1 && Array.from({ length: numPages - 1 }, (_, i) => (
+            <div
+              key={i}
+              aria-hidden
+              className="pointer-events-none absolute left-0 right-0 print:hidden"
+              style={{
+                top: `${(i + 1) * PAGE_H}mm`,
+                borderTop: "2px dashed #d1d5db",
+                zIndex: 5,
+              }}
+              title={`Ranh giới trang ${i + 1}`}
+            />
+          ))}
 
           {/* ══ VÙNG A — THỂ THỨC ══════════════════════════════════════ */}
 
