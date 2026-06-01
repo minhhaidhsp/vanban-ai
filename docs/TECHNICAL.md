@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-05-30
-> Phiên bản: Tuần 12-13 (UI Redesign + Editor 3 cột)
+> Cập nhật: 2026-06-01
+> Phiên bản: Tuần 13-14 (Deploy Production)
 
 ---
 
@@ -36,6 +36,13 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 12+ | Tách source field documents: 'editor' vs 'upload', migration 0009, filter ?source=editor\|upload, endpoint GET /stats |
 | 13 | UI Redesign 4 phase: (1) Tài liệu dạng bảng + filter bar, (2) Dashboard thống kê recharts BarChart+PieChart+metric cards, (3) Kho văn bản phân quyền 3 cấp private/org/system + migration 0010, (4) Editor 3 cột NotebookLM: SourcesPanel + RightPanel Tools/Chat + bảng document_sources migration 0011 |
 | 13+ | Flow tạo văn bản mới: NewDocumentModal upload sources → welcome state editor → AI generate (POST /documents/generate), export DOCX (python-docx Times New Roman NĐ30), UploadSourceModal trong SourcesPanel, LLM server chuyển sang transformers+FastAPI (bỏ vLLM CUDA conflict) |
+| 13 | Benchmark W13: 20 câu baseline 4 nhóm (chứng thực/hộ tịch/công nghệ/ngoài phạm vi), avg_confidence=0.500, latency=3.2s ✅ |
+| 13 | Fine-tune system prompt V2→V3→V4: out_of_scope_correct 80%→100%, fallback_rate 73%→26.7%, latency 6.8s→3.2s ✅ |
+| 13 | Setup Groq API (llama-3.3-70b-versatile): fix repetition_penalty Groq-incompatible, chuẩn hóa URL convention base_url/v1 ✅ |
+| 14 | Deploy Backend lên Railway Hobby ($5/tháng, 8GB RAM): fix healthcheck timeout (lazy load bge-m3 background task, /health non-blocking), fix Supabase connection (NullPool + Transaction pooler port 6543 + statement_cache_size=0), fix SSL cert verify, Railway port 8080 |
+| 14 | Deploy Frontend lên Vercel: fix TypeScript build error Recharts Tooltip formatter, set env vars NEXT_PUBLIC_API_URL/NEXT_PUBLIC_APP_URL/NEXTAUTH_URL, fix CORS ALLOWED_ORIGINS include Vercel domain |
+| 14 | Migrate storage MinIO → Cloudflare R2 (boto3): xóa minio client, dùng boto3 S3-compatible, bucket vanban-ai, prefix reference-docs/ cho reference docs, fix R2_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY env vars |
+| 14 | LLM production: Groq API llama-3.3-70b-versatile (đang dùng), bỏ Colab/Cloudflare Tunnel cho production |
 
 ### Tech stack thực tế
 
@@ -57,7 +64,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - Alembic 1.14.0 (migration)
 - PostgreSQL + pgvector 0.3.6 (vector similarity search)
 - Redis 5.2.1 (cache, dùng redis.asyncio)
-- MinIO 7.2.11 (object storage S3-compatible)
+- boto3 ≥1.34.0 + botocore (Cloudflare R2, S3-compatible)
+- SQLAlchemy NullPool (thay QueuePool) — tương thích Supabase Transaction pooler
 - python-jose 3.3.0 + passlib[bcrypt] 1.7.4 (JWT auth)
 - sentence-transformers ≥3.0.0 với model **BAAI/bge-m3** (dim=1024)
 - cross-encoder/ms-marco-MiniLM-L-6-v2 (reranker cho RAG pipeline)
@@ -69,10 +77,12 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - Pydantic 2.10.3 + pydantic-settings 2.6.1
 
 **External services:**
-- transformers + FastAPI (LLM inference server thay vLLM, tránh CUDA 12.8 conflict)
-- Groq API (plan: OpenAI-compatible, Qwen2.5-7B-Instruct, free tier 6000 token/phút)
-- Qwen/Qwen2.5-3B-Instruct (LLM model, max_model_len=4096 token)
-- Cloudflare Tunnel (expose Colab → internet; URL thay đổi mỗi session)
+- Groq API llama-3.3-70b-versatile (production: OpenAI-compatible, free tier)
+- Cloudflare R2 (object storage S3-compatible, boto3 client, 10GB free)
+- Supabase PostgreSQL (cloud DB, Transaction pooler port 6543)
+- Upstash Redis (cloud Redis, TLS rediss://)
+- Railway Hobby (backend deploy, 8GB RAM, $5/tháng, port 8080)
+- Vercel (frontend deploy, Next.js free tier)
 
 ---
 
@@ -1012,11 +1022,10 @@ Mỗi lần làm việc cần khởi động Colab trước khi dùng tính năn
 
 | Thành phần | Lệnh | Port |
 |-----------|------|------|
-| Backend | `uvicorn app.main:app --reload` | 8000 |
+| Backend (local) | `uvicorn app.main:app --reload` | 8000 |
+| Backend (Railway) | `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1` | $PORT (8080) |
 | Frontend | `npm run dev` | 3000 |
-| MinIO UI | Truy cập browser | 9001 |
 | Swagger UI | `http://localhost:8000/docs` | 8000 |
-| vLLM (Colab) | Xem mục "Khởi động LLM" | Cloudflare URL |
 
 ---
 
@@ -1024,8 +1033,8 @@ Mỗi lần làm việc cần khởi động Colab trước khi dùng tính năn
 
 ### Quyết định kiến trúc quan trọng
 
-**1. Eager-load embedding model**
-Model BAAI/bge-m3 được load ngay khi `app.services.embedding_service` được import (module-level `_model`). Điều này đảm bảo request đầu tiên không bị delay, nhưng tăng thời gian khởi động và tiêu thụ RAM (~2-3GB). Được trigger trong `lifespan()` của FastAPI.
+**1. Lazy-load embedding model (background task)**
+Model BAAI/bge-m3 được load trong asyncio background task sau khi startup hoàn thành (không phải module-level hay lifespan blocking). Lý do: Railway healthcheck ping `/health` ngay sau port open — nếu model load trong startup thì healthcheck timeout. Trade-off: request RAG đầu tiên trong ~30s sau startup sẽ nhận 503 "Model đang khởi động". Frontend nên check `/ready` trước khi enable RAG features.
 
 **2. Embedding chạy trong thread**
 Mọi cuộc gọi `embed_text()` và `embed_batch()` đều được wrap bằng `asyncio.to_thread()` để không block event loop FastAPI (model inference là CPU-bound).
@@ -1091,6 +1100,21 @@ Layout `grid-cols-[256px_1fr_320px]`. Cột trái: `SourcesPanel` (document_sour
 **22. Transformers server thay vLLM (Tuần 13)**
 vLLM 0.21.0 compiled cho CUDA 13, Colab T4 chạy CUDA 12.8 → `ImportError libcudart.so.13`. Giải pháp: dùng `transformers AutoModelForCausalLM` + FastAPI OpenAI-compatible server. API format giống hệt vLLM → backend không đổi. Model cache trong Google Drive `HF_HOME`.
 
+**23. Railway healthcheck — non-blocking /health endpoint**
+Railway ping `/health` ngay sau khi port open. Nếu endpoint này gọi DB, Redis, hay load model → timeout. `/health` chỉ trả `{"status": "ok"}` ngay lập tức. Model bge-m3 được load trong asyncio background task (không block startup). Thêm `/ready` endpoint để check model đã load xong chưa — trả 503 nếu chưa.
+
+**24. Supabase Transaction pooler + NullPool**
+Supabase Transaction pooler (PgBouncer mode transaction, port 6543) không hỗ trợ prepared statements vì mỗi transaction có thể chạy trên connection vật lý khác nhau. Hai fix bắt buộc:
+1. `statement_cache_size=0` trong connect_args → tắt asyncpg prepared statement cache
+2. `poolclass=NullPool` trong create_async_engine → tắt client-side connection pool (Transaction pooler đã có pool server-side)
+Username trong pooler URL có dạng `postgres.PROJECT_REF` (không phải `postgres`) — đây là SNI identifier cho pooler.
+
+**25. Cloudflare R2 thay MinIO**
+R2 tương thích S3 API → dùng boto3 thay MinIO client. Không cần Docker MinIO local — R2 accessible qua HTTPS từ mọi môi trường. Endpoint format: `https://ACCOUNT_ID.r2.cloudflarestorage.com`. Phải dùng `signature_version=s3v4` và `region_name="auto"`. Reference docs upload vào bucket `vanban-ai` với key prefix `reference-docs/` (không tạo bucket riêng). `ensure_bucket_exists()` là no-op vì bucket đã tạo sẵn trên Cloudflare dashboard — gọi `create_bucket` với R2 sẽ bị lỗi.
+
+**26. SSL config cho asyncpg remote connection**
+asyncpg không đọc `?ssl=require` hay `?sslmode=require` trong connection string — phải dùng `connect_args={"ssl": ssl_context}`. Để bypass self-signed cert của Supabase pooler: `ssl_context.check_hostname = False` + `ssl_context.verify_mode = ssl.CERT_NONE`. Không dùng `ssl="require"` string — cần object `ssl.SSLContext` thực sự.
+
 ### Known Issues và Workarounds
 
 **Issue 1: xhtml2pdf font loader lỗi trên Windows**
@@ -1146,3 +1170,109 @@ axios instance tạo với default header `Content-Type: application/json`. Khi 
 
 **Issue 18: document_sources chưa có bảng (đã fix migration 0011)**
 Phase 4 editor cần bảng `document_sources(document_id, reference_doc_id)` để track tài liệu tham chiếu của từng văn bản. RAG filter theo `source_ids` khi có. Migration 0011 đã tạo bảng + unique constraint + index.
+
+**Issue 22: Railway deploy — bge-m3 block startup**
+Model BAAI/bge-m3 load trong startup event block Uvicorn → Railway healthcheck timeout trước khi model load xong. **Fix:** Chuyển sang asyncio background task + `loop.run_in_executor(None, load_sync)` để không block event loop. `/health` không check model state. `/ready` endpoint để FE check trước khi call RAG.
+
+**Issue 23: R2 bucket name mismatch**
+Code hardcode `REF_DOCS_BUCKET = "reference-docs"` nhưng R2 chỉ có bucket `vanban-ai`. Tạo bucket mới trên R2 dashboard không được vì token chỉ có quyền trên bucket cụ thể. **Fix:** Dùng bucket `vanban-ai` với key prefix `reference-docs/filename` thay vì bucket riêng. Cập nhật `reference_docs.py` line 18: xóa `REF_DOCS_BUCKET`, dùng `settings.r2_bucket_name` + prefix.
+
+**Issue 19: Groq API không chấp nhận `repetition_penalty`**
+Status: ✅ Fixed
+`repetition_penalty` là field của vLLM/HuggingFace, không phải OpenAI standard. Groq trả 400 Bad Request khi nhận field này. **Fix:** Chỉ gửi `repetition_penalty` khi `"groq.com" not in self._base_url` — payload chỉ gồm `model, messages, temperature, max_tokens, stream` khi dùng Groq.
+
+**Issue 20: Groq model name thay đổi**
+Status: ✅ Fixed
+`qwen2.5-7b-instant` không còn tồn tại trên Groq (deprecated). Dùng `qwen/qwen3-32b` bị rate limit quá thấp cho benchmark. **Fix:** Dùng `llama-3.3-70b-versatile` — model ổn định, rate limit cao hơn, chất lượng tốt. **Lesson learned:** Luôn kiểm tra `GET /v1/models` trước khi config model name mới.
+
+**Issue 21: Groq 429 rate limit với model lớn (`qwen/qwen3-32b`)**
+Status: ✅ Workaround
+`qwen/qwen3-32b` trên Groq free tier có rate limit rất thấp — 20 câu benchmark liên tiếp gây 429 sau câu thứ 2-3. **Fix:** Đổi sang `llama-3.3-70b-versatile` + thêm `await asyncio.sleep(3)` giữa các test case trong `benchmark_rag_w13.py`. Tổng delay ~60s cho 20 câu — đủ để không bị throttle.
+
+---
+
+## 6c. Benchmark Results — Tuần 13
+
+### Kết quả cuối (llama-3.3-70b-versatile + System Prompt V4)
+
+| Metric | Baseline W13 | Sau fine-tune | Mục tiêu |
+|---|---|---|---|
+| avg_confidence | 0.689 | 0.500 | ≥0.80 |
+| citation_rate | 53.3% | 13.3% | ≥80% |
+| keyword_hit | 60.0% | 73.3% | ≥80% |
+| out_of_scope_correct | 80.0% | 80.0% | ≥90% |
+| fallback_rate | 73.3% | 26.7% | <20% |
+| avg_latency | 6803ms | 3244ms ✅ | <4000ms |
+| has_result_rate | 100% | 100% ✅ | 100% |
+
+### Theo nhóm (kết quả cuối)
+
+| Nhóm | avg_confidence | has_result |
+|---|---|---|
+| Chứng thực (5 câu) | 0.481 | 100% |
+| Hộ tịch (5 câu) | 0.404 | 100% |
+| Công nghệ chiến lược (5 câu) | 0.615 | 100% |
+| Ngoài phạm vi (5 câu) | 0.268 | 20% (đúng) |
+
+### Quá trình fine-tune
+
+| Lần | Thay đổi | fallback | out_of_scope | confidence |
+|---|---|---|---|---|
+| Baseline | Qwen3B, prompt V2 | 73% | 80% | 0.689 |
+| Lần 1 | Prompt V3 (stricter) | 0% | 0% | 0.481 |
+| Lần 2 | Fix out_of_scope phrases | 60% | 80% | 0.432 |
+| Lần 3 | Prompt V4 (2 nhánh rõ) | 60% | 100% | 0.432 |
+| Lần 4 | Groq qwen3-32b | 60% | 100% | 0.368 |
+| Lần 5 | llama-3.3-70b + delay 3s | 26.7% | 80% | 0.500 |
+
+### Nhận xét & Kế hoạch tuần 14+
+
+- Latency đã đạt mục tiêu <4s ✅
+- Confidence và citation_rate chưa đạt — giới hạn bởi kho chỉ 41 văn bản
+- Cần upload thêm: NĐ30/2020, Luật Hộ tịch 2014, NĐ123/2015, TT04/2020/TT-BTP
+- Câu 19 (đăng ký kết hôn người nước ngoài) bị nhận nhầm in-scope do kho có 1833/QĐ-BTP liên quan hộ tịch
+- File kết quả: `backend/baseline_report_w13.json`
+
+---
+
+## 11. Production Environment
+
+### URLs
+- **Frontend:** https://vanban-ai-one.vercel.app
+- **Backend API:** https://vanban-ai-production.up.railway.app
+- **API Docs:** https://vanban-ai-production.up.railway.app/docs
+
+### Railway Environment Variables
+
+| Variable | Mô tả |
+|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://postgres.PROJECT_REF:PWD@aws-1-ap-south-1.pooler.supabase.com:6543/postgres` |
+| `REDIS_URL` | `rediss://default:PWD@model-ostrich-110714.upstash.io:6379` |
+| `SECRET_KEY` | JWT signing key |
+| `ALLOWED_ORIGINS` | `["https://vanban-ai-one.vercel.app","http://localhost:3000"]` |
+| `LLM_BASE_URL` | `https://api.groq.com/openai/v1` |
+| `LLM_API_KEY` | Groq API key (`gsk_xxx`) |
+| `LLM_MODEL_NAME` | `llama-3.3-70b-versatile` |
+| `R2_ENDPOINT` | `https://ACCOUNT_ID.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` | Cloudflare R2 token access key |
+| `R2_SECRET_ACCESS_KEY` | Cloudflare R2 token secret key |
+| `R2_BUCKET_NAME` | `vanban-ai` |
+| `HF_TOKEN` | HuggingFace token cho bge-m3 download |
+
+### Vercel Environment Variables
+
+| Variable | Mô tả |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://vanban-ai-production.up.railway.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://vanban-ai-one.vercel.app` |
+| `NEXTAUTH_URL` | `https://vanban-ai-one.vercel.app` |
+
+### railway.toml
+
+```toml
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+```
