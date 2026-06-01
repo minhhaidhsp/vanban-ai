@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-REF_DOCS_BUCKET = "reference-docs"
+REF_DOCS_BUCKET = get_settings().r2_bucket_name
 
 _VALID_HIEU_LUC = {"con_hieu_luc", "het_hieu_luc", "mot_phan", "chua"}
 
