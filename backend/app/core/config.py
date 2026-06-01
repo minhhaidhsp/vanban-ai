@@ -1,9 +1,14 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     # App
     app_name: str = "VănBản.AI"
@@ -28,11 +33,11 @@ class Settings(BaseSettings):
     minio_bucket_name: str = "vanban-ai"
     minio_use_ssl: bool = False
 
-    # Cloudflare R2 (production) — S3-compatible object storage
-    r2_endpoint: str = ""
-    r2_access_key_id: str = ""
-    r2_secret_access_key: str = ""
-    r2_bucket_name: str = "vanban-ai"
+    # Cloudflare R2 — mapped from MINIO_* Railway env vars so no Railway changes needed
+    r2_endpoint: str = Field(default="", alias="MINIO_ENDPOINT")
+    r2_access_key_id: str = Field(default="", alias="MINIO_ACCESS_KEY")
+    r2_secret_access_key: str = Field(default="", alias="MINIO_SECRET_KEY")
+    r2_bucket_name: str = Field(default="vanban-ai", alias="MINIO_BUCKET_NAME")
 
     # LLM (vLLM / OpenAI-compatible)
     llm_base_url: str = ""
