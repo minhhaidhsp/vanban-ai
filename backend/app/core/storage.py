@@ -1,11 +1,8 @@
 """
-Storage service — Cloudflare R2 (production) or MinIO (local dev).
+Storage service — Cloudflare R2 via boto3 S3-compatible client.
 
-Uses boto3 S3-compatible client for both backends.
-Production: set R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY in env.
-Local dev:  falls back to MinIO settings (MINIO_*) when R2_ENDPOINT is empty.
+Required env vars: R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
 """
-import io
 import logging
 
 import boto3
@@ -16,69 +13,44 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+_S3_CONFIG = Config(
+    signature_version="s3v4",
+    s3={"addressing_style": "path"},  # R2 requires path-style, not virtual-hosted
+)
+
 
 def get_storage_client():
-    """Return a boto3 S3 client pointed at R2 (prod) or MinIO (local).
+    endpoint = settings.r2_endpoint
+    if not endpoint.startswith("http"):
+        endpoint = f"https://{endpoint}"
 
-    Must use path-style addressing — both R2 and MinIO require it.
-    Virtual-hosted style (default) prepends bucket as subdomain which fails.
-    """
-    logger.info("[storage] r2_endpoint: %s", settings.r2_endpoint or "EMPTY — using MinIO fallback")
-    logger.info("[storage] r2_access_key_id: %s",
+    logger.info("[storage] endpoint: %s", endpoint)
+    logger.info("[storage] access_key_id: %s",
                 (settings.r2_access_key_id[:8] + "...") if settings.r2_access_key_id else "MISSING")
-    logger.info("[storage] r2_secret_key set: %s", bool(settings.r2_secret_access_key))
-    logger.info("[storage] r2_bucket_name: %s", settings.r2_bucket_name)
+    logger.info("[storage] secret_key set: %s", bool(settings.r2_secret_access_key))
+    logger.info("[storage] bucket: %s", settings.r2_bucket_name)
 
-    _path_style = Config(
-        signature_version="s3v4",
-        s3={"addressing_style": "path"},
-    )
-    if settings.r2_endpoint:
-        endpoint = settings.r2_endpoint
-        if not endpoint.startswith("http"):
-            endpoint = f"https://{endpoint}"
-        logger.info("[storage] using R2 endpoint: %s", endpoint)
-        return boto3.client(
-            "s3",
-            endpoint_url=endpoint,
-            aws_access_key_id=settings.r2_access_key_id,
-            aws_secret_access_key=settings.r2_secret_access_key,
-            config=_path_style,
-            region_name="auto",
-        )
-    # Local dev: MinIO via S3-compatible API
-    scheme = "https" if settings.minio_use_ssl else "http"
-    minio_url = f"{scheme}://{settings.minio_endpoint}"
-    logger.info("[storage] using MinIO endpoint: %s", minio_url)
     return boto3.client(
         "s3",
-        endpoint_url=minio_url,
-        aws_access_key_id=settings.minio_access_key,
-        aws_secret_access_key=settings.minio_secret_key,
-        config=_path_style,
-        region_name="us-east-1",
+        endpoint_url=endpoint,
+        aws_access_key_id=settings.r2_access_key_id,
+        aws_secret_access_key=settings.r2_secret_access_key,
+        config=_S3_CONFIG,
+        region_name="auto",
     )
 
 
-def _default_bucket() -> str:
-    return settings.r2_bucket_name if settings.r2_endpoint else settings.minio_bucket_name
-
-
-# Keep old name as alias — callers that import get_minio_client still work.
+# Backward-compat alias
 get_minio_client = get_storage_client
 
 
+def _default_bucket() -> str:
+    return settings.r2_bucket_name
+
+
 def ensure_bucket_exists(client, bucket_name: str) -> None:
-    """No-op for R2 (buckets pre-created in dashboard). Creates bucket for local MinIO."""
-    if settings.r2_endpoint:
-        return
-    try:
-        client.head_bucket(Bucket=bucket_name)
-    except Exception:
-        try:
-            client.create_bucket(Bucket=bucket_name)
-        except Exception as exc:
-            logger.warning("[storage] could not create bucket %s: %s", bucket_name, exc)
+    """No-op — R2 buckets are pre-created in the dashboard."""
+    pass
 
 
 async def upload_file(
@@ -104,7 +76,7 @@ async def upload_file(
 
 
 def download_file(object_name: str, bucket_name: str | None = None) -> bytes:
-    """Blocking download — call via asyncio.to_thread from async context."""
+    """Blocking — call via asyncio.to_thread."""
     bucket = bucket_name or _default_bucket()
     client = get_storage_client()
     response = client.get_object(Bucket=bucket, Key=object_name)
@@ -112,7 +84,7 @@ def download_file(object_name: str, bucket_name: str | None = None) -> bytes:
 
 
 def delete_file(object_name: str, bucket_name: str | None = None) -> None:
-    """Blocking delete — call via asyncio.to_thread from async context."""
+    """Blocking — call via asyncio.to_thread."""
     bucket = bucket_name or _default_bucket()
     client = get_storage_client()
     client.delete_object(Bucket=bucket, Key=object_name)
