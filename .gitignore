@@ -1,7 +1,16 @@
-# Environment
+# Environment — secrets (never commit)
 .env
 .env.local
 .env.*.local
+backend/.env
+backend/.env.production
+frontend/.env.local
+frontend/.env.production.local
+
+# Environment — examples are committed (no secrets)
+# !.env.example
+# !backend/.env.example
+# !frontend/.env.example
 
 # Python
 __pycache__/
@@ -51,6 +60,5 @@ minio-data/
 # Uploads
 uploads/
 
-backend/.env.production
 backend/clear_data.py
 backend/*.sql
