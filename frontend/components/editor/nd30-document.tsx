@@ -354,7 +354,7 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
   const showDoKhan = data.doKhan !== "Thường";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-full">
 
       {/* ── Top toolbar ───────────────────────────────────────── */}
       <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/30 print:hidden">
@@ -452,11 +452,9 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
         <EditorToolbar editor={activeEditor} />
       </div>
 
-      {/* ── A4 scroll wrapper ─────────────────────────────────── */}
-      {/* position:relative anchors the full-width gap bands */}
+      {/* ── A4 area — middle column scrolls, no inner scroll ─── */}
       <div
-        className="flex-1 overflow-y-auto bg-[#e5e7eb] py-6 print:bg-white print:p-0 print:overflow-visible"
-        style={{ position: "relative" }}
+        className="bg-[#e5e7eb] py-6 print:bg-white print:p-0"
       >
         {/* Hidden measurement div */}
         <div
@@ -472,37 +470,6 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
         >
           <Nd30StaticContent data={data} />
         </div>
-
-        {/* Page-gap bands — full-width, same color as outer bg → visually splits pages.
-            top = py-6 (1.5rem) + N×PAGE_H - half-height */}
-        {Array.from({ length: numPages - 1 }, (_, i) => (
-          <div
-            key={i}
-            aria-hidden
-            className="print:hidden"
-            style={{
-              position: "absolute",
-              top: `calc(1.5rem + ${(i + 1) * PAGE_H}mm - 4mm)`,
-              left: 0, right: 0,
-              height: "8mm",
-              background: "#e5e7eb",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              pointerEvents: "none",
-              zIndex: 10,
-            }}
-          >
-            <span style={{
-              background: "white",
-              border: "1px solid #d1d5db",
-              padding: "1px 12px",
-              fontSize: "9pt", color: "#6b7280",
-              whiteSpace: "nowrap", borderRadius: "4px",
-              letterSpacing: "0.04em", userSelect: "none",
-            }}>
-              Trang {i + 1} / {numPages}
-            </span>
-          </div>
-        ))}
 
         {/* ── Single A4 content div — all pages editable ─── */}
         <div
