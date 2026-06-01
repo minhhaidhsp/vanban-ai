@@ -29,14 +29,7 @@ async def _background_startup():
     except Exception as exc:
         logger.warning("[startup] reranker warm-up failed (non-fatal): %s", exc)
 
-    # 3. MinIO buckets — best-effort
-    try:
-        from app.core.storage import get_minio_client, ensure_bucket_exists
-        client = get_minio_client()
-        ensure_bucket_exists(client, settings.minio_bucket_name)
-        ensure_bucket_exists(client, "reference-docs")
-    except Exception as exc:
-        logger.warning("[startup] MinIO init failed (non-fatal): %s", exc)
+    # Storage buckets are pre-created on R2/MinIO dashboard — no init needed at startup.
 
 
 @asynccontextmanager
