@@ -16,6 +16,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend,
 } from "recharts";
+import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -216,8 +217,8 @@ export function DashboardOverview() {
                       tickLine={false}
                     />
                     <Tooltip
-                      formatter={(v: number) => [v, "Văn bản"]}
-                      labelFormatter={(l: string) => loaiLabel(l)}
+                      formatter={(v: ValueType | undefined) => [v ?? 0, "Văn bản"]}
+                      labelFormatter={(l) => loaiLabel(String(l ?? ""))}
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
@@ -254,8 +255,8 @@ export function DashboardOverview() {
                       outerRadius={80}
                       paddingAngle={3}
                       dataKey="value"
-                      label={({ name, percent }) =>
-                        `${name} ${(percent * 100).toFixed(0)}%`
+                      label={({ name, percent }: { name?: string; percent?: number }) =>
+                        `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
                       }
                       labelLine={false}
                     >
@@ -271,7 +272,7 @@ export function DashboardOverview() {
                       )}
                     />
                     <Tooltip
-                      formatter={(v: number) => [v, "Văn bản"]}
+                      formatter={(v: ValueType | undefined) => [v ?? 0, "Văn bản"]}
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
                   </PieChart>

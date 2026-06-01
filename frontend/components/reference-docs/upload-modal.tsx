@@ -112,7 +112,7 @@ export function UploadModal({ open, onClose, editing, onUploaded }: UploadModalP
     nguoi_ky: form.nguoi_ky || null,
     trich_yeu: form.trich_yeu,
     hieu_luc: form.hieu_luc,
-    visibility: form.visibility,
+    visibility: form.visibility as "private" | "org" | "system",
     tu_khoa: form.tu_khoa ? form.tu_khoa.split(",").map((s) => s.trim()).filter(Boolean) : [],
   });
 
