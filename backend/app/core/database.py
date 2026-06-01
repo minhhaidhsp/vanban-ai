@@ -39,6 +39,7 @@ if _is_remote:
     _ssl_ctx.verify_mode = ssl.CERT_NONE
     _connect_args: dict = {
         "ssl": _ssl_ctx,
+        "statement_cache_size": 0,
         "server_settings": {"application_name": "vanban-ai"},
     }
     logger.info("[db] SSL enabled (cert verify disabled) for remote host: %s", _parsed.hostname)
