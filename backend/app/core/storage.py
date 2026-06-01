@@ -18,14 +18,25 @@ settings = get_settings()
 
 
 def get_storage_client():
-    """Return a boto3 S3 client pointed at R2 (prod) or MinIO (local)."""
+    """Return a boto3 S3 client pointed at R2 (prod) or MinIO (local).
+
+    Must use path-style addressing — both R2 and MinIO require it.
+    Virtual-hosted style (default) prepends bucket as subdomain which fails.
+    """
+    _path_style = Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path"},
+    )
     if settings.r2_endpoint:
+        endpoint = settings.r2_endpoint
+        if not endpoint.startswith("http"):
+            endpoint = f"https://{endpoint}"
         return boto3.client(
             "s3",
-            endpoint_url=settings.r2_endpoint,
+            endpoint_url=endpoint,
             aws_access_key_id=settings.r2_access_key_id,
             aws_secret_access_key=settings.r2_secret_access_key,
-            config=Config(signature_version="s3v4"),
+            config=_path_style,
             region_name="auto",
         )
     # Local dev: MinIO via S3-compatible API
@@ -35,7 +46,7 @@ def get_storage_client():
         endpoint_url=f"{scheme}://{settings.minio_endpoint}",
         aws_access_key_id=settings.minio_access_key,
         aws_secret_access_key=settings.minio_secret_key,
-        config=Config(signature_version="s3v4"),
+        config=_path_style,
         region_name="us-east-1",
     )
 
