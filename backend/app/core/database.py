@@ -2,6 +2,7 @@ import logging
 import ssl
 from urllib.parse import urlparse
 
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import get_settings
@@ -50,9 +51,7 @@ else:
 engine = create_async_engine(
     database_url,
     echo=settings.debug,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    poolclass=NullPool,
     connect_args=_connect_args,
 )
 
