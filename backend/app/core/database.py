@@ -1,3 +1,4 @@
+import itertools
 import logging
 import ssl
 from urllib.parse import urlparse
@@ -38,9 +39,14 @@ if _is_remote:
     _ssl_ctx = ssl.create_default_context()
     _ssl_ctx.check_hostname = False
     _ssl_ctx.verify_mode = ssl.CERT_NONE
+    # Generate globally-unique prepared statement names to avoid
+    # DuplicatePreparedStatementError when Supabase internal pooler
+    # fails to forward DEALLOCATE — names never repeat across connections.
+    _stmt_counter = itertools.count()
     _connect_args: dict = {
         "ssl": _ssl_ctx,
         "statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"p{next(_stmt_counter)}",
     }
     logger.info("[db] SSL enabled (cert verify disabled) for remote host: %s", _parsed.hostname)
 else:
