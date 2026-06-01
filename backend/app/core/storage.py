@@ -23,6 +23,12 @@ def get_storage_client():
     Must use path-style addressing — both R2 and MinIO require it.
     Virtual-hosted style (default) prepends bucket as subdomain which fails.
     """
+    logger.info("[storage] r2_endpoint: %s", settings.r2_endpoint or "EMPTY — using MinIO fallback")
+    logger.info("[storage] r2_access_key_id: %s",
+                (settings.r2_access_key_id[:8] + "...") if settings.r2_access_key_id else "MISSING")
+    logger.info("[storage] r2_secret_key set: %s", bool(settings.r2_secret_access_key))
+    logger.info("[storage] r2_bucket_name: %s", settings.r2_bucket_name)
+
     _path_style = Config(
         signature_version="s3v4",
         s3={"addressing_style": "path"},
@@ -31,6 +37,7 @@ def get_storage_client():
         endpoint = settings.r2_endpoint
         if not endpoint.startswith("http"):
             endpoint = f"https://{endpoint}"
+        logger.info("[storage] using R2 endpoint: %s", endpoint)
         return boto3.client(
             "s3",
             endpoint_url=endpoint,
@@ -41,9 +48,11 @@ def get_storage_client():
         )
     # Local dev: MinIO via S3-compatible API
     scheme = "https" if settings.minio_use_ssl else "http"
+    minio_url = f"{scheme}://{settings.minio_endpoint}"
+    logger.info("[storage] using MinIO endpoint: %s", minio_url)
     return boto3.client(
         "s3",
-        endpoint_url=f"{scheme}://{settings.minio_endpoint}",
+        endpoint_url=minio_url,
         aws_access_key_id=settings.minio_access_key,
         aws_secret_access_key=settings.minio_secret_key,
         config=_path_style,
