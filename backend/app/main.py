@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -6,36 +9,40 @@ from app.core.redis import close_redis
 from app.api.v1.router import api_router
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+
+async def _background_startup():
+    """Load heavy models after app is up so /health responds immediately."""
+    # 1. Load embedding model (BAAI/bge-m3 ~1.5 GB)
+    try:
+        from app.services.embedding_service import load_in_background
+        await load_in_background()
+    except Exception as exc:
+        logger.warning("[startup] embedding load failed (non-fatal): %s", exc)
+
+    # 2. Warm up CrossEncoder reranker (~70 MB)
+    try:
+        from app.services.rag_service import warm_up_reranker
+        await warm_up_reranker()
+        logger.info("[startup] reranker ready")
+    except Exception as exc:
+        logger.warning("[startup] reranker warm-up failed (non-fatal): %s", exc)
+
+    # 3. MinIO buckets — best-effort
+    try:
+        from app.core.storage import get_minio_client, ensure_bucket_exists
+        client = get_minio_client()
+        ensure_bucket_exists(client, settings.minio_bucket_name)
+        ensure_bucket_exists(client, "reference-docs")
+    except Exception as exc:
+        logger.warning("[startup] MinIO init failed (non-fatal): %s", exc)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import asyncio
-    import logging
-    logger = logging.getLogger(__name__)
-
-    # MinIO buckets — best-effort, must not block startup
-    async def _init_minio():
-        from app.core.storage import get_minio_client, ensure_bucket_exists
-        try:
-            client = get_minio_client()
-            ensure_bucket_exists(client, settings.minio_bucket_name)
-            ensure_bucket_exists(client, "reference-docs")
-        except Exception as exc:
-            logger.warning("MinIO init failed (non-fatal): %s", exc)
-
-    # Warm-up tasks run in background so healthcheck responds immediately
-    async def _background_warmup():
-        try:
-            from app.services.rag_service import warm_up_reranker
-            await warm_up_reranker()
-            logger.info("Reranker warm-up complete")
-        except Exception as exc:
-            logger.warning("Reranker warm-up failed (non-fatal): %s", exc)
-
-    asyncio.create_task(_init_minio())
-    asyncio.create_task(_background_warmup())
-
+    # Fire-and-forget: app accepts requests (including /health) immediately.
+    asyncio.create_task(_background_startup())
     yield
     await close_redis()
 
@@ -61,4 +68,5 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
+    """Always returns 200 immediately — no model/DB checks."""
     return {"status": "ok", "app": settings.app_name}
