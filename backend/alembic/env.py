@@ -42,12 +42,27 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
+    import ssl
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = get_url()
+
+    url = get_url()
+    from urllib.parse import urlparse
+    hostname = urlparse(url).hostname or ""
+    is_remote = hostname not in ("localhost", "127.0.0.1", "::1", "")
+    if is_remote:
+        _ssl_ctx = ssl.create_default_context()
+        _ssl_ctx.check_hostname = False
+        _ssl_ctx.verify_mode = ssl.CERT_NONE
+        _ca = {"ssl": _ssl_ctx, "statement_cache_size": 0, "server_settings": {"application_name": "vanban-ai"}}
+    else:
+        _ca = {}
+
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=_ca,
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
