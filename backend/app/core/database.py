@@ -18,6 +18,14 @@ elif database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 # postgresql+asyncpg:// already correct — no change needed
 
+# Strip any ?ssl= or ?sslmode= query params — asyncpg ignores them and they cause parse errors
+from urllib.parse import urlparse as _urlparse, urlencode, parse_qs, urlunparse
+_p = _urlparse(database_url)
+if _p.query:
+    _qs = {k: v for k, v in parse_qs(_p.query).items()
+           if k.lower() not in ("ssl", "sslmode", "sslrootcert", "sslcert", "sslkey")}
+    database_url = urlunparse(_p._replace(query=urlencode(_qs, doseq=True)))
+
 # Log masked URL at startup so we can confirm env var is loaded
 _parsed = urlparse(database_url)
 _masked = database_url.replace(_parsed.password or "", "****") if _parsed.password else database_url
@@ -29,7 +37,10 @@ if _is_remote:
     _ssl_ctx = ssl.create_default_context()
     _ssl_ctx.check_hostname = False
     _ssl_ctx.verify_mode = ssl.CERT_NONE
-    _connect_args: dict = {"ssl": _ssl_ctx}
+    _connect_args: dict = {
+        "ssl": _ssl_ctx,
+        "server_settings": {"application_name": "vanban-ai"},
+    }
     logger.info("[db] SSL enabled (cert verify disabled) for remote host: %s", _parsed.hostname)
 else:
     _connect_args = {}
