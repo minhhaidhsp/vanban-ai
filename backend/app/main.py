@@ -10,31 +10,31 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # MinIO buckets
-    from app.core.storage import get_minio_client, ensure_bucket_exists
-    try:
-        client = get_minio_client()
-        ensure_bucket_exists(client, settings.minio_bucket_name)
-        ensure_bucket_exists(client, "reference-docs")
-    except Exception:
-        pass
-
-    # Eager-load embedding model in a thread so the event loop isn't blocked
     import asyncio
     import logging
     logger = logging.getLogger(__name__)
-    try:
-        import app.services.embedding_service as _emb  # noqa: F401 — triggers module-level load
-        logger.info("Embedding service ready: available=%s", _emb.is_available())
-    except Exception as exc:
-        logger.warning("Embedding service failed to load: %s", exc)
 
-    # Warm up reranker to avoid cold-start latency on first RAG query
-    try:
-        from app.services.rag_service import warm_up_reranker
-        await warm_up_reranker()
-    except Exception as exc:
-        logger.warning("Reranker warm up failed: %s", exc)
+    # MinIO buckets — best-effort, must not block startup
+    async def _init_minio():
+        from app.core.storage import get_minio_client, ensure_bucket_exists
+        try:
+            client = get_minio_client()
+            ensure_bucket_exists(client, settings.minio_bucket_name)
+            ensure_bucket_exists(client, "reference-docs")
+        except Exception as exc:
+            logger.warning("MinIO init failed (non-fatal): %s", exc)
+
+    # Warm-up tasks run in background so healthcheck responds immediately
+    async def _background_warmup():
+        try:
+            from app.services.rag_service import warm_up_reranker
+            await warm_up_reranker()
+            logger.info("Reranker warm-up complete")
+        except Exception as exc:
+            logger.warning("Reranker warm-up failed (non-fatal): %s", exc)
+
+    asyncio.create_task(_init_minio())
+    asyncio.create_task(_background_warmup())
 
     yield
     await close_redis()
