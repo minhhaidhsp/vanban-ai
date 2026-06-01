@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements-railway.txt
 # Copy the rest of the application
 COPY . .
 
-EXPOSE 8000  # Railway port
+EXPOSE 8000
 
 # Force rebuild - fix port issue
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
