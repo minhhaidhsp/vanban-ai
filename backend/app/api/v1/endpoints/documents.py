@@ -293,6 +293,14 @@ async def generate_document(
     generated["loaiVanBan"] = abbr
     generated["ai_generated"] = True
 
+    # Normalize noiNhan: LLM sometimes returns string instead of array
+    noi_nhan = generated.get("noiNhan", [])
+    if isinstance(noi_nhan, str):
+        lines = [ln.strip() for ln in noi_nhan.replace("\\n", "\n").split("\n") if ln.strip()]
+        generated["noiNhan"] = lines if lines else []
+    elif not isinstance(noi_nhan, list):
+        generated["noiNhan"] = []
+
     # Save to document
     content_str = json.dumps({"version": "nd30", **generated}, ensure_ascii=False)
     document.content = content_str

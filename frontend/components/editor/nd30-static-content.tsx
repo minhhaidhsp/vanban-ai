@@ -113,7 +113,7 @@ export function Nd30StaticContent({ data }: { data: Nd30Data }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginTop: "4mm" }}>
         <div style={{ paddingRight: "4mm" }}>
           <div style={getFontStyle("noi_nhan_label")}>Nơi nhận:</div>
-          {(data.noiNhan ?? []).map((item, i) => (
+          {(Array.isArray(data.noiNhan) ? data.noiNhan : []).map((item, i) => (
             <div key={i} style={getFontStyle("noi_nhan_list")}>
               {item.startsWith("-") ? item : `- ${item}`}
             </div>
