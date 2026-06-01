@@ -108,6 +108,11 @@ async def rag_query(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from app.services.embedding_service import is_available
+    if not is_available():
+        from fastapi import HTTPException
+        raise HTTPException(503, detail="Hệ thống đang khởi động, vui lòng thử lại sau 30 giây")
+
     start = time.monotonic()
     result = await rag_service.query(body.query, db, body.top_k, body.min_score)
     latency_ms = int((time.monotonic() - start) * 1000)
@@ -141,6 +146,10 @@ async def rag_query_stream(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from app.services.embedding_service import is_available
+    if not is_available():
+        from fastapi import HTTPException
+        raise HTTPException(503, detail="Hệ thống đang khởi động, vui lòng thử lại sau 30 giây")
     """
     SSE streaming endpoint. Hiện tại dùng fallback non-stream:
     lấy full answer từ rag_service.query() rồi stream theo từng chunk nhỏ.
