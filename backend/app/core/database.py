@@ -27,8 +27,10 @@ logger.info("[db] connecting to: %s", _masked)
 _is_remote = (_parsed.hostname or "") not in ("localhost", "127.0.0.1", "::1", "")
 if _is_remote:
     _ssl_ctx = ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = ssl.CERT_NONE
     _connect_args: dict = {"ssl": _ssl_ctx}
-    logger.info("[db] SSL enabled for remote host: %s", _parsed.hostname)
+    logger.info("[db] SSL enabled (cert verify disabled) for remote host: %s", _parsed.hostname)
 else:
     _connect_args = {}
     logger.info("[db] SSL disabled (local host)")
