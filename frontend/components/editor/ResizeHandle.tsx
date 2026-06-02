@@ -41,8 +41,12 @@ export function ResizeHandle({ onResize, direction = "right" }: ResizeHandleProp
   return (
     <div
       onMouseDown={onMouseDown}
-      className="w-1 hover:w-1.5 bg-transparent hover:bg-blue-400 cursor-col-resize transition-all duration-150 flex-shrink-0 active:bg-blue-500"
+      className="relative flex-shrink-0 cursor-col-resize group"
+      style={{ width: 8 }}
       title="Kéo để thay đổi độ rộng"
-    />
+    >
+      {/* Hitbox full height, visual indicator thin centered line */}
+      <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-gray-200 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors duration-150" />
+    </div>
   )
 }

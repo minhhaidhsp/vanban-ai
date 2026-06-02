@@ -539,7 +539,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         </div>
 
         {/* Resize handle — left */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:flex items-stretch">
           <ResizeHandle
             direction="right"
             onResize={(d) => setLeftWidth((w) => Math.min(MAX_LEFT, Math.max(MIN_WIDTH, w + d)))}
@@ -580,7 +580,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         {!showWelcome && (
           <>
             {/* Resize handle — right */}
-            <div className="hidden lg:block">
+            <div className="hidden lg:flex items-stretch">
               <ResizeHandle
                 direction="left"
                 onResize={(d) => setRightWidth((w) => Math.min(MAX_RIGHT, Math.max(MIN_WIDTH, w + d)))}
