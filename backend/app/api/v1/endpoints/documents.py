@@ -186,6 +186,11 @@ Yêu cầu: {yeu_cau}
 4. NƠI NHẬN: Phải có ít nhất 2-3 đơn vị cụ thể phù hợp nội dung. Không chỉ "Như trên" và "Lưu VT".
 5. CHỮ KÝ: Điền chức danh đúng: Sở/Cục → "GIÁM ĐỐC", UBND → "CHỦ TỊCH", Bộ → "BỘ TRƯỞNG", cơ quan khác → chức danh phù hợp.
 
+== THỂ THỨC TRÌNH BÀY (NĐ30/2020/NĐ-CP) ==
+- Font chữ: Times New Roman, cỡ 13-14pt, màu đen.
+- Lề trang: trên 20-25mm, dưới 20-25mm, trái 30-35mm, phải 15-20mm.
+- Dùng thông tin này để căn chỉnh độ dài nội dung phù hợp với khổ A4.
+
 == CẤU TRÚC NỘI DUNG THEO LOẠI VĂN BẢN ==
 Báo cáo (BC):
   <p><strong>I. TÌNH HÌNH THỰC HIỆN</strong></p><p>...</p><p><strong>II. KẾT QUẢ ĐẠT ĐƯỢC</strong></p><p>...</p><p><strong>III. KHÓ KHĂN, VƯỚNG MẮC</strong></p><p>...</p><p><strong>IV. KIẾN NGHỊ, ĐỀ XUẤT</strong></p><p>...</p>
