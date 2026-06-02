@@ -168,21 +168,50 @@ _LOAI_TO_ABBR: dict[str, str] = {
     "Nghị quyết": "NQ", "Kế hoạch": "KH", "Chỉ thị": "CT",
 }
 
-_GENERATE_SYSTEM = (
-    "Bạn là chuyên gia soạn thảo văn bản hành chính Việt Nam theo NĐ30/2020.\n"
-    "Tạo mẫu {loai_van_ban} theo yêu cầu: {yeu_cau}\n\n"
-    "Tài liệu tham chiếu:\n{context}\n\n"
-    'Trả về JSON hợp lệ (không markdown, không giải thích):\n'
-    '{{\n'
-    '  "loaiVanBan": "{abbr}",\n'
-    '  "soKyHieu": "gợi ý số/ký hiệu hoặc rỗng",\n'
-    '  "trichYeu": "trích yếu ngắn gọn 1 câu",\n'
-    '  "canCu": "<p>Căn cứ ... </p>",\n'
-    '  "noiDung": "<p>Nội dung chính...</p>",\n'
-    '  "coQuanBanHanh": "",\n'
-    '  "chucVuKy": "chức vụ người ký phù hợp"\n'
-    '}}'
-)
+_GENERATE_SYSTEM = """\
+Bạn là chuyên gia soạn thảo văn bản hành chính Việt Nam theo Nghị định 30/2020/NĐ-CP.
+
+== THÔNG TIN BẮT BUỘC ==
+Loại văn bản: {loai_van_ban} (ký hiệu: {abbr}) — KHÔNG được tạo loại văn bản khác.
+Năm hiện tại: {current_year} — số ký hiệu PHẢI dùng năm {current_year}.
+Yêu cầu: {yeu_cau}
+
+== TÀI LIỆU THAM CHIẾU ==
+{context}
+
+== QUY TẮC NGHIÊM NGẶT ==
+1. LOẠI VĂN BẢN: field "loaiVanBan" PHẢI là "{abbr}". QUAN TRỌNG: không được thay bằng loại khác.
+2. SỐ KÝ HIỆU: format [số]/{current_year}/{abbr}-[viết tắt cơ quan]. Ví dụ: 05/{current_year}/{abbr}-SKHCN
+3. CĂN CỨ: CHỈ trích dẫn văn bản có trong TÀI LIỆU THAM CHIẾU. Nếu không có → ghi "[Cần bổ sung căn cứ pháp lý]". TUYỆT ĐỐI không tự bịa số hiệu văn bản.
+4. NƠI NHẬN: Phải có ít nhất 2-3 đơn vị cụ thể phù hợp nội dung. Không chỉ "Như trên" và "Lưu VT".
+5. CHỮ KÝ: Điền chức danh đúng: Sở/Cục → "GIÁM ĐỐC", UBND → "CHỦ TỊCH", Bộ → "BỘ TRƯỞNG", cơ quan khác → chức danh phù hợp.
+
+== CẤU TRÚC NỘI DUNG THEO LOẠI VĂN BẢN ==
+Báo cáo (BC):
+  <p><strong>I. TÌNH HÌNH THỰC HIỆN</strong></p><p>...</p><p><strong>II. KẾT QUẢ ĐẠT ĐƯỢC</strong></p><p>...</p><p><strong>III. KHÓ KHĂN, VƯỚNG MẮC</strong></p><p>...</p><p><strong>IV. KIẾN NGHỊ, ĐỀ XUẤT</strong></p><p>...</p>
+Công văn (CV):
+  <p>Kính gửi: [Cơ quan]</p><p>[Nội dung chính]</p><p>Kính đề nghị [cơ quan] [hành động].</p>
+Tờ trình (TTr):
+  <p>Kính trình [cấp trên]...</p><p><strong>I. SỰ CẦN THIẾT</strong></p><p>...</p><p><strong>II. NỘI DUNG ĐỀ XUẤT</strong></p><p>...</p><p><strong>III. KIẾN NGHỊ</strong></p><p>...</p>
+Quyết định (QĐ):
+  <p><strong>Điều 1:</strong> ...</p><p><strong>Điều 2:</strong> ...</p><p><strong>Điều 3:</strong> Quyết định này có hiệu lực kể từ ngày ký.</p>
+Kế hoạch (KH):
+  <p><strong>I. MỤC TIÊU</strong></p><p>...</p><p><strong>II. NỘI DUNG</strong></p><p>...</p><p><strong>III. TỔ CHỨC THỰC HIỆN</strong></p><p>...</p>
+Thông báo (TB) / Hướng dẫn (HD): Nội dung theo đề mục phù hợp với chủ đề.
+
+== OUTPUT ==
+Trả về JSON hợp lệ (KHÔNG markdown, KHÔNG ```json, KHÔNG giải thích):
+{{
+  "loaiVanBan": "{abbr}",
+  "soKyHieu": "05/{current_year}/{abbr}-[viết tắt cơ quan]",
+  "trichYeu": "Trích yếu ngắn gọn 1 câu về nội dung",
+  "canCu": "<p>Căn cứ [văn bản từ tài liệu tham chiếu hoặc để trống nếu không có]</p>",
+  "noiDung": "<p>[Nội dung đúng cấu trúc loại {abbr} như hướng dẫn]</p>",
+  "coQuanBanHanh": "[Tên cơ quan ban hành đầy đủ]",
+  "chucVuKy": "[GIÁM ĐỐC / CHỦ TỊCH / BỘ TRƯỞNG tùy cơ quan]",
+  "noiNhan": "- [Cơ quan nhận 1];\\n- [Cơ quan nhận 2];\\n- Lưu: VT, [đơn vị liên quan]."
+}}\
+"""
 
 
 class GenerateDocumentRequest(BaseModel):
@@ -237,9 +266,11 @@ async def generate_document(
 
     # Build prompt and call LLM
     system_prompt = _GENERATE_SYSTEM.format(
-        loai_van_ban=display, yeu_cau=body.yeu_cau,
+        loai_van_ban=display,
+        yeu_cau=body.yeu_cau,
         context=context or "Không có tài liệu tham chiếu.",
         abbr=abbr,
+        current_year=datetime.now().year,
     )
 
     try:
@@ -261,6 +292,14 @@ async def generate_document(
     # Ensure loaiVanBan is abbreviation
     generated["loaiVanBan"] = abbr
     generated["ai_generated"] = True
+
+    # Normalize noiNhan: LLM sometimes returns string instead of array
+    noi_nhan = generated.get("noiNhan", [])
+    if isinstance(noi_nhan, str):
+        lines = [ln.strip() for ln in noi_nhan.replace("\\n", "\n").split("\n") if ln.strip()]
+        generated["noiNhan"] = lines if lines else []
+    elif not isinstance(noi_nhan, list):
+        generated["noiNhan"] = []
 
     # Save to document
     content_str = json.dumps({"version": "nd30", **generated}, ensure_ascii=False)

@@ -21,16 +21,26 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379"
 
-    # Cloudflare R2 — S3-compatible object storage
+    # Storage backend: "minio" (local dev) | "r2" (production)
+    storage_backend: str = "minio"
+
+    # MinIO (local dev)
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket_name: str = "vanban-ai"
+    minio_use_ssl: bool = False
+
+    # Cloudflare R2 (production)
     r2_endpoint: str = ""
     r2_access_key_id: str = ""
     r2_secret_access_key: str = ""
     r2_bucket_name: str = "vanban-ai"
 
-    # LLM (vLLM / OpenAI-compatible)
+    # LLM (Groq / OpenAI-compatible)
     llm_base_url: str = ""
     llm_api_key: str = ""
-    llm_model_name: str = "Qwen/Qwen2.5-3B-Instruct"
+    llm_model_name: str = "llama-3.3-70b-versatile"
     llm_timeout: int = 60
     llm_max_retries: int = 3
     llm_temperature: float = 0.1

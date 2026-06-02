@@ -69,10 +69,9 @@ def _extract_text(data: bytes, file_type: Optional[str]) -> str:
 
 
 def _read_minio(file_path: str) -> bytes:
-    from app.core.storage import get_storage_client
+    from app.core.storage import get_storage_client, download_file_data
     client = get_storage_client()
-    response = client.get_object(Bucket=REF_DOCS_BUCKET, Key=file_path)
-    return response["Body"].read()
+    return download_file_data(client, REF_DOCS_BUCKET, file_path)
 
 
 # ── Main pipeline ────────────────────────────────────────────────────────────

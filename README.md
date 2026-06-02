@@ -9,7 +9,7 @@
 | Frontend | Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui |
 | Backend | FastAPI + SQLAlchemy 2.0 + Alembic |
 | Database | PostgreSQL + pgvector |
-| Storage | MinIO |
+| Storage | MinIO (local) / Cloudflare R2 (production) |
 | Cache | Redis |
 
 ## Cấu trúc thư mục
@@ -80,6 +80,60 @@ docker run -d --name minio-vanban \
   -p 9000:9000 -p 9001:9001 \
   minio/minio server /data --console-address ":9001"
 ```
+
+## Development Setup
+
+### 1. Clone và setup env
+
+```bash
+git clone <repo-url>
+cd vanban-ai
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+# Điền LLM_API_KEY (Groq) vào backend/.env
+```
+
+### 2. Khởi động services local (Docker)
+
+```bash
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+Services: PostgreSQL (5432) + Redis (6379) + MinIO (9000/9001)
+
+### 3. Khởi động backend
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+### 4. Khởi động frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Branches
+
+| Branch | Mục đích |
+|--------|---------|
+| `dev` | Development — push thoải mái, không ảnh hưởng production |
+| `main` | Production — chỉ merge từ dev khi đã test xong, auto-deploy Railway + Vercel |
+
+### Production URLs
+
+- **Frontend:** https://vanban-ai-one.vercel.app
+- **Backend:** https://vanban-ai-production.up.railway.app
+- **API Docs:** https://vanban-ai-production.up.railway.app/docs
+
+---
 
 ## API Documentation
 
