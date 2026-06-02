@@ -356,8 +356,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
   return (
     <div className="flex flex-col min-h-full">
 
-      {/* ── Top toolbar ───────────────────────────────────────── */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/30 print:hidden">
+      {/* ── Top toolbar — sticky at top of scroll container ─── */}
+      <div className="sticky top-0 z-40 flex items-center gap-4 px-4 py-2 border-b bg-white shadow-sm print:hidden">
         <TypeSelector value={data.loaiVanBan} onChange={handleTypeChange} />
 
         {/* Độ mật */}
@@ -445,8 +445,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
         </div>
       )}
 
-      {/* ── Shared TipTap toolbar — sticky so it stays visible when scrolling ── */}
-      <div className={`sticky top-14 z-40 shrink-0 border-b bg-white print:hidden transition-all duration-150 ${
+      {/* ── Shared TipTap toolbar — sticks below top toolbar (~40px) ── */}
+      <div className={`sticky top-10 z-39 shrink-0 border-b bg-white shadow-sm print:hidden transition-all duration-150 ${
         activeEditor ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden"
       }`}>
         <EditorToolbar editor={activeEditor} />
