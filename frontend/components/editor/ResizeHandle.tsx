@@ -41,12 +41,21 @@ export function ResizeHandle({ onResize, direction = "right" }: ResizeHandleProp
   return (
     <div
       onMouseDown={onMouseDown}
-      className="relative flex-shrink-0 cursor-col-resize group"
-      style={{ width: 8 }}
-      title="Kéo để thay đổi độ rộng"
+      className="h-full w-3 flex-shrink-0 flex items-center justify-center
+                 bg-gray-100 hover:bg-blue-100 active:bg-blue-200
+                 cursor-col-resize border-x border-gray-200
+                 hover:border-blue-300 transition-colors duration-150 group"
+      title="Kéo để thay đổi độ rộng cột"
     >
-      {/* Hitbox full height, visual indicator thin centered line */}
-      <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-gray-200 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors duration-150" />
+      {/* Grip dots — 3 vertical dots as drag indicator */}
+      <div className="flex flex-col gap-[3px]">
+        {[0,1,2].map(i => (
+          <div
+            key={i}
+            className="w-1 h-1 rounded-full bg-gray-400 group-hover:bg-blue-500 transition-colors"
+          />
+        ))}
+      </div>
     </div>
   )
 }

@@ -187,11 +187,11 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   const [showRight, setShowRight] = useState(false);
 
   // Resizable column widths (px)
-  const MIN_WIDTH = 160;
-  const MAX_LEFT  = 400;
-  const MAX_RIGHT = 500;
-  const [leftWidth,  setLeftWidth]  = useState(256);
-  const [rightWidth, setRightWidth] = useState(320);
+  const MIN_WIDTH = 180;
+  const MAX_LEFT  = 480;
+  const MAX_RIGHT = 560;
+  const [leftWidth,  setLeftWidth]  = useState(300);
+  const [rightWidth, setRightWidth] = useState(380);
 
   useEffect(() => {
     try {
@@ -539,7 +539,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         </div>
 
         {/* Resize handle — left */}
-        <div className="hidden lg:flex items-stretch">
+        <div className="hidden lg:block h-full">
           <ResizeHandle
             direction="right"
             onResize={(d) => setLeftWidth((w) => Math.min(MAX_LEFT, Math.max(MIN_WIDTH, w + d)))}
@@ -580,7 +580,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         {!showWelcome && (
           <>
             {/* Resize handle — right */}
-            <div className="hidden lg:flex items-stretch">
+            <div className="hidden lg:block h-full">
               <ResizeHandle
                 direction="left"
                 onResize={(d) => setRightWidth((w) => Math.min(MAX_RIGHT, Math.max(MIN_WIDTH, w + d)))}
