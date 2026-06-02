@@ -10,7 +10,6 @@ import { Nd30Document } from "./nd30-document";
 import { DocumentPreviewPaged } from "./DocumentPreviewPaged";
 import { SourcesPanel } from "./SourcesPanel";
 import { RightPanel } from "./RightPanel";
-import { BottomChatBar } from "./BottomChatBar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -116,10 +115,10 @@ function WelcomePanel({
           </div>
         )}
       </div>
-
     </div>
   );
 }
+
 // ── DocumentEditor ────────────────────────────────────────────────────────────
 
 interface DocumentEditorProps {
@@ -185,7 +184,6 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   // Mobile panel toggles
   const [showLeft,  setShowLeft]  = useState(false);
   const [showRight, setShowRight] = useState(false);
-  const [sidePanelOpen, setSidePanelOpen] = useState(false);
 
   // Preview mode
   const [previewMode, setPreviewMode] = useState(false);
@@ -501,7 +499,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
       )}
 
       {/* ── 3 columns ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden pb-20">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* Left: Sources panel — hidden on mobile unless toggled */}
         <div className={`
@@ -564,12 +562,6 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         )}
 
       </div>
-
-      <BottomChatBar
-        onSend={(msg) => console.log("TODO: send to chat", msg)}
-        onToggleSidePanel={() => setSidePanelOpen(prev => !prev)}
-        sidePanelOpen={sidePanelOpen}
-      />
     </div>
   );
 }
