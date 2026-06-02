@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { type Nd30Data } from "@/lib/nd30";
 import { Nd30StaticContent } from "./nd30-static-content";
 
@@ -61,21 +64,26 @@ export function DocumentPreviewPaged({ data, onClose, onExportPdf, onExportDocx,
             <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
             Quay lại soạn thảo
           </Button>
-          {onExportDocx && (
-            <Button variant="outline" size="sm" onClick={onExportDocx} disabled={exporting}>
-              {exporting
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                : <Download className="h-3.5 w-3.5 mr-1.5" />}
-              Xuất DOCX
-            </Button>
-          )}
-          {onExportPdf && (
-            <Button variant="outline" size="sm" onClick={onExportPdf} disabled={exporting}>
-              {exporting
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                : <Download className="h-3.5 w-3.5 mr-1.5" />}
-              Xuất PDF
-            </Button>
+          {(onExportPdf || onExportDocx) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exporting}>
+                  {exporting
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    : <Download className="h-3.5 w-3.5 mr-1.5" />}
+                  Tải xuống
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {onExportDocx && (
+                  <DropdownMenuItem onClick={onExportDocx}>Tải DOCX</DropdownMenuItem>
+                )}
+                {onExportPdf && (
+                  <DropdownMenuItem onClick={onExportPdf}>Tải PDF</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
