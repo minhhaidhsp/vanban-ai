@@ -117,6 +117,8 @@ function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalPr
 
 // ── SourcesPanel ──────────────────────────────────────────────────────────────
 
+const EMPTY_SOURCES: RefDoc[] = [];
+
 type PendingStatus = "uploading" | "done" | "failed";
 interface PendingUpload { filename: string; status: PendingStatus; }
 
@@ -142,7 +144,7 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
     return true;
   };
 
-  const { data: sources = [] } = useQuery<RefDoc[]>({
+  const { data: sources = EMPTY_SOURCES } = useQuery<RefDoc[]>({
     queryKey: ["document-sources", documentId],
     queryFn: () => documentSourcesApi.list(documentId),
     enabled: !!documentId && documentId !== "new-doc",

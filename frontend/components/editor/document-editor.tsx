@@ -182,6 +182,12 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   // Source IDs for RAG scoping
   const [sourceIds, setSourceIds] = useState<string[]>([]);
 
+  const handleSourcesChange = useCallback((ids: string[]) => {
+    setSourceIds((prev) =>
+      prev.length === ids.length && prev.every((id, i) => id === ids[i]) ? prev : ids
+    );
+  }, []);
+
   // Mobile panel toggles
   const [showLeft,  setShowLeft]  = useState(false);
   const [showRight, setShowRight] = useState(false);
@@ -535,7 +541,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         >
           <SourcesPanel
             documentId={docId || "new-doc"}
-            onSourcesChange={setSourceIds}
+            onSourcesChange={handleSourcesChange}
           />
         </div>
 
