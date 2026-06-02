@@ -45,6 +45,7 @@ export function SourcePickerModal({
 
   const handleAdd = async () => {
     if (!selected.size) return;
+    if (!documentId || documentId === "new-doc") return;
     setAdding(true);
     try {
       await Promise.all(
@@ -52,6 +53,8 @@ export function SourcePickerModal({
       );
       setSelected(new Set());
       onAdded();
+    } catch (e) {
+      console.error("[SourcePickerModal] add failed:", e);
     } finally {
       setAdding(false);
     }
