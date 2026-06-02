@@ -39,8 +39,12 @@ def _post_process_ocr(text: str) -> str:
 
 def _ocr_pdf(file_path: str) -> str:
     try:
-        from pdf2image import convert_from_path
+        import sys
         import pytesseract
+        from pdf2image import convert_from_path
+
+        if sys.platform == "win32":
+            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
         logger.info("[ocr] Scanning PDF: %s", file_path)
         images = convert_from_path(file_path, dpi=300)
