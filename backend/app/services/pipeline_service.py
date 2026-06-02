@@ -26,22 +26,82 @@ REF_DOCS_BUCKET = "reference-docs"
 
 # ── Text extractors (synchronous — run via asyncio.to_thread) ───────────────
 
-def _extract_pdf(data: bytes) -> str:
+def _is_scanned_pdf(text: str) -> bool:
+    return len(text.strip()) < 50
+
+
+def _post_process_ocr(text: str) -> str:
+    import re
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    lines = [line.strip() for line in text.split('\n')]
+    return '\n'.join(lines).strip()
+
+
+def _ocr_pdf(file_path: str) -> str:
     try:
-        import pdfplumber
-        with pdfplumber.open(io.BytesIO(data)) as pdf:
-            pages = []
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    pages.append(text)
-            result = "\n\n".join(pages)
-            if not result.strip():
-                logger.warning("PDF appears to be a scan — no selectable text found")
-            return result
-    except Exception as exc:
-        logger.warning(f"pdfplumber extraction failed: {exc}")
+        from pdf2image import convert_from_path
+        import pytesseract
+
+        logger.info("[ocr] Scanning PDF: %s", file_path)
+        images = convert_from_path(file_path, dpi=300)
+
+        full_text = []
+        for i, image in enumerate(images):
+            logger.info("[ocr] Page %d/%d", i + 1, len(images))
+            try:
+                text = pytesseract.image_to_string(image, lang='vie')
+            except Exception:
+                text = pytesseract.image_to_string(image, lang='eng')
+            full_text.append(text)
+
+        result = _post_process_ocr("\n".join(full_text))
+        logger.info("[ocr] Done: %d chars from %d pages", len(result), len(images))
+        return result
+
+    except Exception as e:
+        logger.warning("[ocr] Failed: %s. Tesseract installed?", e)
         return ""
+
+
+def _extract_pdf(data: bytes) -> str:
+    # Write bytes to a temp file so pdf2image can use it when OCR is needed
+    import tempfile, os
+
+    tmp_path: Optional[str] = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+
+        # Step 1: try pdfplumber (fast, works for text PDFs)
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(data)) as pdf:
+                pages = []
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        pages.append(text)
+                result = "\n\n".join(pages)
+        except Exception as exc:
+            logger.warning(f"pdfplumber extraction failed: {exc}")
+            result = ""
+
+        # Step 2: OCR fallback when pdfplumber finds too little text
+        if _is_scanned_pdf(result):
+            logger.info("[pipeline] PDF scan detected, running OCR...")
+            result = _ocr_pdf(tmp_path)
+            if not result.strip():
+                logger.warning("[pipeline] OCR produced no text — PDF may be corrupt or unsupported")
+
+        return result
+
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def _extract_docx(data: bytes) -> str:

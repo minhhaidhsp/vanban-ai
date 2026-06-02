@@ -42,3 +42,7 @@ python-docx>=1.1.0
 
 # PDF export
 xhtml2pdf>=0.2.0
+
+# OCR — scanned PDF support
+pdf2image>=1.16.0
+pytesseract>=0.3.10
