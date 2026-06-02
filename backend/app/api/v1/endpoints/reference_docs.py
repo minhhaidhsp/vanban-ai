@@ -13,6 +13,7 @@ from app.core.storage import (
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.reference_document import ReferenceDocument
+from app.models.reference_doc_chunk import ReferenceDocChunk
 from app.services.reference_pipeline_service import process_reference_background
 from app.schemas.reference_document import (
     RefDocCreate, RefDocUpdate, RefDocResponse,
@@ -44,7 +45,11 @@ class HieuLucUpdate(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _add_url(doc: ReferenceDocument, score: float | None = None) -> RefDocResponse:
+def _add_url(
+    doc: ReferenceDocument,
+    score: float | None = None,
+    chunk_count: int | None = None,
+) -> RefDocResponse:
     resp = RefDocResponse.model_validate(doc)
     if doc.file_path:
         try:
@@ -53,6 +58,8 @@ def _add_url(doc: ReferenceDocument, score: float | None = None) -> RefDocRespon
             pass
     if score is not None:
         resp.score = score
+    if chunk_count is not None:
+        resp.chunk_count = chunk_count
     return resp
 
 
@@ -112,10 +119,21 @@ async def list_ref_docs(
 
     sort_col = _SORT_COLUMNS.get(sort, ReferenceDocument.created_at)
     sort_expr = sort_col.asc() if order == "asc" else sort_col.desc()
-    result = await db.execute(
+    docs = (await db.execute(
         base.order_by(sort_expr).offset(skip).limit(limit)
-    )
-    items = [_add_url(d) for d in result.scalars().all()]
+    )).scalars().all()
+
+    # Batch-count chunks for all docs in one query
+    chunk_map: dict[str, int] = {}
+    if docs:
+        counts = await db.execute(
+            select(ReferenceDocChunk.document_id, sql_func.count(ReferenceDocChunk.id))
+            .where(ReferenceDocChunk.document_id.in_([d.id for d in docs]))
+            .group_by(ReferenceDocChunk.document_id)
+        )
+        chunk_map = {row[0]: row[1] for row in counts.all()}
+
+    items = [_add_url(d, chunk_count=chunk_map.get(d.id, 0)) for d in docs]
     return RefDocListResponse(items=items, total=total, skip=skip, limit=limit)
 
 

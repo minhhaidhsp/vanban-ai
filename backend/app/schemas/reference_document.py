@@ -46,6 +46,8 @@ class RefDocResponse(RefDocBase):
     download_url: str | None = None
     # Populated only by the semantic search endpoint
     score: float | None = None
+    # Number of embedded chunks — 0 means not yet indexed
+    chunk_count: int | None = None
 
     model_config = {"from_attributes": True}
 

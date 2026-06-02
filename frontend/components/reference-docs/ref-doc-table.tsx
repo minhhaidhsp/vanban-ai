@@ -130,9 +130,16 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit, s
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{doc.so_ki_hieu || "—"}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium line-clamp-2">{doc.trich_yeu}</div>
-                    {doc.file_path && (
-                      <span className="text-xs text-muted-foreground">{formatSize(doc.file_size)}</span>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {doc.file_path && (
+                        <span className="text-xs text-muted-foreground">{formatSize(doc.file_size)}</span>
+                      )}
+                      {doc.chunk_count != null && (
+                        doc.chunk_count > 0
+                          ? <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 whitespace-nowrap">✓ Đã lập chỉ mục</span>
+                          : <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 whitespace-nowrap">⚠ Chưa lập chỉ mục</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{doc.loai_van_ban}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground line-clamp-2">{doc.co_quan_ban_hanh}</td>

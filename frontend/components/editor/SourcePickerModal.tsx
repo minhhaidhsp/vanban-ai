@@ -98,15 +98,20 @@ export function SourcePickerModal({
 
           {candidates.map((doc) => {
             const isSelected = selected.has(doc.id);
+            const isIndexed = doc.chunk_count != null ? doc.chunk_count > 0 : true;
             return (
               <button
                 key={doc.id}
                 type="button"
-                onClick={() => toggle(doc.id)}
+                disabled={!isIndexed}
+                onClick={() => isIndexed && toggle(doc.id)}
+                title={!isIndexed ? "File này chưa được xử lý, không thể dùng cho RAG" : undefined}
                 className={`w-full flex items-start gap-3 p-2.5 rounded-lg border text-left transition-colors ${
-                  isSelected
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-100 hover:border-blue-200 hover:bg-gray-50"
+                  !isIndexed
+                    ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
+                    : isSelected
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-100 hover:border-blue-200 hover:bg-gray-50"
                 }`}
               >
                 <div className={`mt-0.5 shrink-0 h-4 w-4 rounded border flex items-center justify-center ${
@@ -123,6 +128,11 @@ export function SourcePickerModal({
                       <span className="text-[10px] bg-gray-100 text-gray-600 rounded px-1">
                         {doc.loai_van_ban}
                       </span>
+                    )}
+                    {doc.chunk_count != null && (
+                      doc.chunk_count > 0
+                        ? <span className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">✓ Đã lập chỉ mục</span>
+                        : <span className="text-[10px] px-1 py-0.5 rounded bg-red-50 text-red-500">⚠ Chưa xử lý</span>
                     )}
                   </div>
                   <p className="text-xs text-gray-800 mt-0.5 line-clamp-2">{doc.trich_yeu || doc.title}</p>

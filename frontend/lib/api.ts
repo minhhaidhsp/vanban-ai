@@ -92,6 +92,7 @@ export interface RefDoc {
   updated_at: string;
   created_by: string;
   download_url: string | null;
+  chunk_count?: number | null;
 }
 
 export interface RefDocListResponse {
