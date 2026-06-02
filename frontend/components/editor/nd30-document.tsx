@@ -445,8 +445,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
         </div>
       )}
 
-      {/* ── Shared TipTap toolbar (shown when a rich-text field is focused) ── */}
-      <div className={`shrink-0 border-b bg-white print:hidden transition-all duration-150 ${
+      {/* ── Shared TipTap toolbar — sticky so it stays visible when scrolling ── */}
+      <div className={`sticky top-14 z-40 shrink-0 border-b bg-white print:hidden transition-all duration-150 ${
         activeEditor ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden"
       }`}>
         <EditorToolbar editor={activeEditor} />

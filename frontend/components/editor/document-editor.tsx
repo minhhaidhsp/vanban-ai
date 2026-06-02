@@ -10,6 +10,7 @@ import { Nd30Document } from "./nd30-document";
 import { DocumentPreviewPaged } from "./DocumentPreviewPaged";
 import { SourcesPanel } from "./SourcesPanel";
 import { RightPanel } from "./RightPanel";
+import { ResizeHandle } from "./ResizeHandle";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -184,6 +185,31 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
   // Mobile panel toggles
   const [showLeft,  setShowLeft]  = useState(false);
   const [showRight, setShowRight] = useState(false);
+
+  // Resizable column widths (px)
+  const MIN_WIDTH = 160;
+  const MAX_LEFT  = 400;
+  const MAX_RIGHT = 500;
+  const [leftWidth,  setLeftWidth]  = useState(256);
+  const [rightWidth, setRightWidth] = useState(320);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("editor-col-widths");
+      if (saved) {
+        const { left, right } = JSON.parse(saved);
+        if (left)  setLeftWidth(left);
+        if (right) setRightWidth(right);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      localStorage.setItem("editor-col-widths", JSON.stringify({ left: leftWidth, right: rightWidth }));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [leftWidth, rightWidth]);
 
   // Preview mode
   const [previewMode, setPreviewMode] = useState(false);
@@ -498,19 +524,25 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         </div>
       )}
 
-      {/* ── 3 columns ─────────────────────────────────────────────────────── */}
+      {/* ── 3 columns (resizable) ─────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* Left: Sources panel — hidden on mobile unless toggled */}
-        <div className={`
-          w-64 shrink-0 overflow-hidden
-          lg:flex lg:flex-col
-          ${showLeft ? "flex flex-col" : "hidden"}
-          lg:!flex
-        `}>
+        {/* Left: Sources panel */}
+        <div
+          className={`shrink-0 overflow-hidden lg:flex lg:flex-col ${showLeft ? "flex flex-col" : "hidden"} lg:!flex`}
+          style={{ width: leftWidth, minWidth: MIN_WIDTH }}
+        >
           <SourcesPanel
             documentId={docId || "new-doc"}
             onSourcesChange={setSourceIds}
+          />
+        </div>
+
+        {/* Resize handle — left */}
+        <div className="hidden lg:block">
+          <ResizeHandle
+            direction="right"
+            onResize={(d) => setLeftWidth((w) => Math.min(MAX_LEFT, Math.max(MIN_WIDTH, w + d)))}
           />
         </div>
 
@@ -544,21 +576,29 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
           )}
         </div>
 
-        {/* Right: Tools + Chat — hidden on mobile unless toggled, hidden during welcome */}
+        {/* Right: Tools + Chat — hidden during welcome */}
         {!showWelcome && (
-          <div className={`
-            w-80 shrink-0 overflow-hidden
-            lg:flex lg:flex-col
-            ${showRight ? "flex flex-col" : "hidden"}
-            lg:!flex
-          `}>
-            <RightPanel
-              docId={docId || "new-doc"}
-              getDocContext={getDocContext}
-              onInsertText={handleInsertText}
-              sourceIds={sourceIds}
-            />
-          </div>
+          <>
+            {/* Resize handle — right */}
+            <div className="hidden lg:block">
+              <ResizeHandle
+                direction="left"
+                onResize={(d) => setRightWidth((w) => Math.min(MAX_RIGHT, Math.max(MIN_WIDTH, w + d)))}
+              />
+            </div>
+
+            <div
+              className={`shrink-0 overflow-hidden lg:flex lg:flex-col ${showRight ? "flex flex-col" : "hidden"} lg:!flex`}
+              style={{ width: rightWidth, minWidth: MIN_WIDTH }}
+            >
+              <RightPanel
+                docId={docId || "new-doc"}
+                getDocContext={getDocContext}
+                onInsertText={handleInsertText}
+                sourceIds={sourceIds}
+              />
+            </div>
+          </>
         )}
 
       </div>
