@@ -403,6 +403,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
         data={previewData}
         onClose={exitPreview}
         onExportPdf={handleExportPdf}
+        onExportDocx={handleExportDocx}
         exporting={exporting}
       />
     );

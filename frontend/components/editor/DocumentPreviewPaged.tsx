@@ -27,10 +27,11 @@ interface DocumentPreviewPagedProps {
   data: Nd30Data;
   onClose: () => void;
   onExportPdf?: () => void;
+  onExportDocx?: () => void;
   exporting?: boolean;
 }
 
-export function DocumentPreviewPaged({ data, onClose, onExportPdf, exporting }: DocumentPreviewPagedProps) {
+export function DocumentPreviewPaged({ data, onClose, onExportPdf, onExportDocx, exporting }: DocumentPreviewPagedProps) {
   const [numPages, setNumPages] = useState(1);
   const measureRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +61,14 @@ export function DocumentPreviewPaged({ data, onClose, onExportPdf, exporting }: 
             <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
             Quay lại soạn thảo
           </Button>
+          {onExportDocx && (
+            <Button variant="outline" size="sm" onClick={onExportDocx} disabled={exporting}>
+              {exporting
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                : <Download className="h-3.5 w-3.5 mr-1.5" />}
+              Xuất DOCX
+            </Button>
+          )}
           {onExportPdf && (
             <Button variant="outline" size="sm" onClick={onExportPdf} disabled={exporting}>
               {exporting
