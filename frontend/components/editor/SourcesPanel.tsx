@@ -132,9 +132,11 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
 
+  const isNewDoc = !documentId || documentId === "new-doc";
+
   const guardNewDoc = () => {
-    if (!documentId || documentId === "new-doc") {
-      toast({ title: "Lưu văn bản trước khi thêm tài liệu", variant: "destructive" });
+    if (isNewDoc) {
+      toast({ title: "Vui lòng tạo hoặc mở văn bản trước", variant: "destructive" });
       return false;
     }
     return true;
@@ -162,6 +164,10 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
   });
 
   const handleStartUpload = (files: File[]) => {
+    if (isNewDoc) {
+      toast({ title: "Vui lòng tạo hoặc mở văn bản trước", variant: "destructive" });
+      return;
+    }
     // 1. Set pending items immediately
     setPendingUploads(files.map((f) => ({ filename: f.name, status: "uploading" })));
 
