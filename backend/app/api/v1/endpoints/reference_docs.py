@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Response, status, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func, or_, text
 from typing import List
@@ -21,12 +21,14 @@ from app.schemas.reference_document import (
     RefDocChunkSearchItem, RefDocChunkSearchResponse,
     RefDocFTSItem, RefDocFTSResponse,
     MetadataPreviewResponse, MetadataConfirmRequest, MetadataConfidence,
+    ChunkItem, RefDocContentResponse,
 )
 import asyncio
+import io
 import json
 import logging
+import re
 import uuid
-import io
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -648,3 +650,129 @@ async def upload_ref_doc_file(
     background_tasks.add_task(process_document_embedding, doc_id)
 
     return _add_url(doc)
+
+
+# ── Content (chunks for OCR viewer) ──────────────────────────────────────────
+
+@router.get("/{doc_id}/content", response_model=RefDocContentResponse)
+async def get_reference_doc_content(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Trả về toàn bộ chunks của một văn bản tham chiếu, ghép theo chunk_index."""
+    doc_result = await db.execute(
+        select(ReferenceDocument).where(
+            ReferenceDocument.id == doc_id,
+            ReferenceDocument.created_by == current_user.id,
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    chunks_result = await db.execute(
+        select(ReferenceDocChunk)
+        .where(ReferenceDocChunk.document_id == doc_id)
+        .order_by(ReferenceDocChunk.chunk_index.asc())
+    )
+    chunks = chunks_result.scalars().all()
+
+    return RefDocContentResponse(
+        id=doc.id,
+        title=doc.title,
+        so_ki_hieu=doc.so_ki_hieu if doc.so_ki_hieu else None,
+        loai_van_ban=doc.loai_van_ban if doc.loai_van_ban else None,
+        created_at=doc.created_at,
+        chunks=[
+            ChunkItem(
+                chunk_index=c.chunk_index,
+                content=c.content,
+                dieu_khoan=c.dieu_khoan,
+            )
+            for c in chunks
+        ],
+    )
+
+
+# ── Export (DOCX or PDF) ──────────────────────────────────────────────────────
+
+@router.get("/{doc_id}/export")
+async def export_reference_doc(
+    doc_id: str,
+    format: str = Query("docx", pattern="^(docx|pdf)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Xuất văn bản tham chiếu ra file DOCX hoặc PDF."""
+    doc_result = await db.execute(
+        select(ReferenceDocument).where(
+            ReferenceDocument.id == doc_id,
+            ReferenceDocument.created_by == current_user.id,
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    chunks_result = await db.execute(
+        select(ReferenceDocChunk)
+        .where(ReferenceDocChunk.document_id == doc_id)
+        .order_by(ReferenceDocChunk.chunk_index.asc())
+    )
+    chunks = chunks_result.scalars().all()
+    if not chunks:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Văn bản chưa được lập chỉ mục",
+        )
+
+    full_text = "\n\n".join(c.content for c in chunks)
+    safe_filename = re.sub(r'[/\\:*?"<>|]', "_", doc.so_ki_hieu or doc.title or doc_id)[:120]
+
+    if format == "docx":
+        from docx import Document as DocxDocument
+        docx_doc = DocxDocument()
+        docx_doc.add_heading(doc.title, level=1)
+        if doc.so_ki_hieu:
+            docx_doc.add_paragraph(f"Số ký hiệu: {doc.so_ki_hieu}")
+        docx_doc.add_paragraph("")
+        docx_doc.add_paragraph(full_text)
+        buf = io.BytesIO()
+        docx_doc.save(buf)
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{safe_filename}.docx"'},
+        )
+
+    # format == "pdf"
+    import html as _html_esc
+    from app.services.pdf_service import _write_pdf, _ensure_fonts, _build_css
+    font = _ensure_fonts()
+    css = _build_css(font)
+    title_h = _html_esc.escape(doc.title)
+    text_h = _html_esc.escape(full_text)
+    meta_html = (
+        f'<p style="font-size:12pt;color:#555;margin-bottom:8pt;">'
+        f'Số ký hiệu: {_html_esc.escape(doc.so_ki_hieu)}</p>\n'
+        if doc.so_ki_hieu else ""
+    )
+    html_str = (
+        "<!DOCTYPE html>\n<html lang='vi'>\n<head>\n"
+        "  <meta charset='UTF-8'>\n"
+        f"  <style>{css}\n"
+        f"    h1 {{ font-size: 15pt; font-weight: bold; text-align: center; margin-bottom: 4pt; }}\n"
+        f"    pre {{ white-space: pre-wrap; font-family: '{font}', serif; font-size: 13pt; line-height: 1.6; }}\n"
+        "  </style>\n</head>\n<body>\n"
+        f"  <h1>{title_h}</h1>\n"
+        f"{meta_html}"
+        f"  <pre>{text_h}</pre>\n"
+        "</body>\n</html>"
+    )
+    pdf_bytes = await asyncio.to_thread(_write_pdf, html_str)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}.pdf"'},
+    )

@@ -120,3 +120,20 @@ class MetadataConfirmRequest(BaseModel):
     hieu_luc: str | None = None
     tom_tat: str | None = None
     can_cu: list[str] = []
+
+
+# ── OCR viewer schemas ────────────────────────────────────────────────────────
+
+class ChunkItem(BaseModel):
+    chunk_index: int
+    content: str
+    dieu_khoan: str | None = None
+
+
+class RefDocContentResponse(BaseModel):
+    id: str
+    title: str
+    so_ki_hieu: str | None = None
+    loai_van_ban: str | None = None
+    created_at: datetime | None = None
+    chunks: list[ChunkItem]
