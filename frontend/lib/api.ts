@@ -196,6 +196,24 @@ export const refDocApi = {
       error: string | null;
     };
   },
+
+  getContent: async (id: string) => {
+    const { data } = await api.get(`/reference-docs/${id}/content`);
+    return data as {
+      id: string;
+      title: string;
+      so_ki_hieu: string | null;
+      loai_van_ban: string | null;
+      created_at: string | null;
+      chunks: Array<{ chunk_index: number; content: string; dieu_khoan: string | null }>;
+    };
+  },
+
+  exportFile: (id: string, format: "docx" | "pdf") =>
+    api.get(`/reference-docs/${id}/export`, {
+      params: { format },
+      responseType: "blob",
+    }),
 };
 
 export interface ChunkUsed {
