@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+@import "react-pdf/dist/esm/Page/TextLayer.css";
+
 /* .a4-page — white paper card; no extra background needed,
    pagination is handled by separate page-container divs in nd30-document. */
 

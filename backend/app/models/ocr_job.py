@@ -21,6 +21,8 @@ class OcrJob(Base):
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     char_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     formatted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

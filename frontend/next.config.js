@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     config.watchOptions = { ignored: ["**/node_modules", "D:\\System Volume Information"] };
+    config.resolve.alias.canvas = false;
     return config;
   },
   async rewrites() {

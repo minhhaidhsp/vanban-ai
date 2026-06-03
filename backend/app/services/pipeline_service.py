@@ -119,12 +119,35 @@ def _extract_docx(data: bytes) -> str:
         return ""
 
 
+def _ocr_image_bytes(data: bytes) -> str:
+    try:
+        import sys
+        import pytesseract
+        from PIL import Image
+
+        if sys.platform == "win32":
+            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+        img = Image.open(io.BytesIO(data))
+        try:
+            result = pytesseract.image_to_string(img, lang="vie")
+        except Exception:
+            result = pytesseract.image_to_string(img, lang="eng")
+        logger.info("[ocr_image] extracted %d chars", len(result))
+        return result
+    except Exception as exc:
+        logger.warning("[ocr_image] failed: %s", exc)
+        return ""
+
+
 def _extract_text(data: bytes, file_type: Optional[str]) -> str:
     mime = (file_type or "").lower()
     if "pdf" in mime:
         return _extract_pdf(data)
     if "word" in mime or "docx" in mime or "openxmlformats" in mime:
         return _extract_docx(data)
+    if mime.startswith("image/"):
+        return _ocr_image_bytes(data)
     # Plain text fallback
     try:
         return data.decode("utf-8", errors="replace")

@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.redis import get_redis
+from app.core.storage import download_file, get_bucket_name, upload_file
 from app.models.ocr_job import OcrJob
 from app.models.user import User
 from app.schemas.ocr_job import OcrJobListResponse, OcrJobResponse, OcrJobStatusResponse
@@ -39,9 +40,11 @@ _ALLOWED_TYPES = {
     "image/jpeg",
     "image/jpg",
     "image/png",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 _MAX_BYTES = 20 * 1024 * 1024  # 20 MB
 _REDIS_TTL = 3600               # 1 hour
+_OCR_BUCKET = get_bucket_name()
 
 
 # ── LLM text formatter ───────────────────────────────────────────────────────
@@ -92,6 +95,84 @@ async def _format_ocr_text(raw_text: str, filename: str) -> str:
         return _basic_format(raw_text)
 
 
+# ── OCR PDF with per-page progress ───────────────────────────────────────────
+
+async def _ocr_pdf_with_progress(content: bytes, job_id: str) -> str:
+    """OCR từng trang PDF, ghi Redis progress sau mỗi trang."""
+    import json
+    import sys
+
+    redis = await get_redis()
+
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            total_pages = len(pdf.pages)
+    except Exception:
+        total_pages = 1
+
+    await redis.set(
+        f"ocr_progress:{job_id}",
+        json.dumps({"current_page": 0, "total_pages": total_pages}),
+        ex=3600,
+    )
+
+    def convert_pages():
+        import pdf2image
+        return pdf2image.convert_from_bytes(content, dpi=300)
+
+    images = await asyncio.to_thread(convert_pages)
+    total_pages = len(images)
+
+    all_text: list[str] = []
+    for i, image in enumerate(images):
+        def ocr_page(img):
+            import pytesseract
+            if sys.platform == "win32":
+                pytesseract.pytesseract.tesseract_cmd = (
+                    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+                )
+            try:
+                return pytesseract.image_to_string(img, lang="vie")
+            except Exception:
+                return pytesseract.image_to_string(img, lang="eng")
+
+        page_text = await asyncio.to_thread(ocr_page, image)
+        all_text.append(page_text)
+
+        await redis.set(
+            f"ocr_progress:{job_id}",
+            json.dumps({"current_page": i + 1, "total_pages": total_pages}),
+            ex=3600,
+        )
+
+    await redis.delete(f"ocr_progress:{job_id}")
+    return "\n\n".join(all_text)
+
+
+# ── PDF type detection ────────────────────────────────────────────────────────
+
+async def _detect_pdf_type(content: bytes) -> str:
+    """
+    Detect PDF có text layer hay scan.
+    Returns: "text_pdf" hoặc "scanned_pdf"
+    """
+    import pdfplumber
+    import io
+    try:
+        def extract():
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                text = ""
+                for page in pdf.pages:
+                    text += (page.extract_text() or "")
+                    if len(text) > 50:
+                        return "text_pdf"
+            return "scanned_pdf" if len(text.strip()) < 50 else "text_pdf"
+        return await asyncio.to_thread(extract)
+    except Exception:
+        return "scanned_pdf"  # fallback: treat as scan
+
+
 # ── Background processor ──────────────────────────────────────────────────────
 
 async def _process_ocr_job(job_id: str) -> None:
@@ -136,15 +217,26 @@ async def _process_ocr_job(job_id: str) -> None:
         is_pdf = filename.lower().endswith(".pdf")
 
         if is_pdf:
-            from app.services.pipeline_service import _extract_pdf
-            extracted_text = await asyncio.to_thread(_extract_pdf, content)
+            import pdfplumber
 
+            # Extract text to detect scanned vs text PDF (< 50 chars → scanned)
             try:
-                import pdfplumber
                 with pdfplumber.open(io.BytesIO(content)) as pdf:
                     page_count = len(pdf.pages)
+                    pdf_text = "".join(
+                        (p.extract_text() or "") for p in pdf.pages
+                    ).strip()
             except Exception:
                 page_count = 1
+                pdf_text = ""
+
+            if len(pdf_text) < 50:
+                # Scanned PDF → OCR with per-page progress tracking
+                extracted_text = await _ocr_pdf_with_progress(content, job_id)
+            else:
+                # Text PDF → fast path
+                from app.services.pipeline_service import _extract_pdf
+                extracted_text = await asyncio.to_thread(_extract_pdf, content)
 
         else:
             def _ocr_image(data: bytes) -> str:
@@ -200,6 +292,121 @@ async def _process_ocr_job(job_id: str) -> None:
         logger.exception("[ocr_job] %s failed to persist result: %s", job_id, exc)
 
 
+# ── Background processor — text PDF ──────────────────────────────────────────
+
+async def _process_text_pdf(job_id: str, content: bytes) -> None:
+    """Background task cho PDF văn bản — extract text + LLM format."""
+
+    # Phase 1: update status processing
+    filename = ""
+    try:
+        async with AsyncSessionLocal() as db:
+            job = await db.get(OcrJob, job_id)
+            if not job:
+                return
+            filename = job.filename or ""
+            job.status = "processing"
+            await db.commit()
+    except Exception as exc:
+        logger.exception("[text_pdf] %s failed to mark processing: %s", job_id, exc)
+        return
+
+    # Phase 2: extract text + count pages + LLM format
+    try:
+        import pdfplumber
+
+        def extract_all():
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                pages = [page.extract_text() or "" for page in pdf.pages]
+                return "\n\n".join(pages), len(pdf.pages)
+
+        extracted_text, page_count = await asyncio.to_thread(extract_all)
+        formatted = await _format_ocr_text(extracted_text, filename)
+        logger.info("[text_pdf] %s done: %d chars, %d pages", job_id, len(extracted_text), page_count)
+
+    except Exception as exc:
+        logger.exception("[text_pdf] %s failed: %s", job_id, exc)
+        async with AsyncSessionLocal() as db:
+            job = await db.get(OcrJob, job_id)
+            if job:
+                job.status = "error"
+                job.error_msg = str(exc)[:500]
+                await db.commit()
+        return
+
+    # Phase 3: save done
+    try:
+        async with AsyncSessionLocal() as db:
+            job = await db.get(OcrJob, job_id)
+            if job:
+                job.status = "done"
+                job.text = extracted_text
+                job.formatted_text = formatted
+                job.page_count = page_count
+                job.char_count = len(extracted_text)
+                await db.commit()
+    except Exception as exc:
+        logger.exception("[text_pdf] %s failed to persist result: %s", job_id, exc)
+
+
+# ── Background processor — DOCX ──────────────────────────────────────────────
+
+async def _process_text_docx(job_id: str, content: bytes) -> None:
+    """Background task cho DOCX — extract text + LLM format."""
+
+    # Phase 1: mark processing
+    filename = ""
+    try:
+        async with AsyncSessionLocal() as db:
+            job = await db.get(OcrJob, job_id)
+            if not job:
+                return
+            filename = job.filename or ""
+            job.status = "processing"
+            await db.commit()
+    except Exception as exc:
+        logger.exception("[text_docx] %s failed to mark processing: %s", job_id, exc)
+        return
+
+    # Phase 2: extract text + LLM format
+    try:
+        from docx import Document as DocxDocument
+
+        def extract_docx():
+            doc = DocxDocument(io.BytesIO(content))
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            return "\n\n".join(paragraphs)
+
+        extracted_text = await asyncio.to_thread(extract_docx)
+        page_count = 1  # DOCX không có concept trang rõ ràng
+        formatted = await _format_ocr_text(extracted_text, filename)
+        logger.info("[text_docx] %s done: %d chars", job_id, len(extracted_text))
+
+    except Exception as exc:
+        logger.exception("[text_docx] %s failed: %s", job_id, exc)
+        async with AsyncSessionLocal() as db:
+            job = await db.get(OcrJob, job_id)
+            if job:
+                job.status = "error"
+                job.error_msg = str(exc)[:500]
+                await db.commit()
+        return
+
+    # Phase 3: save done
+    try:
+        async with AsyncSessionLocal() as db:
+            job = await db.get(OcrJob, job_id)
+            if job:
+                job.status = "done"
+                job.text = extracted_text
+                job.formatted_text = formatted
+                job.page_count = page_count
+                job.char_count = len(extracted_text)
+                await db.commit()
+    except Exception as exc:
+        logger.exception("[text_docx] %s failed to persist result: %s", job_id, exc)
+
+
 # ── POST /extract ─────────────────────────────────────────────────────────────
 
 @router.post("/extract", response_model=OcrJobResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -214,7 +421,7 @@ async def ocr_extract(
     if content_type not in _ALLOWED_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chỉ hỗ trợ PDF, JPG, PNG",
+            detail="Chỉ hỗ trợ PDF, JPG, PNG, DOCX",
         )
 
     content = await file.read()
@@ -224,26 +431,58 @@ async def ocr_extract(
             detail="File quá lớn, tối đa 20MB",
         )
 
+    # Detect file type: text_pdf / scanned_pdf / image / text_docx
+    _docx_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    is_docx = content_type == _docx_mime or (file.filename or "").lower().endswith(".docx")
+    is_pdf = content_type == "application/pdf"
+
+    if is_docx:
+        file_type = "text_docx"
+    elif is_pdf:
+        file_type = await _detect_pdf_type(content)
+    else:
+        file_type = "image"
+
+    job_id = str(uuid.uuid4())
+    filename = file.filename or "unknown"
+    file_path: str | None = None
+
+    if file_type == "text_pdf":
+        # Upload original file to R2 immediately for later download
+        r2_key = f"ocr-jobs/{job_id}/{filename}"
+        await upload_file(content, r2_key, "application/pdf", bucket_name=_OCR_BUCKET)
+        file_path = r2_key
+
     job = OcrJob(
-        id=str(uuid.uuid4()),
+        id=job_id,
         user_id=str(current_user.id),
-        filename=file.filename or "unknown",
+        filename=filename,
         status="pending",
+        file_type=file_type,
+        file_path=file_path,
     )
     db.add(job)
     await db.flush()
     await db.commit()
 
-    # Store bytes in Redis as base64 (decode_responses=True → no binary values)
-    redis = await get_redis()
-    await redis.set(
-        f"ocr_file:{job.id}",
-        base64.b64encode(content).decode(),
-        ex=_REDIS_TTL,
-    )
+    if file_type == "text_pdf":
+        background_tasks.add_task(_process_text_pdf, job.id, content)
+    elif file_type == "text_docx":
+        background_tasks.add_task(_process_text_docx, job.id, content)
+    else:
+        # scanned_pdf / image — cache in Redis for _process_ocr_job
+        redis = await get_redis()
+        await redis.set(
+            f"ocr_file:{job.id}",
+            base64.b64encode(content).decode(),
+            ex=_REDIS_TTL,
+        )
+        background_tasks.add_task(_process_ocr_job, job.id)
 
-    background_tasks.add_task(_process_ocr_job, job.id)
-    logger.info("[ocr] queued job=%s file=%s bytes=%d", job.id, job.filename, len(content))
+    logger.info(
+        "[ocr] queued job=%s file=%s type=%s bytes=%d",
+        job.id, job.filename, file_type, len(content),
+    )
     return job
 
 
@@ -380,6 +619,71 @@ async def get_ocr_status(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     return job
+
+
+# ── GET /progress/{job_id} ───────────────────────────────────────────────────
+
+@router.get("/progress/{job_id}")
+async def get_ocr_progress(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Trả về tiến độ OCR theo trang từ Redis."""
+    import json
+    redis = await get_redis()
+    raw = await redis.get(f"ocr_progress:{job_id}")
+    if not raw:
+        return {"job_id": job_id, "current_page": 0, "total_pages": 0, "percent": 0}
+
+    data = json.loads(raw)
+    current = data.get("current_page", 0)
+    total = data.get("total_pages", 0)
+    percent = int((current / total) * 100) if total > 0 else 0
+    return {
+        "job_id": job_id,
+        "current_page": current,
+        "total_pages": total,
+        "percent": percent,
+    }
+
+
+# ── GET /{job_id}/download ────────────────────────────────────────────────────
+
+@router.get("/{job_id}/download")
+async def download_ocr_file(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stream file gốc từ R2 cho text_pdf jobs."""
+    result = await db.execute(
+        select(OcrJob).where(
+            OcrJob.id == job_id,
+            OcrJob.user_id == str(current_user.id),
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    if job.file_type != "text_pdf" or not job.file_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File gốc không khả dụng",
+        )
+
+    data = await asyncio.to_thread(download_file, job.file_path, _OCR_BUCKET)
+    encoded = quote(job.filename, safe="")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"{job.filename}\"; "
+                f"filename*=UTF-8''{encoded}"
+            )
+        },
+    )
 
 
 # ── GET /{job_id} ─────────────────────────────────────────────────────────────
