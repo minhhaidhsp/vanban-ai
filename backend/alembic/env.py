@@ -13,6 +13,7 @@ if config.config_file_name is not None:
 # Import all models so Alembic can detect them
 from app.core.database import Base  # noqa
 from app.models import *  # noqa
+from app.models.ocr_job import OcrJob  # noqa: F401
 
 target_metadata = Base.metadata
 

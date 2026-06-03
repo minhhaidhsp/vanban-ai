@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FileText, FolderOpen, LayoutDashboard, LogOut, Settings, Sparkles, User } from "lucide-react";
+import { FileText, FolderOpen, LayoutDashboard, LogOut, ScanText, Settings, Sparkles, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/dashboard/documents", label: "Tài liệu", icon: FileText },
   { href: "/dashboard/reference-docs", label: "Kho văn bản", icon: FolderOpen },
+  { href: "/dashboard/ocr", label: "OCR Văn bản", icon: ScanText },
   { href: "/dashboard/rag-search", label: "Tra cứu AI", icon: Sparkles },
   { href: "/dashboard/profile", label: "Tài khoản", icon: User },
   { href: "/dashboard/settings", label: "Cài đặt", icon: Settings },
