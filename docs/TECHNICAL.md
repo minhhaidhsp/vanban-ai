@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-01
-> Phiên bản: Tuần 13-14 (Deploy Production)
+> Cập nhật: 2026-06-03
+> Phiên bản: Tuần 14+ (Hot-fixes & Features)
 
 ---
 
@@ -43,6 +43,11 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14 | Deploy Frontend lên Vercel: fix TypeScript build error Recharts Tooltip formatter, set env vars NEXT_PUBLIC_API_URL/NEXT_PUBLIC_APP_URL/NEXTAUTH_URL, fix CORS ALLOWED_ORIGINS include Vercel domain |
 | 14 | Migrate storage MinIO → Cloudflare R2 (boto3): xóa minio client, dùng boto3 S3-compatible, bucket vanban-ai, prefix reference-docs/ cho reference docs, fix R2_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY env vars |
 | 14 | LLM production: Groq API llama-3.3-70b-versatile (đang dùng), bỏ Colab/Cloudflare Tunnel cho production |
+| 14+ | Fix React #185 "Maximum update depth exceeded": `EMPTY_SOURCES` module-level constant tránh inline `[]` mới mỗi render; `handleSourcesChange` dedup trong `DocumentEditor` bảo vệ lớp 2 |
+| 14+ | Fix SourcesPanel/SourcePickerModal: guard `docId` bên trong `handleStartUpload` + `try-catch` + guard trong `SourcePickerModal.handleAdd` — tránh unhandled promise rejection leo lên React error boundary |
+| 14+ | OCR fallback cho scanned PDF: `pdf2image` + `pytesseract` (lang `vie`, fallback `eng`); `_is_scanned_pdf()` kiểm tra < 50 ký tự; auto-detect path tesseract trên Windows (`C:\Program Files\Tesseract-OCR\tesseract.exe`); Dockerfile thêm `tesseract-ocr`, `tesseract-ocr-vie`, `poppler-utils` |
+| 14+ | chunk_count indicator: badge "✓ Đã lập chỉ mục" (xanh) / "⚠ Chưa lập chỉ mục" (đỏ) trong `ref-doc-table` và `SourcePickerModal`; batch-count chunks trong `list_ref_docs` (1 query thêm, không N+1); disable doc chưa index trong SourcePickerModal + tooltip |
+| 14+ | Generate system prompt v2: thêm section `== THỂ THỨC TRÌNH BÀY ==` với font Times New Roman 13-14pt và thông số lề NĐ30 (trên/dưới 20-25mm, trái 30-35mm, phải 15-20mm) |
 
 ### Tech stack thực tế
 
@@ -72,6 +77,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - httpx ≥0.27.0 (async HTTP client cho LLM API — cả non-stream và stream)
 - FastAPI `StreamingResponse` (SSE streaming — built-in, không cần sse-starlette)
 - pdfplumber ≥0.11.0 (trích xuất text từ PDF)
+- pdf2image ≥1.16.0 + pytesseract ≥0.3.10 (OCR fallback cho scanned PDF; yêu cầu system: `tesseract-ocr`, `tesseract-ocr-vie`, `poppler-utils`)
 - python-docx ≥1.1.0 (trích xuất text từ DOCX)
 - xhtml2pdf ≥0.2.0 + ReportLab (xuất PDF phía backend)
 - Pydantic 2.10.3 + pydantic-settings 2.6.1
@@ -181,16 +187,20 @@ frontend/
 │   │   └── document-dialog.tsx  # Dialog tạo tài liệu mới (title)
 │   ├── editor/
 │   │   ├── nd30-document.tsx    # Soạn thảo A4 NĐ30 (toàn bộ thể thức)
-│   │   ├── document-editor.tsx  # Wrapper: autosave, preview, PDF export, nút Trợ lý AI
-│   │   ├── ChatPanel.tsx        # Chat AI panel cố định bên phải 380px, SSE streaming
+│   │   ├── document-editor.tsx  # Wrapper 3 cột: autosave, preview, PDF export, welcome state
+│   │   ├── SourcesPanel.tsx     # Cột trái: upload tài liệu tham chiếu, badge chunk_count, guard docId
+│   │   ├── SourcePickerModal.tsx # Modal chọn từ kho: badge "Đã lập chỉ mục", disable chưa xử lý
+│   │   ├── RightPanel.tsx       # Cột phải: tabs Tools (ToolCard) + Chat AI (SSE streaming)
+│   │   ├── ResizeHandle.tsx     # Drag-to-resize handle cho cột trái/phải
 │   │   ├── DocumentPreview.tsx  # Preview read-only A4 NĐ30
-│   │   ├── DocumentPreviewPaged.tsx # Preview có nút xuất PDF
+│   │   ├── DocumentPreviewPaged.tsx # Preview có nút xuất PDF/DOCX
 │   │   ├── editor-toolbar.tsx   # TipTap toolbar (bold, italic, align...)
 │   │   ├── nd30-field.tsx       # Inline editable field theo chuẩn NĐ30
 │   │   └── recipient-tag-input.tsx  # Tag input cho Nơi nhận
 │   ├── reference-docs/
-│   │   ├── ref-doc-table.tsx    # Bảng danh sách văn bản tham chiếu
+│   │   ├── ref-doc-table.tsx    # Bảng danh sách: badge "✓ Đã lập chỉ mục" / "⚠ Chưa lập chỉ mục"
 │   │   ├── upload-modal.tsx     # Dialog thêm/sửa + upload file
+│   │   ├── RefDocBatchUploadModal.tsx # Batch upload nhiều file, polling job status
 │   │   └── MetadataReviewCard.tsx  # Dialog polling + review metadata từ LLM
 │   └── ui/                      # shadcn/ui components (Button, Input, Dialog...)
 ├── lib/
@@ -415,14 +425,19 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 | Method | Path | Mô tả | Request | Response |
 |--------|------|-------|---------|----------|
-| GET | `/documents/` | Danh sách văn bản của user | `?skip=0&limit=20` | `DocumentResponse[]` |
+| GET | `/documents/` | Danh sách văn bản của user | `?skip=0&limit=20&source=editor\|upload` | `DocumentResponse[]` |
 | POST | `/documents/` | Tạo văn bản mới | `{title, content?, loai_vb?, so_van_ban?, nam?}` | `DocumentResponse` (201) |
+| GET | `/documents/stats` | Thống kê văn bản | — | `{total, editor_count, upload_count, by_type, recent_7_days}` |
 | GET | `/documents/next-number` | Lấy số thứ tự tiếp theo | `?loai=QĐ` | `{so, nam, loai}` |
+| POST | `/documents/generate` | Gọi LLM soạn thảo từ mô tả + RAG context | `{document_id, loai_van_ban, yeu_cau, source_ids[]}` | `{status, document_id, content}` |
 | GET | `/documents/{id}` | Lấy chi tiết văn bản | — | `DocumentResponse` |
 | PATCH | `/documents/{id}` | Cập nhật văn bản | `DocumentUpdate` (partial) | `DocumentResponse` |
 | DELETE | `/documents/{id}` | Xóa văn bản | — | 204 No Content |
 | POST | `/documents/{id}/export/pdf` | Xuất PDF (xhtml2pdf) | — | PDF binary (`application/pdf`) |
+| POST | `/documents/{id}/export/docx` | Xuất DOCX (python-docx NĐ30 Times New Roman) | — | DOCX binary |
 | POST | `/documents/{id}/upload` | Upload file đính kèm | `multipart: file` | `DocumentResponse` |
+| POST | `/documents/upload-batch` | Batch upload nhiều file (BackgroundTask + Redis tracking) | `multipart: files[]` | `{jobs: [{job_id, filename}]}` (202) |
+| GET | `/documents/status/{job_id}` | Poll trạng thái xử lý upload | — | `{job_id, status, filename, error}` |
 
 ### Organizations (`/organizations`)
 
@@ -441,7 +456,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 | Method | Path | Mô tả | Request | Response |
 |--------|------|-------|---------|----------|
-| GET | `/reference-docs/` | Danh sách văn bản tham chiếu | `?skip, limit, loai, hieu_luc, q` | `RefDocListResponse {items[], total, skip, limit}` |
+| GET | `/reference-docs/` | Danh sách văn bản tham chiếu | `?skip, limit, loai, hieu_luc, q, visibility, sort, order` | `RefDocListResponse {items[], total, skip, limit}` — mỗi item có thêm `chunk_count: int` (0 = chưa index) |
 | GET | `/reference-docs/search` | Semantic search (document-level) | `?q=text&limit=5` | `RefDocSearchResponse {items[], query}` — có field `score` |
 | GET | `/reference-docs/search/chunks` | Semantic search (chunk-level) | `?q=text&limit=5` | `RefDocChunkSearchResponse {items[], query}` |
 | GET | `/reference-docs/search/fulltext` | Full-text search tiếng Việt | `?q=text&limit=10` | `RefDocFTSResponse {items[], query}` — có field `rank` |
@@ -523,14 +538,23 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 **Luồng xử lý:**
 1. Lấy record `ReferenceDocument` từ DB theo `doc_id`
-2. Download file bytes từ MinIO bucket `reference-docs` (chạy trong thread)
-3. Trích xuất text: PDF → `pdfplumber`, DOCX → `python-docx`, khác → UTF-8 decode
+2. Download file bytes từ MinIO/R2 bucket (chạy trong thread)
+3. Trích xuất text (viết bytes ra temp file để OCR):
+   - PDF: `pdfplumber` → nếu < 50 ký tự → **OCR fallback** (`pdf2image` convert_from_path dpi=300 → `pytesseract` lang `vie`, fallback `eng`) → `_post_process_ocr()` normalize khoảng trắng
+   - DOCX: `python-docx` Document() → paragraphs
+   - Khác: UTF-8 decode
+   - Windows: `tesseract_cmd` tự động set về `C:\Program Files\Tesseract-OCR\tesseract.exe`
 4. Chunk bằng `chunk_document()` với metadata `{so_ki_hieu, co_quan_ban_hanh}`
 5. Embed tất cả chunks theo batch (batch_size=8)
 6. Xóa các chunk cũ trong DB (idempotent)
 7. Bulk insert `ReferenceDocChunk` rows với embedding
 8. Lưu embedding của chunk đầu tiên lên `reference_documents.embedding` (document-level search)
 9. Commit DB
+
+**Hàm OCR:**
+- `_is_scanned_pdf(text)`: `len(text.strip()) < 50`
+- `_ocr_pdf(file_path)`: convert PDF → PIL images → pytesseract → `_post_process_ocr()`
+- `_post_process_ocr(text)`: strip blank lines, deduplicate newlines
 
 **Ghi chú:** Tạo DB session riêng — không dùng request session. Toàn bộ I/O blocking chạy qua `asyncio.to_thread()`.
 
@@ -728,7 +752,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 1. Lấy ReferenceDocument record từ DB
 2. Download file bytes từ MinIO (trong thread)
 3. Trích xuất text:
-   - PDF: pdfplumber.open() → page.extract_text() cho từng trang
+   - PDF: pdfplumber.open() → page.extract_text() → nếu < 50 ký tự: OCR fallback (pdf2image → pytesseract lang vie/eng)
    - DOCX: python-docx Document() → [p.text for p in doc.paragraphs]
    - Khác: data.decode("utf-8")
 4. chunk_document(text, {so_ki_hieu, co_quan_ban_hanh}):
@@ -1115,6 +1139,15 @@ R2 tương thích S3 API → dùng boto3 thay MinIO client. Không cần Docker 
 **26. SSL config cho asyncpg remote connection**
 asyncpg không đọc `?ssl=require` hay `?sslmode=require` trong connection string — phải dùng `connect_args={"ssl": ssl_context}`. Để bypass self-signed cert của Supabase pooler: `ssl_context.check_hostname = False` + `ssl_context.verify_mode = ssl.CERT_NONE`. Không dùng `ssl="require"` string — cần object `ssl.SSLContext` thực sự.
 
+**27. Stable array reference tránh React infinite loop (Tuần 14+)**
+`useQuery` trả về `data = undefined` khi query bị disabled → destructuring `const { data: sources = [] }` tạo `[]` mới mỗi render → `useEffect([sources, ...])` thấy deps thay đổi mỗi render → `setSourceIds([])` → re-render → lặp vô tận → React error #185. **Fix 2 lớp:** (1) `const EMPTY_SOURCES: RefDoc[] = []` ở module level làm default ổn định; (2) `handleSourcesChange` trong `DocumentEditor` dedup bằng `prev.every((id, i) => id === ids[i])` — skip setState nếu values giống nhau dù reference khác.
+
+**28. chunk_count batch query thay N+1 (Tuần 14+)**
+`list_ref_docs` trả về danh sách docs; mỗi doc cần biết có bao nhiêu chunk đã embed. Tránh N+1 bằng: lấy danh sách `doc_ids` → một query `SELECT document_id, COUNT(*) FROM reference_doc_chunks WHERE document_id IN (...) GROUP BY document_id` → build `chunk_map: {id: count}` → assign trong list comprehension. Không dùng correlated subquery vì query builder khó thêm column sau khi đã build WHERE chain.
+
+**29. SourcePickerModal guard + catch (Tuần 14+)**
+`handleAdd` trong `SourcePickerModal` trước đây không có `catch` block — nếu `documentSourcesApi.add()` reject (ví dụ docId không hợp lệ hoặc network lỗi), promise unhandled propagate lên React 18 error boundary → "Application error: a client-side exception". **Fix:** thêm guard `if (!documentId || documentId === "new-doc") return` + `catch(e) { console.error(...) }` để lỗi không leo lên boundary. Tương tự, `handleStartUpload` trong `SourcesPanel` thêm guard `if (isNewDoc) { toast(...); return }` làm defense in depth.
+
 ### Known Issues và Workarounds
 
 **Issue 1: xhtml2pdf font loader lỗi trên Windows**
@@ -1124,7 +1157,8 @@ xhtml2pdf ghi font tạm ra file `C:\Users\ADMINI~1\AppData\...` (8.3 path), Rep
 Backend cần file `DejaVuSerif.ttf`, `DejaVuSerif-Bold.ttf`, `DejaVuSerif-Italic.ttf`, `DejaVuSerif-BoldItalic.ttf` trong `backend/app/static/fonts/`. Nếu thiếu, PDF sẽ fallback về "Times New Roman" (không render được ký tự tiếng Việt đầy đủ trên một số hệ thống). Dùng `backend/scripts/download_fonts.py` để download.
 
 **Issue 3: PDF scan không có text**
-`pdfplumber` chỉ trích xuất text từ PDF có layer text (text-based PDF). PDF scan (ảnh chụp) sẽ trả về chuỗi rỗng. Pipeline sẽ log warning và bỏ qua embedding.
+Status: ✅ Fixed (Tuần 14+)
+`pdfplumber` chỉ trích xuất text từ PDF có layer text. PDF scan (ảnh chụp) trả về chuỗi rỗng. **Fix:** `_is_scanned_pdf()` kiểm tra < 50 ký tự → `_ocr_pdf()` dùng `pdf2image` + `pytesseract` (lang `vie`, fallback `eng`). Dockerfile thêm `tesseract-ocr`, `tesseract-ocr-vie`, `poppler-utils`. Windows dev: set `tesseract_cmd` về `C:\Program Files\Tesseract-OCR\tesseract.exe` khi `sys.platform == "win32"`.
 
 **Issue 4: Quốc hiệu bị tràn cột**
 `Nd30Document` dùng JavaScript để auto-shrink font-size của quốc hiệu (12pt → 9pt) khi text tràn ra ngoài cột 55%. Điều này không hoạt động trong SSR.
@@ -1142,7 +1176,8 @@ Model Qwen2.5-3B-Instruct thiếu khả năng suy luận đủ mạnh để trí
 Mỗi lần restart Google Colab → Cloudflare Tunnel tạo URL mới (`https://xxx.trycloudflare.com`). LLM service sẽ trả `error` cho đến khi URL được cập nhật. **Workaround:** Sau mỗi lần restart Colab, gọi `PATCH /api/v1/llm/config {"llm_base_url": "https://new-url.trycloudflare.com"}` qua Swagger UI (`http://localhost:8000/docs`). Xác nhận bằng `GET /api/v1/rag/health` → `llm: "ok"`. **Fix tuần 13+:** Dùng Cloudflare Named Tunnel (domain cố định) hoặc ngrok với domain cố định.
 
 **Issue 9: Encoding font VNI trong PDF cũ làm RAG trả về ký tự ?**
-Một số PDF hành chính dùng font VNI/TCVN (không phải Unicode). `pdfplumber` trả về ký tự `?` thay vì chữ có dấu tiếng Việt. Chunk embedding vẫn hoạt động (bge-m3 robust với nhiễu), nhưng `content_preview` trong citation cards và câu trả lời LLM chứa `?` thay vì ký tự Việt đúng. **Workaround:** Upload PDF chuẩn Unicode (xuất từ Word, font Times New Roman). **Fix:** Thêm OCR fallback (tesseract-ocr tiếng Việt hoặc pymupdf) tuần sau.
+Status: 🟡 Partially fixed
+PDF scan (ảnh chụp): ✅ fixed bởi OCR fallback (tesseract-ocr-vie). PDF dùng font VNI/TCVN embedded (text PDF nhưng không phải Unicode): vẫn trả `?` vì `pdfplumber` decode sai font mapping — OCR không được trigger (text tồn tại, chỉ sai encoding). **Workaround:** Upload PDF xuất từ Word chuẩn Unicode. **Fix đầy đủ:** pymupdf (fitz) với font substitution hoặc VNI→Unicode mapping table.
 
 **Issue 10: CrossEncoder reranker chậm khi load lần đầu**
 `cross-encoder/ms-marco-MiniLM-L-6-v2` được lazy-load khi request RAG đầu tiên (~5-10 giây download model ~70MB). Các request sau nhanh (<200ms). **Workaround:** Gọi `GET /api/v1/rag/health` sau khi khởi động server để trigger lazy-load. **Fix:** Eager-load reranker trong lifespan() tương tự embedding model.
