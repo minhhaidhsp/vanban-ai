@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,7 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 # Global flag — set True only after both models are fully loaded.
+# Also set True immediately when SKIP_MODEL_LOADING=true so /ready returns 200.
 _models_ready: bool = False
 
 
@@ -42,6 +44,12 @@ def _do_load_all_models() -> None:
 
 async def _load_models() -> None:
     global _models_ready
+
+    if os.getenv("SKIP_MODEL_LOADING", "").lower() == "true":
+        logger.info("[startup] SKIP_MODEL_LOADING=true — skipping model loading")
+        _models_ready = True
+        return
+
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _do_load_all_models)
     _models_ready = True
