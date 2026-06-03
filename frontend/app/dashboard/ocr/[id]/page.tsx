@@ -88,11 +88,20 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
   }, [rawData?.id, rawData?.status]);
 
   const handleExport = async (format: "docx" | "pdf") => {
-    if (!rawData?.text) return;
+    if (!rawData) return;
+    if (rawData.file_type !== "text_pdf" && !rawData.text) return;
     setIsExporting(format);
     try {
-      const textToExport = rawData.formatted_text || rawData.text;
-      const res = await ocrApi.export(textToExport, rawData.filename, format);
+      let res;
+      if (rawData.file_type === "text_pdf") {
+        // Use pdf2docx for true layout-preserving DOCX; download original for PDF
+        res = format === "docx"
+          ? await ocrApi.exportDocx(rawData.id)
+          : await ocrApi.download(rawData.id);
+      } else {
+        const textToExport = rawData.formatted_text || rawData.text || "";
+        res = await ocrApi.export(textToExport, rawData.filename, format);
+      }
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -228,16 +237,42 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
           {/* Xuất / Tải file */}
           <div>
             <p className="text-xs text-muted-foreground uppercase mb-2">
-              {isTextPdf ? "Tải về" : "Xuất file"}
+              {isTextPdf ? "Tải về / Xuất" : "Xuất file"}
             </p>
             {isTextPdf ? (
-              <Button
-                className="w-full justify-start gap-2"
-                onClick={handleDownloadOriginal}
-              >
-                <Download className="h-4 w-4" />
-                Tải file gốc
-              </Button>
+              <div className="flex w-full">
+                <Button
+                  className="flex-1 rounded-r-none justify-start gap-2"
+                  onClick={handleDownloadOriginal}
+                  disabled={isExporting !== null}
+                >
+                  <Download className="h-4 w-4" />
+                  Tải file gốc
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="rounded-l-none border-l-0 px-2"
+                      disabled={isExporting !== null}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleDownloadOriginal}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Tải file gốc (.pdf)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("docx")}>
+                      Tải Word (.docx)
+                      {isExporting === "docx" && (
+                        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                      )}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ) : (
               <div className="flex w-full">
                 <Button

@@ -19,7 +19,7 @@ from urllib.parse import quote
 
 from fastapi import (
     APIRouter, BackgroundTasks, Body, Depends,
-    File, HTTPException, Response, UploadFile, status,
+    File, HTTPException, Query, Response, UploadFile, status,
 )
 from sqlalchemy import func as sql_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -644,19 +644,36 @@ async def ocr_export(
 async def list_ocr_jobs(
     skip: int = 0,
     limit: int = 20,
+    status_filter: str | None = Query(None, alias="status"),
+    file_type: str | None = Query(None),
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List OCR jobs for the current user, newest first."""
+    """List OCR jobs for the current user with optional filter and sort."""
     base = select(OcrJob).where(OcrJob.user_id == str(current_user.id))
+
+    if status_filter:
+        base = base.where(OcrJob.status == status_filter)
+    if file_type:
+        base = base.where(OcrJob.file_type == file_type)
 
     total_result = await db.execute(
         select(sql_func.count()).select_from(base.subquery())
     )
     total = total_result.scalar() or 0
 
+    _sort_cols = {
+        "created_at": OcrJob.created_at,
+        "filename":   OcrJob.filename,
+        "page_count": OcrJob.page_count,
+    }
+    sort_col = _sort_cols.get(sort_by, OcrJob.created_at)
+    sort_expr = sort_col.asc() if sort_order == "asc" else sort_col.desc()
+
     items_result = await db.execute(
-        base.order_by(OcrJob.created_at.desc()).offset(skip).limit(limit)
+        base.order_by(sort_expr).offset(skip).limit(limit)
     )
     items = items_result.scalars().all()
 
@@ -708,6 +725,83 @@ async def get_ocr_progress(
         "total_pages": total,
         "percent": percent,
     }
+
+
+# ── GET /{job_id}/export/docx ────────────────────────────────────────────────
+
+@router.get("/{job_id}/export/docx")
+async def export_ocr_as_docx(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Convert file gốc PDF sang DOCX dùng pdf2docx."""
+    result = await db.execute(
+        select(OcrJob).where(
+            OcrJob.id == job_id,
+            OcrJob.user_id == str(current_user.id),
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    if job.file_type != "text_pdf" or not job.file_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chỉ hỗ trợ xuất Word cho PDF văn bản",
+        )
+
+    # Download PDF gốc từ R2
+    pdf_bytes = await asyncio.to_thread(download_file, job.file_path, _OCR_BUCKET)
+
+    # Convert PDF → DOCX (blocking I/O — chạy trong thread)
+    def convert(pdf_data: bytes) -> bytes:
+        import os
+        import tempfile
+        from pdf2docx import Converter
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_tmp:
+            pdf_tmp.write(pdf_data)
+            pdf_path = pdf_tmp.name
+
+        docx_path = pdf_path.replace(".pdf", ".docx")
+        try:
+            cv = Converter(pdf_path)
+            cv.convert(docx_path, start=0, end=None)
+            cv.close()
+            with open(docx_path, "rb") as f:
+                return f.read()
+        finally:
+            if os.path.exists(pdf_path):
+                os.unlink(pdf_path)
+            if os.path.exists(docx_path):
+                os.unlink(docx_path)
+
+    try:
+        docx_bytes = await asyncio.to_thread(convert, pdf_bytes)
+    except Exception as exc:
+        logger.error("[export_docx] job %s convert failed: %s", job_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Không thể convert PDF sang Word",
+        )
+
+    safe_name = re.sub(r"[^\w\-.]", "_", job.filename.rsplit(".", 1)[0])
+    encoded = quote(f"{safe_name}.docx", safe="")
+    return Response(
+        content=docx_bytes,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument"
+            ".wordprocessingml.document"
+        ),
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"{safe_name}.docx\"; "
+                f"filename*=UTF-8''{encoded}"
+            )
+        },
+    )
 
 
 # ── GET /{job_id}/download ────────────────────────────────────────────────────

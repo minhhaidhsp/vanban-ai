@@ -233,7 +233,14 @@ export const ocrApi = {
       { responseType: "blob" },
     ),
 
-  getJobs: (params?: { skip?: number; limit?: number }) =>
+  getJobs: (params?: {
+    skip?: number
+    limit?: number
+    status?: string
+    file_type?: string
+    sort_by?: string
+    sort_order?: string
+  }) =>
     api.get("/ocr/jobs", { params }),
 
   getJob: (jobId: string) =>
@@ -244,6 +251,9 @@ export const ocrApi = {
 
   download: (jobId: string) =>
     api.get(`/ocr/${jobId}/download`, { responseType: "blob" }),
+
+  exportDocx: (jobId: string) =>
+    api.get(`/ocr/${jobId}/export/docx`, { responseType: "blob" }),
 };
 
 export interface ChunkUsed {

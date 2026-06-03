@@ -46,3 +46,6 @@ xhtml2pdf>=0.2.0
 # OCR — scanned PDF support
 pdf2image>=1.16.0
 pytesseract>=0.3.10
+
+# PDF → DOCX conversion
+pdf2docx>=0.5.6
