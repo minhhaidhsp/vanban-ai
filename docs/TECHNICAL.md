@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-03
-> Phiên bản: Tuần 14+ (Hot-fixes & Features)
+> Phiên bản: Tuần 14+ (OCR Viewer feature complete)
 
 ---
 
@@ -48,6 +48,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | OCR fallback cho scanned PDF: `pdf2image` + `pytesseract` (lang `vie`, fallback `eng`); `_is_scanned_pdf()` kiểm tra < 50 ký tự; auto-detect path tesseract trên Windows (`C:\Program Files\Tesseract-OCR\tesseract.exe`); Dockerfile thêm `tesseract-ocr`, `tesseract-ocr-vie`, `poppler-utils` |
 | 14+ | chunk_count indicator: badge "✓ Đã lập chỉ mục" (xanh) / "⚠ Chưa lập chỉ mục" (đỏ) trong `ref-doc-table` và `SourcePickerModal`; batch-count chunks trong `list_ref_docs` (1 query thêm, không N+1); disable doc chưa index trong SourcePickerModal + tooltip |
 | 14+ | Generate system prompt v2: thêm section `== THỂ THỨC TRÌNH BÀY ==` với font Times New Roman 13-14pt và thông số lề NĐ30 (trên/dưới 20-25mm, trái 30-35mm, phải 15-20mm) |
+| 14+ | **OCR Viewer** (tính năng hoàn chỉnh): Menu "OCR Văn bản" trong sidebar → `/dashboard/ocr` danh sách văn bản đã index + nút "OCR PDF mới" → `/dashboard/ocr/[id]` viewer 2 cột với export DOCX/PDF; Backend: `POST /ocr/extract` async job (OcrJob DB + Redis file cache base64) + `POST /ocr/export` stateless + GET jobs/status/detail; Migration 0012 `ocr_jobs` table; `ocrApi` trong lib/api.ts |
 
 ### Tech stack thực tế
 
@@ -169,6 +170,9 @@ frontend/
 │   │   │   └── [id]/page.tsx    # Chỉnh sửa văn bản → DocumentEditor
 │   │   ├── reference-docs/
 │   │   │   └── page.tsx         # Kho văn bản tham chiếu (filter, phân trang)
+│   │   ├── ocr/
+│   │   │   ├── page.tsx         # Danh sách VB đã index + Dialog "OCR PDF mới" (drag-drop, async job polling)
+│   │   │   └── [id]/page.tsx    # Viewer 2 cột: nội dung chunk + Tools panel (export DOCX/PDF, in, copy link)
 │   │   └── rag-search/
 │   │       └── page.tsx         # Tra cứu AI: search bar, ConfidenceMeter, disclaimer/fallback banners, CopyButton, citation cards
 │   ├── print/
@@ -204,7 +208,7 @@ frontend/
 │   │   └── MetadataReviewCard.tsx  # Dialog polling + review metadata từ LLM
 │   └── ui/                      # shadcn/ui components (Button, Input, Dialog...)
 ├── lib/
-│   ├── api.ts                   # Axios client + authApi, documentApi, refDocApi, chatApi (SSE)
+│   ├── api.ts                   # Axios client + authApi, documentApi, refDocApi, ocrApi, chatApi (SSE)
 │   ├── nd30.ts                  # Hằng số NĐ30, kiểu Nd30Data, helper functions
 │   └── utils.ts                 # cn() utility (clsx + tailwind-merge)
 └── hooks/
@@ -229,7 +233,8 @@ backend/
 │   │           ├── documents.py # CRUD documents + export/pdf + upload
 │   │           ├── organizations.py  # GET /current
 │   │           ├── recipient_suggestions.py  # GET /  POST /increment
-│   │           ├── reference_docs.py  # CRUD + upload + 3 search + metadata endpoints
+│   │           ├── reference_docs.py  # CRUD + upload + 3 search + metadata + /content + /export
+│   │           ├── ocr.py             # POST /extract (async job) + /export (stateless) + GET /jobs /status/{id} /{id}
 │   │           ├── llm.py             # GET /health, POST /test, PATCH /config
 │   │           ├── rag.py             # GET /health, POST /query, POST /query/stream, POST /chat/stream, GET+DELETE /chat/history
 │   │           └── constants.py # GET /nd30 (hằng số NĐ30)
@@ -245,11 +250,13 @@ backend/
 │   │   ├── organization.py      # Organization ORM model
 │   │   ├── reference_document.py  # ReferenceDocument (Vector(1024) + TSVECTOR)
 │   │   ├── reference_doc_chunk.py # ReferenceDocChunk (Vector(1024))
+│   │   ├── ocr_job.py           # OcrJob — async OCR job tracking (status, text, page_count, char_count)
 │   │   └── recipient_suggestion.py # RecipientSuggestion
 │   ├── schemas/
 │   │   ├── user.py              # UserCreate, UserResponse, Token
 │   │   ├── document.py          # DocumentCreate/Update/Response
-│   │   └── reference_document.py  # RefDocCreate/Update/Response + search schemas
+│   │   ├── reference_document.py  # RefDocCreate/Update/Response + search + ChunkItem + RefDocContentResponse
+│   │   └── ocr_job.py           # OcrJobResponse, OcrJobStatusResponse, OcrJobListResponse
 │   ├── services/
 │   │   ├── embedding_service.py # BAAI/bge-m3 singleton, embed_text(), embed_batch()
 │   │   ├── chunking_service.py  # chunk_document() — Điều/Khoản/Mục + sliding window
@@ -270,7 +277,9 @@ backend/
 │       ├── 0003_reference_docs.py  # reference_documents table
 │       ├── 0004_ref_doc_embedding.py  # embedding column + ivfflat index
 │       ├── 0005_ref_doc_chunks.py   # reference_doc_chunks table
-│       └── 0006_fts.py          # search_vector column + trigger + GIN index
+│       ├── 0006_fts.py          # search_vector column + trigger + GIN index
+│       ├── ...                  # 0007–0011: source, visibility, document_sources
+│       └── 0012_ocr_jobs.py     # ocr_jobs table + 3 indexes
 └── requirements.txt
 ```
 
@@ -383,11 +392,32 @@ backend/
 
 **Index:** `ix_ref_doc_chunks_document_id`; IVFFlat cosine index `ix_ref_doc_chunks_embedding`, lists=100.
 
+### Bảng `ocr_jobs`
+
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| `id` | VARCHAR(36) PK | UUID v4 |
+| `user_id` | VARCHAR(36) | Soft reference → users.id (không FK, tránh cascade) (indexed) |
+| `filename` | VARCHAR(500) | Tên file gốc được OCR |
+| `status` | VARCHAR(20) | `"pending"` / `"processing"` / `"done"` / `"error"` (indexed) |
+| `text` | TEXT | Kết quả OCR — null khi chưa xong |
+| `page_count` | INTEGER | Số trang — null khi chưa xong |
+| `char_count` | INTEGER | Số ký tự kết quả — null khi chưa xong |
+| `error_msg` | TEXT | Thông báo lỗi nếu status=error |
+| `created_at` | TIMESTAMPTZ | (indexed) |
+| `updated_at` | TIMESTAMPTZ | Auto-update khi row thay đổi |
+
+**Index:** `ix_ocr_jobs_user_id`, `ix_ocr_jobs_status`, `ix_ocr_jobs_created_at`.
+
+**Luồng trạng thái:** `pending` → `processing` → `done` | `error`.
+File bytes được cache trong Redis `ocr_file:{job_id}` dưới dạng base64 (TTL 1h). Redis client dùng `decode_responses=True` nên không lưu bytes trực tiếp được.
+
 ### Quan hệ giữa các bảng
 
 ```
-users (1) ──< documents (N)           [owner_id → users.id]
-users (1) ──< reference_documents (N) [created_by → users.id]
+users (1) ──< documents (N)             [owner_id → users.id]
+users (1) ──< reference_documents (N)   [created_by → users.id]
+users (1) ──  ocr_jobs (N)              [user_id — soft ref, no FK]
 reference_documents (1) ──< reference_doc_chunks (N) [document_id → reference_documents.id]
 ```
 
@@ -401,6 +431,12 @@ reference_documents (1) ──< reference_doc_chunks (N) [document_id → refere
 | `0004` | Thêm cột `embedding vector(1024)` + IVFFlat index cho `reference_documents` |
 | `0005` | Tạo bảng `reference_doc_chunks` + IVFFlat index cho embedding chunk |
 | `0006` | Extension `unaccent` + `pg_trgm`; thêm cột `search_vector tsvector`; tạo GIN index; tạo trigger `update_search_vector` |
+| `0007` | Thêm `source` field vào documents ('editor'\|'upload') |
+| `0008` | Fix embedding dimension 1536→1024 |
+| `0009` | Tách source field documents |
+| `0010` | Thêm `visibility` vào reference_documents (private/org/system) |
+| `0011` | Tạo bảng `document_sources` (junction: documents ↔ reference_documents) |
+| `0012` | Tạo bảng `ocr_jobs` + 3 index (user_id, status, created_at) |
 
 ---
 
@@ -468,6 +504,32 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | POST | `/reference-docs/{id}/upload` | Upload file + trigger embedding pipeline | `multipart: file` | `RefDocResponse` |
 | GET | `/reference-docs/{id}/metadata-preview` | Đọc Redis cache metadata từ LLM | — | `{doc_id, status: "ready"\|"processing"\|"not_available", fields, confidence}` |
 | POST | `/reference-docs/{id}/metadata-confirm` | Xác nhận metadata, UPDATE DB, xóa Redis key | `MetadataConfirmRequest` | `RefDocResponse` |
+| GET | `/reference-docs/{id}/content` | Lấy toàn bộ chunks theo chunk_index (cho OCR viewer) | — | `RefDocContentResponse {id, title, so_ki_hieu, chunks[]}` |
+| GET | `/reference-docs/{id}/export` | Xuất DOCX hoặc PDF từ chunks | `?format=docx\|pdf` | Binary file (RFC 5987 filename) |
+| POST | `/reference-docs/upload-batch` | Batch upload + AI metadata extraction | `multipart: files[], visibility` | `{jobs[]}` (202) |
+| GET | `/reference-docs/status/{job_id}` | Poll trạng thái job | — | `{job_id, status, filename, doc_id, error}` |
+
+### OCR (`/ocr`)
+
+| Method | Path | Mô tả | Request | Response |
+|--------|------|-------|---------|----------|
+| POST | `/ocr/extract` | Upload file → tạo OcrJob, chạy OCR nền; trả về ngay (202) | `multipart: file (PDF/JPG/PNG ≤20MB)` | `OcrJobResponse` (status=pending) |
+| POST | `/ocr/export` | Chuyển text → DOCX hoặc PDF (stateless, không lưu DB) | `{text, filename, format: "docx"\|"pdf"}` | Binary file |
+| GET | `/ocr/jobs` | Danh sách OCR jobs của user | `?skip&limit` | `OcrJobListResponse {items[], total}` |
+| GET | `/ocr/status/{job_id}` | Poll trạng thái nhẹ (không có text payload) | — | `OcrJobStatusResponse` |
+| GET | `/ocr/{job_id}` | Chi tiết đầy đủ kể cả text kết quả | — | `OcrJobResponse` |
+
+**Luồng `POST /ocr/extract`:**
+```
+validate → create OcrJob(pending) in DB → base64(bytes) → Redis[TTL 1h]
+→ add_task(_process_ocr_job) → return 202
+
+_process_ocr_job (3 phases, separate AsyncSessionLocal):
+  Phase 1: mark "processing"
+  Phase 2: decode base64 from Redis → PDF: _extract_pdf(bytes) + pdfplumber count
+           image: PIL + pytesseract(vie→eng fallback) → cleanup Redis key
+  Phase 3: persist done/error result
+```
 
 ### LLM (`/llm`)
 
@@ -1147,6 +1209,15 @@ asyncpg không đọc `?ssl=require` hay `?sslmode=require` trong connection str
 
 **29. SourcePickerModal guard + catch (Tuần 14+)**
 `handleAdd` trong `SourcePickerModal` trước đây không có `catch` block — nếu `documentSourcesApi.add()` reject (ví dụ docId không hợp lệ hoặc network lỗi), promise unhandled propagate lên React 18 error boundary → "Application error: a client-side exception". **Fix:** thêm guard `if (!documentId || documentId === "new-doc") return` + `catch(e) { console.error(...) }` để lỗi không leo lên boundary. Tương tự, `handleStartUpload` trong `SourcesPanel` thêm guard `if (isNewDoc) { toast(...); return }` làm defense in depth.
+
+**30. base64 cho binary trong Redis (Tuần 14+)**
+Redis client (`redis.asyncio`) được khởi tạo với `decode_responses=True` — mọi giá trị lưu/đọc đều là `str`, không phải `bytes`. Khi OCR endpoint cần cache file bytes tạm trong Redis: `base64.b64encode(content).decode()` khi set, `base64.b64decode(raw)` khi get (`b64decode` chấp nhận `str` trực tiếp). Kích thước tối đa 20MB → base64 ~27MB, vẫn nằm trong Redis memory limit thông thường. TTL 1h đủ cho background task hoàn thành; cleanup ngay sau OCR xong.
+
+**31. OCR async job — 3-phase DB session (Tuần 14+)**
+Background task `_process_ocr_job` dùng 3 `AsyncSessionLocal` riêng biệt thay vì 1 session xuyên suốt: Phase 1 (mark processing), Phase 2 (OCR work, không cần DB), Phase 3 (persist result). Lý do: nếu Phase 2 ném exception và session đang ở trạng thái error/rollback, Phase 3 vẫn cần một session sạch để ghi error_msg vào DB. Pattern tương tự `pipeline_service.py` — background task luôn tạo session riêng, không dùng request session.
+
+**32. Content-Disposition RFC 5987 cho Vietnamese filename (Tuần 14+)**
+Starlette encode header values bằng latin-1. Tên file tiếng Việt (ví dụ "Đề án...") chứa ký tự ngoài latin-1 range → `UnicodeEncodeError` khi tạo Response. **Fix:** dual-filename pattern `filename="vanban.docx"; filename*=UTF-8''<percent-encoded>` — ASCII fallback cho client cũ, RFC 5987 URI-encoded cho browser hiện đại. Dùng `urllib.parse.quote(filename, safe="")` để encode. Áp dụng cho tất cả endpoint export (reference_docs + ocr).
 
 ### Known Issues và Workarounds
 
