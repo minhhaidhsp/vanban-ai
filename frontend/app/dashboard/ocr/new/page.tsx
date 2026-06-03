@@ -52,6 +52,7 @@ export default function OcrNewPage() {
   const [result, setResult]       = useState<OcrResult | null>(null);
   const [errorMsg, setErrorMsg]   = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<"docx" | "pdf" | null>(null);
+  const [exportFormat, setExportFormat] = useState<"docx" | "pdf">("docx");
   const [dragOver, setDragOver]   = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -290,13 +291,17 @@ export default function OcrNewPage() {
           <div className="flex w-full">
             <Button
               className="flex-1 rounded-r-none"
-              onClick={() => handleExport("docx")}
+              onClick={() => handleExport(exportFormat)}
               disabled={isExporting !== null}
             >
-              {isExporting === "docx"
+              {isExporting === exportFormat
                 ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                : <Download className="w-4 h-4 mr-2" />}
-              {isExporting === "docx" ? "Đang xuất..." : "Tải Word"}
+                : exportFormat === "docx"
+                  ? <Download className="w-4 h-4 mr-2" />
+                  : <FileText className="w-4 h-4 mr-2" />}
+              {isExporting === exportFormat
+                ? "Đang xuất..."
+                : exportFormat === "docx" ? "Tải Word" : "Tải PDF"}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -309,11 +314,11 @@ export default function OcrNewPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExport("docx")}>
+                <DropdownMenuItem onClick={() => { setExportFormat("docx"); handleExport("docx"); }}>
                   <Download className="w-4 h-4 mr-2" />
                   Tải Word (.docx)
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                <DropdownMenuItem onClick={() => { setExportFormat("pdf"); handleExport("pdf"); }}>
                   <FileText className="w-4 h-4 mr-2" />
                   Tải PDF
                   {isExporting === "pdf" && (
