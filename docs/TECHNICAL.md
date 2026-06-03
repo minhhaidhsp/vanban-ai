@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-03
-> Phiên bản: Tuần 14+ (OCR Viewer + auto-migration on deploy)
+> Phiên bản: Tuần 14+ (OCR LLM formatting + export polish)
 
 ---
 
@@ -53,6 +53,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | `/dashboard/ocr/new`: trang upload 2 cột (control trái / kết quả phải); `handleStartOcr` upload → nhận jobId → poll `/ocr/{id}` mỗi 2s; `statusRef` tránh stale closure; `pollRef`/`timeoutRef` cleanup khi unmount; skeleton animation khi processing; timeout 5 phút |
 | 14+ | `/dashboard/ocr/[id]` rewrite: đọc từ `ocrApi.getJob` thay `refDocApi.getContent`; guard `status !== "done"` → badge + "Kết quả chưa sẵn sàng"; textarea nội dung + stats page_count/char_count/created_at |
 | 14+ | Deploy fix: `alembic upgrade head &&` trước `uvicorn` trong `railway.toml` `startCommand` + `nixpacks.toml` `[start] cmd` — đảm bảo migration 0012 được apply tự động khi Railway deploy |
+| 14+ | **OCR LLM formatting** (migration 0013): thêm cột `formatted_text` vào `ocr_jobs`; `_format_ocr_text()` gọi Groq llama-3.3-70b tái cấu trúc text OCR thô → văn bản có định dạng đẹp (paragraph, tiêu đề, danh sách); `_basic_format()` fallback khi LLM offline; frontend hiển thị `formatted_text \|\| text` trong textarea |
+| 14+ | **OCR export fix**: `POST /ocr/export` tách text thành paragraph (`split("\n\n")`) trước khi tạo file; DOCX: Times New Roman 13pt per paragraph; PDF: `<p>` tags thay `<pre>` + `\n→<br/>`; split button Word (primary) + ChevronDown dropdown PDF; `exportFormat` state cập nhật label nút chính khi chọn format khác |
 
 ### Tech stack thực tế
 
@@ -442,6 +444,7 @@ reference_documents (1) ──< reference_doc_chunks (N) [document_id → refere
 | `0010` | Thêm `visibility` vào reference_documents (private/org/system) |
 | `0011` | Tạo bảng `document_sources` (junction: documents ↔ reference_documents) |
 | `0012` | Tạo bảng `ocr_jobs` + 3 index (user_id, status, created_at) |
+| `0013` | Thêm cột `formatted_text TEXT nullable` vào `ocr_jobs` (LLM-reformatted output) |
 
 ---
 
@@ -1223,6 +1226,12 @@ Background task `_process_ocr_job` dùng 3 `AsyncSessionLocal` riêng biệt tha
 
 **32. Content-Disposition RFC 5987 cho Vietnamese filename (Tuần 14+)**
 Starlette encode header values bằng latin-1. Tên file tiếng Việt (ví dụ "Đề án...") chứa ký tự ngoài latin-1 range → `UnicodeEncodeError` khi tạo Response. **Fix:** dual-filename pattern `filename="vanban.docx"; filename*=UTF-8''<percent-encoded>` — ASCII fallback cho client cũ, RFC 5987 URI-encoded cho browser hiện đại. Dùng `urllib.parse.quote(filename, safe="")` để encode. Áp dụng cho tất cả endpoint export (reference_docs + ocr).
+
+**33. OCR LLM formatting — non-fatal step (Tuần 14+)**
+Sau khi OCR xong, `_format_ocr_text(raw_text, filename)` gọi `llm_service.chat(temperature=0.1, max_tokens=4000)` với system prompt tái cấu trúc văn bản tiếng Việt. Input cap 8000 ký tự để tránh timeout Groq. Nếu LLM lỗi (offline, rate-limit, timeout), fallback về `_basic_format()` (normalize whitespace, tách paragraph) — không làm fail toàn bộ OCR job. Kết quả lưu vào `ocr_jobs.formatted_text`; frontend dùng `formatted_text || text` (raw OCR làm fallback). Test thực tế với Mau-CT01-tt53.pdf: Groq tách đúng quốc hiệu, tiêu đề, mục 1-10 thành dòng riêng — `Khác nhau: True`.
+
+**34. OCR export paragraph split (Tuần 14+)**
+`POST /ocr/export` nhận text từ LLM formatting (có `\n\n` phân tách đoạn). Trước đây `add_paragraph(text)` gộp tất cả thành 1 đoạn DOCX, `<pre>` không render đúng trong PDF. **Fix:** `text.split("\n\n")` → list paragraphs (fallback `split("\n")` nếu không có double-newline). DOCX: mỗi paragraph thêm `add_run()` với `font.name="Times New Roman"`, `font.size=Pt(13)`. PDF: `<p>` per paragraph, `\n` inline → `<br/>`, CSS `p { margin-bottom: 0.6em }` thay `<pre>`.
 
 ### Known Issues và Workarounds
 
