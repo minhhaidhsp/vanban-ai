@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ocrApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Download, Loader2, ScanText } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Pagination } from "@/components/ui/Pagination";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ interface OcrJob {
   page_count: number | null;
   char_count: number | null;
   error_msg: string | null;
+  file_type: "text_pdf" | "text_docx" | "scanned_pdf" | "image" | null;
   created_at: string;
 }
 
@@ -29,6 +32,8 @@ interface OcrJobListResponse {
   items: OcrJob[];
   total: number;
 }
+
+const LIMIT = 10;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +68,6 @@ function StatusBadge({ status }: { status: OcrJob["status"] }) {
       </span>
     );
   }
-  // pending
   return (
     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200 whitespace-nowrap">
       ⏳ Chờ xử lý
@@ -75,15 +79,15 @@ function StatusBadge({ status }: { status: OcrJob["status"] }) {
 
 export default function OcrPage() {
   const { toast } = useToast();
+  const [page, setPage] = useState(1);
+  const skip = (page - 1) * LIMIT;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["ocr-jobs"],
+    queryKey: ["ocr-jobs", page],
     queryFn: async () => {
-      const res = await ocrApi.getJobs({ limit: 50 });
+      const res = await ocrApi.getJobs({ skip, limit: LIMIT });
       return res.data as OcrJobListResponse;
     },
-    // Function form: receives the Query object so we can inspect cached data
-    // without creating a circular reference on the `data` variable above
     refetchInterval: (query) => {
       const cached = query.state.data as OcrJobListResponse | undefined;
       const hasActive = cached?.items?.some(
@@ -93,14 +97,20 @@ export default function OcrPage() {
     },
   });
 
+  // Jump to page 1 while jobs are actively processing so user sees them
+  useEffect(() => {
+    const hasActive = data?.items?.some(
+      (j) => j.status === "pending" || j.status === "processing",
+    );
+    if (hasActive) setPage(1);
+  }, [data]);
+
   const handleExport = async (job: OcrJob, format: "docx" | "pdf") => {
     try {
-      // Fetch full job to get text (list response may not include text)
       const fullRes = await ocrApi.getJob(job.id);
       const fullJob = fullRes.data as OcrJob;
       const textToExport = fullJob.formatted_text || fullJob.text || "";
       const filename = fullJob.filename;
-
       const res = await ocrApi.export(textToExport, filename, format);
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
@@ -113,8 +123,23 @@ export default function OcrPage() {
     }
   };
 
+  const handleDownloadOriginal = async (jobId: string, filename: string) => {
+    try {
+      const res = await ocrApi.download(jobId);
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Lỗi tải file", variant: "destructive" });
+    }
+  };
+
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -156,73 +181,116 @@ export default function OcrPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tên file</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[90px]">Số trang</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px]">Số ký tự</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[150px]">Ngày tạo</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px]">Trạng thái</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[150px]">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((job) => (
-                <tr key={job.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-medium max-w-xs truncate">{job.filename}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{job.page_count ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {job.char_count != null ? job.char_count.toLocaleString("vi-VN") : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{formatDateTime(job.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={job.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      {job.status === "done" && (
-                        <>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/ocr/${job.id}`}>Xem</Link>
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm">
+        <>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tên file</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[90px]">Số trang</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px]">Số ký tự</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px]">Loại</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[150px]">Ngày tạo</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px]">Trạng thái</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[150px]">Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((job) => (
+                  <tr key={job.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 font-medium max-w-xs truncate">{job.filename}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{job.page_count ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {job.char_count != null ? job.char_count.toLocaleString("vi-VN") : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {job.file_type === "text_pdf" && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
+                          📄 PDF văn bản
+                        </span>
+                      )}
+                      {job.file_type === "text_docx" && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-700 rounded-full px-2 py-0.5">
+                          📝 Word
+                        </span>
+                      )}
+                      {(job.file_type === "scanned_pdf" || job.file_type === "image") && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">
+                          🔍 OCR
+                        </span>
+                      )}
+                      {!job.file_type && (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatDateTime(job.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={job.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {job.status === "done" && (
+                          <>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/ocr/${job.id}`}>Xem</Link>
+                            </Button>
+                            {job.file_type === "text_pdf" ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                title="Tải file gốc"
+                                onClick={() => handleDownloadOriginal(job.id, job.filename)}
+                              >
                                 <Download className="h-3.5 w-3.5" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleExport(job, "docx")}>
-                                Tải Word
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleExport(job, "pdf")}>
-                                Tải PDF
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </>
-                      )}
-                      {(job.status === "pending" || job.status === "processing") && (
-                        <span className="text-xs text-muted-foreground">Đang xử lý...</span>
-                      )}
-                      {job.status === "error" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          title={job.error_msg ?? "Lỗi không xác định"}
-                        >
-                          Chi tiết lỗi
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                            ) : (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Download className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleExport(job, "docx")}>
+                                    Tải Word
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleExport(job, "pdf")}>
+                                    Tải PDF
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </>
+                        )}
+                        {(job.status === "pending" || job.status === "processing") && (
+                          <span className="text-xs text-muted-foreground">Đang xử lý...</span>
+                        )}
+                        {job.status === "error" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title={job.error_msg ?? "Lỗi không xác định"}
+                          >
+                            Chi tiết lỗi
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={LIMIT}
+            onPageChange={setPage}
+            className="mt-4"
+          />
+        </>
       )}
 
     </div>

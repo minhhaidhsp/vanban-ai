@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-03
-> Phiên bản: Tuần 14+ (OCR Viewer + auto-migration on deploy)
+> Phiên bản: Tuần 14+ (OCR nâng cao: file_type detection, R2 upload, DOCX, react-pdf viewer, progress bar)
 
 ---
 
@@ -53,6 +53,14 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | `/dashboard/ocr/new`: trang upload 2 cột (control trái / kết quả phải); `handleStartOcr` upload → nhận jobId → poll `/ocr/{id}` mỗi 2s; `statusRef` tránh stale closure; `pollRef`/`timeoutRef` cleanup khi unmount; skeleton animation khi processing; timeout 5 phút |
 | 14+ | `/dashboard/ocr/[id]` rewrite: đọc từ `ocrApi.getJob` thay `refDocApi.getContent`; guard `status !== "done"` → badge + "Kết quả chưa sẵn sàng"; textarea nội dung + stats page_count/char_count/created_at |
 | 14+ | Deploy fix: `alembic upgrade head &&` trước `uvicorn` trong `railway.toml` `startCommand` + `nixpacks.toml` `[start] cmd` — đảm bảo migration 0012 được apply tự động khi Railway deploy |
+| 14+ | **OCR LLM formatting** (migration 0013): thêm cột `formatted_text` vào `ocr_jobs`; `_format_ocr_text()` gọi Groq llama-3.3-70b tái cấu trúc text OCR thô → văn bản có định dạng đẹp (paragraph, tiêu đề, danh sách); `_basic_format()` fallback khi LLM offline; frontend hiển thị `formatted_text \|\| text` trong textarea |
+| 14+ | **OCR export fix**: `POST /ocr/export` tách text thành paragraph (`split("\n\n")`) trước khi tạo file; DOCX: Times New Roman 13pt per paragraph; PDF: `<p>` tags thay `<pre>` + `\n→<br/>`; split button Word (primary) + ChevronDown dropdown PDF; `exportFormat` state cập nhật label nút chính khi chọn format khác |
+| 14+ | **OCR file_type detection + R2 upload** (migration 0014): `file_type` (`text_pdf`/`scanned_pdf`/`image`/`text_docx`) + `file_path` cột mới; `_detect_pdf_type()` detect PDF có text layer (pdfplumber < 50 ký tự → scanned); text PDF → upload file gốc lên R2 (`ocr-jobs/{job_id}/{filename}`) + `_process_text_pdf()` background task; `GET /ocr/{job_id}/download` stream file gốc từ R2; frontend: nút "Tải file gốc" cho text_pdf thay split Word/PDF |
+| 14+ | **OCR real-time progress bar**: `_ocr_pdf_with_progress()` update Redis `ocr_progress:{job_id}` sau mỗi trang scan; `GET /ocr/progress/{job_id}` trả `{current_page, total_pages, percent}`; frontend poll mỗi 1s song song với status poll — progress bar hiển thị "X/Y trang" + `%`; `progressPollRef` cleanup đúng khi done/error/unmount |
+| 14+ | **OCR DOCX support**: `POST /ocr/extract` chấp nhận `application/vnd.openxmlformats-officedocument.wordprocessingml.document`; `file_type="text_docx"`; `_process_text_docx()` dùng `python-docx` extract paragraphs trong thread + LLM format; frontend: `accept=".pdf,.jpg,.jpeg,.png,.docx"`, badge tím "📝 Word" trong danh sách |
+| 14+ | **OCR danh sách cải tiến**: phân trang (LIMIT=10, `Pagination` component); cột "Loại" với badge màu (📄 xanh=text_pdf, 📝 tím=text_docx, 🔍 cam=OCR); hành động phân theo `file_type` (text_pdf → nút Download file gốc; còn lại → dropdown Word/PDF) |
+| 14+ | **OCR react-pdf viewer**: cài `react-pdf ^10.4.1`; `PdfViewer.tsx` component với toolbar phân trang (prev/next) + zoom (50%–200%); thay `<iframe>` bằng `<Document><Page>` component trong `new/page.tsx` và `[id]/page.tsx`; workerSrc dùng CDN unpkg tránh webpack config |
+| 14+ | **pipeline_service image OCR**: `_ocr_image_bytes()` mới — hỗ trợ `image/jpeg`, `image/png`, `image/bmp`, `image/tiff`, `image/webp` trong kho văn bản tham chiếu; phát hiện qua MIME type `mime.startswith("image/")` trong `_extract_text()`; không cần validation whitelist trong `reference_docs.py` (không có) |
 
 ### Tech stack thực tế
 
@@ -66,6 +74,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - Tailwind CSS 3.4.1 + Radix UI (shadcn/ui components)
 - Zod 3.24.1 + React Hook Form 7.54.2 (form validation)
 - Puppeteer 25.0.4 (xuất PDF phía server Next.js)
+- react-pdf 10.4.1 (render PDF trong browser; pdfjs-dist CDN worker)
 - js-cookie 3.0.5 (lưu JWT token)
 
 **Backend:**
@@ -175,9 +184,9 @@ frontend/
 │   │   ├── reference-docs/
 │   │   │   └── page.tsx         # Kho văn bản tham chiếu (filter, phân trang)
 │   │   ├── ocr/
-│   │   │   ├── page.tsx         # Lịch sử ocr_jobs; auto-poll 5s khi có job active; badge status
-│   │   │   ├── new/page.tsx     # Upload 2 cột: drag-drop → extract job → poll 2s → skeleton/textarea
-│   │   │   └── [id]/page.tsx    # Viewer 2 cột: OcrJob text + stats (page_count, char_count, created_at)
+│   │   │   ├── page.tsx         # Lịch sử ocr_jobs; phân trang LIMIT=10; cột "Loại" badge file_type; auto-poll 5s
+│   │   │   ├── new/page.tsx     # Upload 2 cột: drag-drop (PDF/JPG/PNG/DOCX) → extract job → progress bar → PdfViewer/textarea
+│   │   │   └── [id]/page.tsx    # Viewer 2 cột: PdfViewer (text_pdf) / textarea (scan/DOCX) + stats
 │   │   └── rag-search/
 │   │       └── page.tsx         # Tra cứu AI: search bar, ConfidenceMeter, disclaimer/fallback banners, CopyButton, citation cards
 │   ├── print/
@@ -211,6 +220,8 @@ frontend/
 │   │   ├── upload-modal.tsx     # Dialog thêm/sửa + upload file
 │   │   ├── RefDocBatchUploadModal.tsx # Batch upload nhiều file, polling job status
 │   │   └── MetadataReviewCard.tsx  # Dialog polling + review metadata từ LLM
+│   ├── ocr/
+│   │   └── PdfViewer.tsx        # react-pdf viewer: toolbar phân trang + zoom 50–200%; workerSrc CDN
 │   └── ui/                      # shadcn/ui components (Button, Input, Dialog...)
 ├── lib/
 │   ├── api.ts                   # Axios client + authApi, documentApi, refDocApi, ocrApi, chatApi (SSE)
@@ -239,7 +250,7 @@ backend/
 │   │           ├── organizations.py  # GET /current
 │   │           ├── recipient_suggestions.py  # GET /  POST /increment
 │   │           ├── reference_docs.py  # CRUD + upload + 3 search + metadata + /content + /export
-│   │           ├── ocr.py             # POST /extract (async job) + /export (stateless) + GET /jobs /status/{id} /{id}
+│   │           ├── ocr.py             # POST /extract (detect file_type, R2 upload cho text_pdf) + /export + GET /jobs /status/{id} /progress/{id} /{id}/download /{id}
 │   │           ├── llm.py             # GET /health, POST /test, PATCH /config
 │   │           ├── rag.py             # GET /health, POST /query, POST /query/stream, POST /chat/stream, GET+DELETE /chat/history
 │   │           └── constants.py # GET /nd30 (hằng số NĐ30)
@@ -255,7 +266,7 @@ backend/
 │   │   ├── organization.py      # Organization ORM model
 │   │   ├── reference_document.py  # ReferenceDocument (Vector(1024) + TSVECTOR)
 │   │   ├── reference_doc_chunk.py # ReferenceDocChunk (Vector(1024))
-│   │   ├── ocr_job.py           # OcrJob — async OCR job tracking (status, text, page_count, char_count)
+│   │   ├── ocr_job.py           # OcrJob — async OCR job tracking (status, text, page_count, char_count, file_type, file_path, formatted_text)
 │   │   └── recipient_suggestion.py # RecipientSuggestion
 │   ├── schemas/
 │   │   ├── user.py              # UserCreate, UserResponse, Token
@@ -409,13 +420,25 @@ backend/
 | `page_count` | INTEGER | Số trang — null khi chưa xong |
 | `char_count` | INTEGER | Số ký tự kết quả — null khi chưa xong |
 | `error_msg` | TEXT | Thông báo lỗi nếu status=error |
+| `file_type` | VARCHAR(20) | `"text_pdf"` / `"scanned_pdf"` / `"image"` / `"text_docx"` — null cho jobs cũ |
+| `file_path` | VARCHAR(1000) | R2 object path (`ocr-jobs/{job_id}/{filename}`) — chỉ có với text_pdf |
+| `formatted_text` | TEXT | Text sau LLM reformatting — null khi LLM offline hoặc chưa xong |
 | `created_at` | TIMESTAMPTZ | (indexed) |
 | `updated_at` | TIMESTAMPTZ | Auto-update khi row thay đổi |
 
 **Index:** `ix_ocr_jobs_user_id`, `ix_ocr_jobs_status`, `ix_ocr_jobs_created_at`.
 
 **Luồng trạng thái:** `pending` → `processing` → `done` | `error`.
-File bytes được cache trong Redis `ocr_file:{job_id}` dưới dạng base64 (TTL 1h). Redis client dùng `decode_responses=True` nên không lưu bytes trực tiếp được.
+
+**Phân loại theo `file_type`:**
+- `text_pdf`: pdfplumber extract ≥ 50 ký tự → text layer, file gốc upload R2, `_process_text_pdf()` background task
+- `scanned_pdf`: pdfplumber extract < 50 ký tự → scanned, `_ocr_pdf_with_progress()` (pdf2image + pytesseract per trang với Redis progress), `_process_ocr_job()` background task
+- `image`: JPEG/PNG, `_process_ocr_job()` (PIL + pytesseract)
+- `text_docx`: DOCX, `_process_text_docx()` (python-docx + LLM format)
+
+**Redis keys liên quan:**
+- `ocr_file:{job_id}`: file bytes base64 TTL 1h — chỉ dùng cho scanned_pdf/image
+- `ocr_progress:{job_id}`: `{current_page, total_pages}` TTL 1h — chỉ có khi đang OCR scan, tự xóa sau khi xong
 
 ### Quan hệ giữa các bảng
 
@@ -442,6 +465,8 @@ reference_documents (1) ──< reference_doc_chunks (N) [document_id → refere
 | `0010` | Thêm `visibility` vào reference_documents (private/org/system) |
 | `0011` | Tạo bảng `document_sources` (junction: documents ↔ reference_documents) |
 | `0012` | Tạo bảng `ocr_jobs` + 3 index (user_id, status, created_at) |
+| `0013` | Thêm cột `formatted_text TEXT nullable` vào `ocr_jobs` (LLM-reformatted output) |
+| `0014` | Thêm `file_type VARCHAR(20) nullable` + `file_path VARCHAR(1000) nullable` vào `ocr_jobs` |
 
 ---
 
@@ -518,21 +543,38 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 | Method | Path | Mô tả | Request | Response |
 |--------|------|-------|---------|----------|
-| POST | `/ocr/extract` | Upload file → tạo OcrJob, chạy OCR nền; trả về ngay (202) | `multipart: file (PDF/JPG/PNG ≤20MB)` | `OcrJobResponse` (status=pending) |
+| POST | `/ocr/extract` | Detect file type → upload R2 (text_pdf) → tạo OcrJob → chạy background task; 202 ngay | `multipart: file (PDF/JPG/PNG/DOCX ≤20MB)` | `OcrJobResponse` (status=pending, có `file_type`) |
 | POST | `/ocr/export` | Chuyển text → DOCX hoặc PDF (stateless, không lưu DB) | `{text, filename, format: "docx"\|"pdf"}` | Binary file |
 | GET | `/ocr/jobs` | Danh sách OCR jobs của user | `?skip&limit` | `OcrJobListResponse {items[], total}` |
-| GET | `/ocr/status/{job_id}` | Poll trạng thái nhẹ (không có text payload) | — | `OcrJobStatusResponse` |
+| GET | `/ocr/status/{job_id}` | Poll trạng thái nhẹ (không có text payload) | — | `OcrJobStatusResponse` (có `file_type`, `file_path`) |
+| GET | `/ocr/progress/{job_id}` | Tiến độ OCR theo trang từ Redis (chỉ trong lúc scan) | — | `{job_id, current_page, total_pages, percent}` |
+| GET | `/ocr/{job_id}/download` | Stream file gốc từ R2 (chỉ text_pdf có file_path) | — | Binary PDF |
 | GET | `/ocr/{job_id}` | Chi tiết đầy đủ kể cả text kết quả | — | `OcrJobResponse` |
 
-**Luồng `POST /ocr/extract`:**
+**Luồng `POST /ocr/extract` (sau khi nâng cấp):**
 ```
-validate → create OcrJob(pending) in DB → base64(bytes) → Redis[TTL 1h]
-→ add_task(_process_ocr_job) → return 202
+validate MIME (PDF/JPG/PNG/DOCX ≤20MB)
+→ detect file_type:
+    DOCX MIME/extension → "text_docx"
+    PDF + pdfplumber ≥ 50 chars → "text_pdf"
+    PDF + pdfplumber < 50 chars → "scanned_pdf"
+    image/* → "image"
+→ nếu text_pdf: upload bytes lên R2 (ocr-jobs/{id}/{filename}), lưu file_path
+→ create OcrJob(pending, file_type, file_path) in DB
+→ dispatch background task:
+    text_pdf   → _process_text_pdf(job_id, content)     [pdfplumber + LLM format]
+    text_docx  → _process_text_docx(job_id, content)    [python-docx + LLM format]
+    scan/image → Redis base64 → _process_ocr_job(job_id) [pytesseract + LLM format]
+→ return 202
 
-_process_ocr_job (3 phases, separate AsyncSessionLocal):
+_process_ocr_job (scanned_pdf/image, 3 phases):
   Phase 1: mark "processing"
-  Phase 2: decode base64 from Redis → PDF: _extract_pdf(bytes) + pdfplumber count
-           image: PIL + pytesseract(vie→eng fallback) → cleanup Redis key
+  Phase 2: decode base64 from Redis
+           scanned PDF → _ocr_pdf_with_progress(): pdf2image dpi=300 → OCR page-by-page
+             update Redis ocr_progress:{job_id} sau mỗi trang → xóa key khi xong
+           image → PIL + pytesseract(vie→eng fallback)
+           → cleanup Redis ocr_file key
+           → _format_ocr_text() LLM format
   Phase 3: persist done/error result
 ```
 
@@ -606,9 +648,10 @@ _process_ocr_job (3 phases, separate AsyncSessionLocal):
 **Luồng xử lý:**
 1. Lấy record `ReferenceDocument` từ DB theo `doc_id`
 2. Download file bytes từ MinIO/R2 bucket (chạy trong thread)
-3. Trích xuất text (viết bytes ra temp file để OCR):
-   - PDF: `pdfplumber` → nếu < 50 ký tự → **OCR fallback** (`pdf2image` convert_from_path dpi=300 → `pytesseract` lang `vie`, fallback `eng`) → `_post_process_ocr()` normalize khoảng trắng
-   - DOCX: `python-docx` Document() → paragraphs
+3. Trích xuất text qua `_extract_text(data, file_type)` (viết bytes ra temp file khi OCR):
+   - `"pdf"` in MIME: `pdfplumber` → nếu < 50 ký tự → **OCR fallback** (`pdf2image` convert_from_path dpi=300 → `pytesseract` lang `vie`, fallback `eng`) → `_post_process_ocr()` normalize khoảng trắng
+   - `"word"/"docx"/"openxmlformats"` in MIME: `python-docx` Document() → paragraphs
+   - `MIME.startswith("image/")`: `_ocr_image_bytes()` → PIL + pytesseract (vie→eng fallback) — hỗ trợ JPEG/PNG/BMP/TIFF/WebP
    - Khác: UTF-8 decode
    - Windows: `tesseract_cmd` tự động set về `C:\Program Files\Tesseract-OCR\tesseract.exe`
 4. Chunk bằng `chunk_document()` với metadata `{so_ki_hieu, co_quan_ban_hanh}`
@@ -621,6 +664,7 @@ _process_ocr_job (3 phases, separate AsyncSessionLocal):
 **Hàm OCR:**
 - `_is_scanned_pdf(text)`: `len(text.strip()) < 50`
 - `_ocr_pdf(file_path)`: convert PDF → PIL images → pytesseract → `_post_process_ocr()`
+- `_ocr_image_bytes(data)`: PIL Image.open(BytesIO) → pytesseract (vie→eng fallback) — mới
 - `_post_process_ocr(text)`: strip blank lines, deduplicate newlines
 
 **Ghi chú:** Tạo DB session riêng — không dùng request session. Toàn bộ I/O blocking chạy qua `asyncio.to_thread()`.
@@ -1223,6 +1267,21 @@ Background task `_process_ocr_job` dùng 3 `AsyncSessionLocal` riêng biệt tha
 
 **32. Content-Disposition RFC 5987 cho Vietnamese filename (Tuần 14+)**
 Starlette encode header values bằng latin-1. Tên file tiếng Việt (ví dụ "Đề án...") chứa ký tự ngoài latin-1 range → `UnicodeEncodeError` khi tạo Response. **Fix:** dual-filename pattern `filename="vanban.docx"; filename*=UTF-8''<percent-encoded>` — ASCII fallback cho client cũ, RFC 5987 URI-encoded cho browser hiện đại. Dùng `urllib.parse.quote(filename, safe="")` để encode. Áp dụng cho tất cả endpoint export (reference_docs + ocr).
+
+**33. OCR LLM formatting — non-fatal step (Tuần 14+)**
+Sau khi OCR xong, `_format_ocr_text(raw_text, filename)` gọi `llm_service.chat(temperature=0.1, max_tokens=4000)` với system prompt tái cấu trúc văn bản tiếng Việt. Input cap 8000 ký tự để tránh timeout Groq. Nếu LLM lỗi (offline, rate-limit, timeout), fallback về `_basic_format()` (normalize whitespace, tách paragraph) — không làm fail toàn bộ OCR job. Kết quả lưu vào `ocr_jobs.formatted_text`; frontend dùng `formatted_text || text` (raw OCR làm fallback). Test thực tế với Mau-CT01-tt53.pdf: Groq tách đúng quốc hiệu, tiêu đề, mục 1-10 thành dòng riêng — `Khác nhau: True`.
+
+**35. OCR file_type routing — 4 nhánh background task (Tuần 14+)**
+`POST /ocr/extract` detect file_type trước khi tạo OcrJob và dispatch task. Mỗi nhánh tối ưu riêng: `text_pdf` upload file lên R2 ngay trong request (đồng bộ) vì cần `file_path` cho `/download` endpoint sau này — tốn ~200ms nhưng chấp nhận được; task chỉ cần extract text (không OCR, không Redis cache). `scanned_pdf`/`image` dùng Redis base64 cache vì pytesseract có thể mất 30-120s mỗi trang — không block request. `text_docx` pass bytes trực tiếp vào task vì python-docx nhanh, không cần R2 (không có download use case). Không có nhánh nào dùng cả Redis lẫn R2 — tránh double storage overhead.
+
+**36. react-pdf workerSrc CDN (Tuần 14+)**
+react-pdf v10 yêu cầu `pdfjs-dist` worker để decode PDF trong thread riêng. Hai cách config: (1) copy worker file vào `/public/` + `workerSrc="/pdf.worker.mjs"` — cần config Next.js webpack; (2) CDN unpkg: `pdfjs.GlobalWorkerOptions.workerSrc = \`//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs\`` — không cần webpack config, worker version tự động match installed version. Dùng phương án 2 để đơn giản hóa setup. Lưu ý: CDN cần internet khi render PDF, nhưng blob URL đã load trước nên chỉ worker cần CDN.
+
+**37. OCR progress bar — dual polling (Tuần 14+)**
+Khi xử lý scanned PDF, frontend chạy 2 interval song song: `pollRef` (mỗi 2s) poll `/ocr/status/{id}` chờ status=done/error; `progressPollRef` (mỗi 1s) poll `/ocr/progress/{id}` để cập nhật progress bar. Progress bar tắt ngay khi status done/error (clearInterval cả 2 refs). Thiết kế này tránh coupling: nếu progress API lỗi (Redis key expired), status poll vẫn hoạt động bình thường — `setProgress` không được gọi, bar giữ nguyên 0%. Progress key tự xóa sau OCR xong; poll tiếp theo trả `percent=0` nhưng status poll đã done → progressPollRef đã bị clear.
+
+**34. OCR export paragraph split (Tuần 14+)**
+`POST /ocr/export` nhận text từ LLM formatting (có `\n\n` phân tách đoạn). Trước đây `add_paragraph(text)` gộp tất cả thành 1 đoạn DOCX, `<pre>` không render đúng trong PDF. **Fix:** `text.split("\n\n")` → list paragraphs (fallback `split("\n")` nếu không có double-newline). DOCX: mỗi paragraph thêm `add_run()` với `font.name="Times New Roman"`, `font.size=Pt(13)`. PDF: `<p>` per paragraph, `\n` inline → `<br/>`, CSS `p { margin-bottom: 0.6em }` thay `<pre>`.
 
 ### Known Issues và Workarounds
 

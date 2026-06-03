@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ocrApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,11 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import dynamic from "next/dynamic";
+const PdfViewer = dynamic(
+  () => import("@/components/ocr/PdfViewer").then((m) => m.PdfViewer),
+  { ssr: false },
+);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +29,7 @@ interface OcrJob {
   page_count: number | null;
   char_count: number | null;
   error_msg: string | null;
+  file_type: "text_pdf" | "text_docx" | "scanned_pdf" | "image" | null;
   created_at: string;
 }
 
@@ -44,6 +50,8 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState<"docx" | "pdf" | null>(null);
   const [exportFormat, setExportFormat] = useState<"docx" | "pdf">("docx");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
 
   const { data: rawData, isLoading, isError } = useQuery({
     queryKey: ["ocr-job", id],
@@ -52,6 +60,27 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
       return res.data as OcrJob;
     },
   });
+
+  // Fetch PDF blob for iframe when job is a text_pdf
+  useEffect(() => {
+    if (rawData?.file_type !== "text_pdf" || !rawData?.id) return;
+    let cancelled = false;
+    ocrApi.download(rawData.id).then((res) => {
+      if (cancelled) return;
+      if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      pdfUrlRef.current = url;
+      setPdfUrl(url);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+        pdfUrlRef.current = null;
+        setPdfUrl(null);
+      }
+    };
+  }, [rawData?.id, rawData?.file_type]);
 
   const handleExport = async (format: "docx" | "pdf") => {
     if (!rawData?.text) return;
@@ -69,6 +98,21 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
       toast({ title: "Lỗi xuất file", variant: "destructive" });
     } finally {
       setIsExporting(null);
+    }
+  };
+
+  const handleDownloadOriginal = async () => {
+    if (!rawData?.id) return;
+    try {
+      const res = await ocrApi.download(rawData.id);
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = rawData.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Lỗi tải file", variant: "destructive" });
     }
   };
 
@@ -116,6 +160,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
   }
 
   const displayText = rawData.formatted_text || rawData.text;
+  const isTextPdf = rawData.file_type === "text_pdf";
 
   return (
     <div className="flex flex-row h-full gap-0">
@@ -132,17 +177,34 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
           <span className="truncate max-w-xs">{rawData.filename}</span>
         </div>
 
-        <h1 className="text-xl font-bold">{rawData.filename}</h1>
+        <div className="flex items-center gap-2 mb-1">
+          <h1 className="text-xl font-bold">{rawData.filename}</h1>
+          {isTextPdf && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap shrink-0">
+              📄 PDF văn bản
+            </span>
+          )}
+        </div>
         <div className="border-t my-4" />
 
-        {!displayText ? (
-          <p className="text-muted-foreground italic">Không có nội dung</p>
+        {isTextPdf ? (
+          pdfUrl ? (
+            <PdfViewer url={pdfUrl} className="w-full" />
+          ) : (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )
         ) : (
-          <textarea
-            className="w-full min-h-[600px] font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-            value={displayText}
-            readOnly
-          />
+          !displayText ? (
+            <p className="text-muted-foreground italic">Không có nội dung</p>
+          ) : (
+            <textarea
+              className="w-full min-h-[600px] font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
+              value={displayText}
+              readOnly
+            />
+          )
         )}
       </div>
 
@@ -158,49 +220,61 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
           <div className="border-t" />
 
-          {/* Xuất file — split button */}
+          {/* Xuất / Tải file */}
           <div>
-            <p className="text-xs text-muted-foreground uppercase mb-2">Xuất file</p>
-            <div className="flex w-full">
+            <p className="text-xs text-muted-foreground uppercase mb-2">
+              {isTextPdf ? "Tải về" : "Xuất file"}
+            </p>
+            {isTextPdf ? (
               <Button
-                className="flex-1 rounded-r-none justify-start gap-2"
-                onClick={() => handleExport(exportFormat)}
-                disabled={isExporting !== null}
+                className="w-full justify-start gap-2"
+                onClick={handleDownloadOriginal}
               >
-                {isExporting === exportFormat
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : exportFormat === "docx"
-                    ? <Download className="h-4 w-4" />
-                    : <FileText className="h-4 w-4" />}
-                {isExporting === exportFormat
-                  ? "Đang xuất..."
-                  : exportFormat === "docx" ? "Tải Word" : "Tải PDF"}
+                <Download className="h-4 w-4" />
+                Tải file gốc
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="rounded-l-none border-l-0 px-2"
-                    disabled={isExporting !== null}
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => { setExportFormat("docx"); handleExport("docx"); }}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Tải Word (.docx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setExportFormat("pdf"); handleExport("pdf"); }}>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Tải PDF
-                    {isExporting === "pdf" && (
-                      <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-                    )}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            ) : (
+              <div className="flex w-full">
+                <Button
+                  className="flex-1 rounded-r-none justify-start gap-2"
+                  onClick={() => handleExport(exportFormat)}
+                  disabled={isExporting !== null}
+                >
+                  {isExporting === exportFormat
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : exportFormat === "docx"
+                      ? <Download className="h-4 w-4" />
+                      : <FileText className="h-4 w-4" />}
+                  {isExporting === exportFormat
+                    ? "Đang xuất..."
+                    : exportFormat === "docx" ? "Tải Word" : "Tải PDF"}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="rounded-l-none border-l-0 px-2"
+                      disabled={isExporting !== null}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setExportFormat("docx"); handleExport("docx"); }}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Tải Word (.docx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setExportFormat("pdf"); handleExport("pdf"); }}>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Tải PDF
+                      {isExporting === "pdf" && (
+                        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                      )}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
 
           <div className="border-t" />

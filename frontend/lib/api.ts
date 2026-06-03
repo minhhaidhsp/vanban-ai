@@ -238,6 +238,12 @@ export const ocrApi = {
 
   getJob: (jobId: string) =>
     api.get(`/ocr/${jobId}`),
+
+  getProgress: (jobId: string) =>
+    api.get(`/ocr/progress/${jobId}`),
+
+  download: (jobId: string) =>
+    api.get(`/ocr/${jobId}/download`, { responseType: "blob" }),
 };
 
 export interface ChunkUsed {
