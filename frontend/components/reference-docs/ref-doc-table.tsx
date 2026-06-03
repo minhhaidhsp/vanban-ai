@@ -90,40 +90,55 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit, s
   const page = Math.floor(skip / limit) + 1;
   const totalPages = Math.ceil(total / limit);
 
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-        <FileText className="h-12 w-12 opacity-30" />
-        <p className="text-sm">Chưa có văn bản nào</p>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[120px]">Số/Ký hiệu</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Trích yếu</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[120px]">Loại VB</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[160px]">Cơ quan</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px]">Ngày BH</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[140px]">Hiệu lực</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[100px] hidden sm:table-cell">Phạm vi</th>
               <th
-                className="px-4 py-3 text-left font-medium text-muted-foreground w-[145px] hidden lg:table-cell cursor-pointer select-none hover:text-foreground"
+                className="px-4 py-3 text-left font-medium text-muted-foreground w-[120px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                onClick={() => onSort?.("so_ki_hieu")}
+              >
+                Số/Ký hiệu
+                <SortIcon col="so_ki_hieu" sortBy={sortBy} sortOrder={sortOrder} />
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Trích yếu</th>
+              <th
+                className="px-4 py-3 text-left font-medium text-muted-foreground w-[120px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                onClick={() => onSort?.("loai_van_ban")}
+              >
+                Loại VB
+                <SortIcon col="loai_van_ban" sortBy={sortBy} sortOrder={sortOrder} />
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[160px] whitespace-nowrap">Cơ quan</th>
+              <th
+                className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                onClick={() => onSort?.("ngay_ban_hanh")}
+              >
+                Ngày BH
+                <SortIcon col="ngay_ban_hanh" sortBy={sortBy} sortOrder={sortOrder} />
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[140px] whitespace-nowrap">Hiệu lực</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[100px] whitespace-nowrap hidden sm:table-cell">Phạm vi</th>
+              <th
+                className="px-4 py-3 text-left font-medium text-muted-foreground w-[145px] whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-foreground"
                 onClick={() => onSort?.("created_at")}
               >
                 Ngày upload
                 <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[100px]">Thao tác</th>
+              <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[100px] whitespace-nowrap">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((doc) => {
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="text-center py-8 text-muted-foreground text-sm">
+                  Không có văn bản nào phù hợp
+                </td>
+              </tr>
+            ) : items.map((doc) => {
               const hl = HIEU_LUC_LABELS[doc.hieu_luc] ?? { label: doc.hieu_luc, className: "bg-gray-200 text-gray-600 border-gray-200" };
               return (
                 <tr key={doc.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">

@@ -91,6 +91,7 @@ export default function OcrPage() {
   const [filterType, setFilterType] = useState("");
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [exportingJobId, setExportingJobId] = useState<string | null>(null);
   const skip = (page - 1) * LIMIT;
 
   // Reset to page 1 when filters change
@@ -133,6 +134,7 @@ export default function OcrPage() {
   };
 
   const handleExport = async (job: OcrJob, format: "docx" | "pdf") => {
+    setExportingJobId(job.id);
     try {
       const filename = job.filename;
       let res;
@@ -155,6 +157,8 @@ export default function OcrPage() {
       URL.revokeObjectURL(url);
     } catch {
       toast({ title: "Lỗi xuất file", variant: "destructive" });
+    } finally {
+      setExportingJobId(null);
     }
   };
 
@@ -316,8 +320,14 @@ export default function OcrPage() {
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  <Download className="h-3.5 w-3.5" />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={exportingJobId === job.id}
+                                >
+                                  {exportingJobId === job.id
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <Download className="h-3.5 w-3.5" />}
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
@@ -351,7 +361,7 @@ export default function OcrPage() {
             </table>
           </div>
 
-          {totalPages > 1 ? (
+          {totalPages > 1 && (
             <Pagination
               page={page}
               totalPages={totalPages}
@@ -360,10 +370,6 @@ export default function OcrPage() {
               onPageChange={setPage}
               className="mt-4"
             />
-          ) : (
-            <p className="text-sm text-muted-foreground text-center mt-3">
-              Hiển thị {items.length} / {total} kết quả
-            </p>
           )}
         </>
       )}
