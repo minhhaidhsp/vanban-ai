@@ -216,6 +216,24 @@ export const refDocApi = {
     }),
 };
 
+export const ocrApi = {
+  extract: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/ocr/extract", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    // response.data: { filename, text, char_count, page_count }
+  },
+
+  export: (text: string, filename: string, format: "docx" | "pdf") =>
+    api.post(
+      "/ocr/export",
+      { text, filename, format },
+      { responseType: "blob" },
+    ),
+};
+
 export interface ChunkUsed {
   document_title: string | null;
   so_ki_hieu: string | null;
