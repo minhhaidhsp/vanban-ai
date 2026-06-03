@@ -473,9 +473,17 @@ export interface DocumentStats {
 }
 
 export const documentApi = {
-  list: async (params?: { skip?: number; limit?: number; source?: "editor" | "upload"; sort?: "created_at" | "updated_at" }) => {
+  list: async (params?: {
+    skip?: number
+    limit?: number
+    source?: "editor" | "upload"
+    q?: string
+    loai_vb?: string
+    sort_by?: string
+    sort_order?: string
+  }) => {
     const { data } = await api.get("/documents/", { params });
-    return data as DocumentDto[];
+    return data as { items: DocumentDto[]; total: number };
   },
 
   getStats: async () => {

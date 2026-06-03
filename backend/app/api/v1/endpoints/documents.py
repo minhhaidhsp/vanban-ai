@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,22 +85,44 @@ async def _save_trich_yeu_history(
     logger.debug("[trich_yeu_history] saved: %s / %s", loai_vb, normalized[:50])
 
 
-@router.get("/", response_model=list[DocumentResponse])
+@router.get("/")
 async def list_documents(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 20,
     source: str | None = None,
-    sort: str = "created_at",
+    q: str | None = Query(None),
+    loai_vb: str | None = Query(None),
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Document).where(Document.owner_id == current_user.id)
+    base = select(Document).where(Document.owner_id == current_user.id)
     if source in ("editor", "upload"):
-        query = query.where(Document.source == source)
-    order_col = Document.updated_at if sort == "updated_at" else Document.created_at
-    query = query.offset(skip).limit(limit).order_by(order_col.desc())
-    result = await db.execute(query)
-    return result.scalars().all()
+        base = base.where(Document.source == source)
+    if q:
+        base = base.where(Document.title.ilike(f"%{q}%"))
+    if loai_vb:
+        base = base.where(Document.loai_vb == loai_vb)
+
+    total_result = await db.execute(
+        select(sql_func.count()).select_from(base.subquery())
+    )
+    total = total_result.scalar() or 0
+
+    _sort_cols = {
+        "title":      Document.title,
+        "loai_vb":    Document.loai_vb,
+        "created_at": Document.created_at,
+    }
+    sort_col = _sort_cols.get(sort_by, Document.created_at)
+    sort_expr = sort_col.asc() if sort_order == "asc" else sort_col.desc()
+
+    result = await db.execute(
+        base.order_by(sort_expr).offset(skip).limit(limit)
+    )
+    items = result.scalars().all()
+    return {"items": items, "total": total}
 
 
 @router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
