@@ -61,17 +61,22 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     },
   });
 
-  // Fetch PDF blob for iframe when job is a text_pdf
+  // Fetch PDF blob for viewer when job is done (all file types)
   useEffect(() => {
-    if (rawData?.file_type !== "text_pdf" || !rawData?.id) return;
+    if (rawData?.status !== "done" || !rawData?.id) return;
     let cancelled = false;
-    ocrApi.download(rawData.id).then((res) => {
-      if (cancelled) return;
-      if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
-      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
-      pdfUrlRef.current = url;
-      setPdfUrl(url);
-    }).catch(() => {});
+    ocrApi.download(rawData.id)
+      .then((res) => {
+        if (cancelled) return;
+        if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+        const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+        pdfUrlRef.current = url;
+        setPdfUrl(url);
+      })
+      .catch(() => {
+        // No PDF available → textarea fallback
+        if (!cancelled) setPdfUrl(null);
+      });
     return () => {
       cancelled = true;
       if (pdfUrlRef.current) {
@@ -80,7 +85,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
         setPdfUrl(null);
       }
     };
-  }, [rawData?.id, rawData?.file_type]);
+  }, [rawData?.id, rawData?.status]);
 
   const handleExport = async (format: "docx" | "pdf") => {
     if (!rawData?.text) return;
@@ -166,46 +171,46 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     <div className="flex flex-row h-full gap-0">
 
       {/* ── Cột trái — nội dung ─────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
-          <Link href="/dashboard/ocr" className="hover:text-foreground transition-colors">
-            OCR Văn bản
-          </Link>
-          <ChevronRight className="size-4" />
-          <span className="truncate max-w-xs">{rawData.filename}</span>
+        {/* Header — fixed height */}
+        <div className="px-6 pt-6 shrink-0">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
+            <Link href="/dashboard/ocr" className="hover:text-foreground transition-colors">
+              OCR Văn bản
+            </Link>
+            <ChevronRight className="size-4" />
+            <span className="truncate max-w-xs">{rawData.filename}</span>
+          </div>
+
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold">{rawData.filename}</h1>
+            {isTextPdf && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap shrink-0">
+                📄 PDF văn bản
+              </span>
+            )}
+          </div>
+          <div className="border-t mt-4" />
         </div>
 
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-xl font-bold">{rawData.filename}</h1>
-          {isTextPdf && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap shrink-0">
-              📄 PDF văn bản
-            </span>
+        {/* Content — fills remaining height */}
+        <div className="flex-1 flex flex-col min-h-0 px-6 pb-6 pt-4">
+          {pdfUrl ? (
+            <PdfViewer url={pdfUrl} className="flex-1 min-h-0" />
+          ) : (
+            !displayText ? (
+              <p className="text-muted-foreground italic">Không có nội dung</p>
+            ) : (
+              <textarea
+                className="flex-1 min-h-0 font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                value={displayText}
+                readOnly
+              />
+            )
           )}
         </div>
-        <div className="border-t my-4" />
-
-        {isTextPdf ? (
-          pdfUrl ? (
-            <PdfViewer url={pdfUrl} className="w-full" />
-          ) : (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          )
-        ) : (
-          !displayText ? (
-            <p className="text-muted-foreground italic">Không có nội dung</p>
-          ) : (
-            <textarea
-              className="w-full min-h-[600px] font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-              value={displayText}
-              readOnly
-            />
-          )
-        )}
       </div>
 
       {/* ── Cột phải — tools ────────────────────────────────────────────── */}

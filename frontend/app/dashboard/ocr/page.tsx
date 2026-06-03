@@ -205,18 +205,18 @@ export default function OcrPage() {
                     </td>
                     <td className="px-4 py-3">
                       {job.file_type === "text_pdf" && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
-                          📄 PDF văn bản
+                        <span className="inline-flex items-center text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 whitespace-nowrap">
+                          PDF văn bản
                         </span>
                       )}
                       {job.file_type === "text_docx" && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-700 rounded-full px-2 py-0.5">
-                          📝 Word
+                        <span className="inline-flex items-center text-xs bg-purple-50 text-purple-700 rounded-full px-2 py-0.5 whitespace-nowrap">
+                          Word
                         </span>
                       )}
                       {(job.file_type === "scanned_pdf" || job.file_type === "image") && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">
-                          🔍 OCR
+                        <span className="inline-flex items-center text-xs bg-orange-50 text-orange-700 rounded-full px-2 py-0.5 whitespace-nowrap">
+                          OCR
                         </span>
                       )}
                       {!job.file_type && (

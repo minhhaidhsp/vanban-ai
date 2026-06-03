@@ -90,16 +90,42 @@ export default function OcrNewPage() {
     };
   }, []);
 
-  // Fetch PDF blob for iframe when result is a text_pdf
+  // Fetch PDF blob for viewer when job is done — retry up to 5× (R2 upload may lag)
   useEffect(() => {
-    if (result?.file_type !== "text_pdf" || !jobId) return;
+    console.log("[PdfUrl] useEffect triggered", { jobId, status });
+    if (status !== "done" || !jobId) return;
     let cancelled = false;
-    ocrApi.download(jobId).then((res) => {
-      if (cancelled) return;
-      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
-      pdfUrlRef.current = url;
-      setPdfUrl(url);
-    }).catch(() => {});
+    let retryCount = 0;
+    const MAX_RETRY = 5;
+
+    const tryFetch = async () => {
+      console.log("[PdfUrl] tryFetch attempt", retryCount);
+      try {
+        const res = await ocrApi.download(jobId);
+        console.log("[PdfUrl] download success, setting url");
+        if (cancelled) return;
+        if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+        const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+        pdfUrlRef.current = url;
+        console.log("[PdfUrl] setPdfUrl called with url:", url?.slice(0, 50));
+        setPdfUrl(url);
+      } catch (err: unknown) {
+        console.log("[PdfUrl] download failed",
+          (err as AxiosError)?.response?.status,
+          (err as AxiosError)?.message);
+        if (cancelled) return;
+        retryCount++;
+        if (retryCount < MAX_RETRY) {
+          setTimeout(tryFetch, 2000);
+        } else {
+          // All retries failed → textarea fallback
+          setPdfUrl(null);
+        }
+      }
+    };
+
+    tryFetch();
+
     return () => {
       cancelled = true;
       if (pdfUrlRef.current) {
@@ -108,7 +134,7 @@ export default function OcrNewPage() {
       }
       setPdfUrl(null);
     };
-  }, [result?.file_type, jobId]);
+  }, [status, jobId]);
 
   const reset = () => {
     if (pollRef.current)         { clearInterval(pollRef.current);         pollRef.current         = null; }
@@ -440,10 +466,10 @@ export default function OcrNewPage() {
       </div>
 
       {/* ── Cột phải — Kết quả ─────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
         {status === "processing" && (
-          <div className="flex flex-col gap-3 max-w-2xl">
+          <div className="p-6 flex flex-col gap-3 max-w-2xl">
             {[100, 75, 83, 100, 67, 91, 80].map((w, i) => (
               <div
                 key={i}
@@ -456,7 +482,7 @@ export default function OcrNewPage() {
 
         {status === "done" && result && (
           <>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 px-6 pt-6 mb-3 shrink-0">
               <span className="font-semibold text-sm truncate">{result.filename}</span>
               {result.file_type === "text_pdf" ? (
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap shrink-0">
@@ -468,27 +494,24 @@ export default function OcrNewPage() {
                 </span>
               )}
             </div>
-            <div className="border-t mb-3" />
+            <div className="border-t mx-6 mb-3 shrink-0" />
 
-            {result.file_type === "text_pdf" ? (
-              pdfUrl ? (
-                <PdfViewer url={pdfUrl} className="w-full" />
+            <div className="flex-1 flex flex-col min-h-0 px-6 pb-6">
+              {pdfUrl ? (
+                <PdfViewer url={pdfUrl} className="flex-1 min-h-0" />
               ) : (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              )
-            ) : (
-              <textarea
-                className="w-full min-h-[500px] font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-                value={result.formatted_text || result.text}
-                readOnly
-              />
-            )}
+                <textarea
+                  className="flex-1 min-h-0 font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={result.formatted_text || result.text}
+                  readOnly
+                />
+              )}
+            </div>
           </>
         )}
 
         {status === "error" && (
+          <div className="p-6">
           <div className="border border-red-200 rounded-lg p-4 bg-red-50 max-w-lg">
             <div className="flex items-center gap-2 mb-2">
               <XCircle className="h-4 w-4 text-red-500 shrink-0" />
@@ -500,6 +523,7 @@ export default function OcrNewPage() {
             <p className="text-xs text-red-500">
               Hãy thử lại với file khác hoặc kiểm tra định dạng file
             </p>
+          </div>
           </div>
         )}
 
