@@ -95,6 +95,60 @@ async def _format_ocr_text(raw_text: str, filename: str) -> str:
         return _basic_format(raw_text)
 
 
+# ── PDF generator from OCR text ──────────────────────────────────────────────
+
+async def _create_pdf_from_text(text: str, filename: str, job_id: str) -> str | None:
+    """
+    Tạo PDF từ formatted_text, upload lên R2.
+    Best-effort — lỗi chỉ log warning, không fail cả job.
+    Returns R2 object key hoặc None nếu lỗi.
+    """
+    try:
+        import html as _html_esc
+        from app.services.pdf_service import _write_pdf, _ensure_fonts, _build_css
+
+        font = _ensure_fonts()
+        css = _build_css(font)
+
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        if not paragraphs:
+            paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+
+        title_h = _html_esc.escape(filename)
+        body_html = "".join(
+            f"<p>{_html_esc.escape(p).replace(chr(10), '<br/>')}</p>"
+            for p in paragraphs
+        )
+        html_str = (
+            "<!DOCTYPE html>\n<html lang='vi'>\n<head>\n"
+            "  <meta charset='UTF-8'>\n"
+            f"  <style>{css}\n"
+            f"    h1 {{ font-size: 15pt; font-weight: bold; text-align: center;"
+            f" margin-bottom: 4pt; }}\n"
+            f"    p {{ font-family: '{font}', serif; font-size: 13pt;"
+            f" line-height: 1.6; margin: 0 0 0.6em 0; }}\n"
+            "  </style>\n</head>\n<body>\n"
+            f"  <h1>{title_h}</h1>\n"
+            f"  {body_html}\n"
+            "</body>\n</html>"
+        )
+
+        pdf_bytes = await asyncio.to_thread(_write_pdf, html_str)
+        if not pdf_bytes:
+            logger.warning("[ocr_pdf] %s _write_pdf returned empty", job_id)
+            return None
+
+        safe_name = re.sub(r"[^\w\-.]", "_", filename.rsplit(".", 1)[0])
+        r2_key = f"ocr-jobs/{job_id}/{safe_name}_ocr.pdf"
+        await upload_file(pdf_bytes, r2_key, "application/pdf", bucket_name=_OCR_BUCKET)
+        logger.info("[ocr_pdf] %s uploaded %d bytes → %s", job_id, len(pdf_bytes), r2_key)
+        return r2_key
+
+    except Exception as exc:
+        logger.warning("[ocr_pdf] %s failed to create PDF: %s", job_id, exc)
+        return None
+
+
 # ── OCR PDF with per-page progress ───────────────────────────────────────────
 
 async def _ocr_pdf_with_progress(content: bytes, job_id: str) -> str:
@@ -205,6 +259,7 @@ async def _process_ocr_job(job_id: str) -> None:
     formatted: str = ""
     page_count: int = 1
     error_msg: str | None = None
+    pdf_path: str | None = None
 
     try:
         redis = await get_redis()
@@ -267,6 +322,9 @@ async def _process_ocr_job(job_id: str) -> None:
         formatted = await _format_ocr_text(extracted_text, filename)
         logger.info("[ocr_job] %s formatted: %d chars", job_id, len(formatted))
 
+        # Generate PDF for unified viewer (best-effort)
+        pdf_path = await _create_pdf_from_text(formatted or extracted_text, filename, job_id)
+
     except Exception as exc:
         logger.exception("[ocr_job] %s OCR failed: %s", job_id, exc)
         error_msg = str(exc)[:500]
@@ -287,6 +345,7 @@ async def _process_ocr_job(job_id: str) -> None:
                 job.formatted_text = formatted
                 job.page_count = page_count
                 job.char_count = len(extracted_text)
+                job.file_path = pdf_path
             await db.commit()
     except Exception as exc:
         logger.exception("[ocr_job] %s failed to persist result: %s", job_id, exc)
@@ -382,6 +441,9 @@ async def _process_text_docx(job_id: str, content: bytes) -> None:
         formatted = await _format_ocr_text(extracted_text, filename)
         logger.info("[text_docx] %s done: %d chars", job_id, len(extracted_text))
 
+        # Generate PDF for unified viewer (best-effort)
+        pdf_path = await _create_pdf_from_text(formatted or extracted_text, filename, job_id)
+
     except Exception as exc:
         logger.exception("[text_docx] %s failed: %s", job_id, exc)
         async with AsyncSessionLocal() as db:
@@ -402,6 +464,7 @@ async def _process_text_docx(job_id: str, content: bytes) -> None:
                 job.formatted_text = formatted
                 job.page_count = page_count
                 job.char_count = len(extracted_text)
+                job.file_path = pdf_path
                 await db.commit()
     except Exception as exc:
         logger.exception("[text_docx] %s failed to persist result: %s", job_id, exc)
@@ -655,7 +718,7 @@ async def download_ocr_file(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Stream file gốc từ R2 cho text_pdf jobs."""
+    """Stream PDF từ R2 — text_pdf: file gốc; scan/image/docx: PDF được tạo từ OCR text."""
     result = await db.execute(
         select(OcrJob).where(
             OcrJob.id == job_id,
@@ -666,10 +729,10 @@ async def download_ocr_file(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
-    if job.file_type != "text_pdf" or not job.file_path:
+    if not job.file_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File gốc không khả dụng",
+            detail="File chưa sẵn sàng",
         )
 
     data = await asyncio.to_thread(download_file, job.file_path, _OCR_BUCKET)

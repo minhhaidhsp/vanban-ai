@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-03
-> Phiên bản: Tuần 14+ (OCR nâng cao: file_type detection, R2 upload, DOCX, react-pdf viewer, progress bar)
+> Phiên bản: Tuần 14+ (OCR unified PDF viewer — generate PDF từ OCR text, scroll mode, full-height layout)
 
 ---
 
@@ -61,6 +61,12 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **OCR danh sách cải tiến**: phân trang (LIMIT=10, `Pagination` component); cột "Loại" với badge màu (📄 xanh=text_pdf, 📝 tím=text_docx, 🔍 cam=OCR); hành động phân theo `file_type` (text_pdf → nút Download file gốc; còn lại → dropdown Word/PDF) |
 | 14+ | **OCR react-pdf viewer**: cài `react-pdf ^10.4.1`; `PdfViewer.tsx` component với toolbar phân trang (prev/next) + zoom (50%–200%); thay `<iframe>` bằng `<Document><Page>` component trong `new/page.tsx` và `[id]/page.tsx`; workerSrc dùng CDN unpkg tránh webpack config |
 | 14+ | **pipeline_service image OCR**: `_ocr_image_bytes()` mới — hỗ trợ `image/jpeg`, `image/png`, `image/bmp`, `image/tiff`, `image/webp` trong kho văn bản tham chiếu; phát hiện qua MIME type `mime.startswith("image/")` trong `_extract_text()`; không cần validation whitelist trong `reference_docs.py` (không có) |
+| 14+ | **OCR unified PDF viewer** (`_create_pdf_from_text`): sau mỗi OCR job done, hàm mới tạo PDF từ `formatted_text` (fallback `text`) qua `pdf_service._write_pdf`, upload lên R2 `ocr-jobs/{job_id}/{name}_ocr.pdf`, lưu vào `job.file_path`; áp dụng cho `_process_ocr_job` (scanned_pdf/image) và `_process_text_docx`; `_process_text_pdf` không cần (file gốc đã ở R2); download endpoint bỏ điều kiện `file_type=="text_pdf"` → chỉ check `not job.file_path`; frontend fetch PDF cho MỌI job type khi done → PdfViewer hoặc textarea fallback nếu file_path=None |
+| 14+ | **PdfViewer scroll mode**: bỏ page navigation (prev/next, pageNumber state); render tất cả trang liên tiếp `Array.from({ length: numPages }, (_, i) => <Page pageNumber={i+1} />)` trong một scroll container; toolbar chỉ còn tổng số trang + ZoomIn/Out (50%–200%); `div.content: flex-1 overflow-y-auto, style={{ minHeight: 0 }}` để scroll bên trong; bỏ import `ChevronLeft`, `ChevronRight` |
+| 14+ | **OCR full-height layout** (`new/page.tsx`, `[id]/page.tsx`): cột chứa PdfViewer đổi từ `overflow-y-auto p-6` sang `flex flex-col min-h-0 overflow-hidden`; header/breadcrumb thêm `shrink-0`; wrapper viewer có `flex-1 flex flex-col min-h-0`; PdfViewer và textarea đều có `flex-1 min-h-0` (bỏ `min-h-[500px]`, `min-h-[600px]`); `min-h-0` critical để flex child có thể shrink |
+| 14+ | **pdfUrl useEffect fix** (`/ocr/new`): `OcrResult` type không có field `status` — điều kiện `result?.status !== "done"` luôn `undefined`/falsy → useEffect không trigger; **fix**: dùng component state `status: OcrStatus` thay vì `result?.status`; dependency array `[status, jobId]` thay `[result?.status, jobId]`; thêm retry logic (5 lần, 2s delay) vì R2 upload sau OCR có thể lag vài giây |
+| 14+ | **react-pdf downgrade v10→v7**: pdfjs-dist v4 (dùng bởi v10) dùng ESM `.mjs` không tương thích webpack Next.js 14 — `Object.defineProperty called on non-object`; v7 dùng pdfjs-dist v3 CJS `.js`; CSS path đổi `dist/Page/` → `dist/esm/Page/`; workerSrc đổi `.mjs` → `.js`; `next.config.js` thêm `canvas=false` alias; CSS imports chuyển sang `globals.css` |
+| 14+ | **OCR badge fix** (`/dashboard/ocr`): bỏ emoji (📄📝🔍) khỏi badge file_type; thêm `whitespace-nowrap` tránh xuống hàng trong cột hẹp; bỏ `gap-1` (không cần khi không có icon) |
 
 ### Tech stack thực tế
 
@@ -1274,11 +1280,20 @@ Sau khi OCR xong, `_format_ocr_text(raw_text, filename)` gọi `llm_service.chat
 **35. OCR file_type routing — 4 nhánh background task (Tuần 14+)**
 `POST /ocr/extract` detect file_type trước khi tạo OcrJob và dispatch task. Mỗi nhánh tối ưu riêng: `text_pdf` upload file lên R2 ngay trong request (đồng bộ) vì cần `file_path` cho `/download` endpoint sau này — tốn ~200ms nhưng chấp nhận được; task chỉ cần extract text (không OCR, không Redis cache). `scanned_pdf`/`image` dùng Redis base64 cache vì pytesseract có thể mất 30-120s mỗi trang — không block request. `text_docx` pass bytes trực tiếp vào task vì python-docx nhanh, không cần R2 (không có download use case). Không có nhánh nào dùng cả Redis lẫn R2 — tránh double storage overhead.
 
-**36. react-pdf workerSrc CDN (Tuần 14+)**
-react-pdf v10 yêu cầu `pdfjs-dist` worker để decode PDF trong thread riêng. Hai cách config: (1) copy worker file vào `/public/` + `workerSrc="/pdf.worker.mjs"` — cần config Next.js webpack; (2) CDN unpkg: `pdfjs.GlobalWorkerOptions.workerSrc = \`//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs\`` — không cần webpack config, worker version tự động match installed version. Dùng phương án 2 để đơn giản hóa setup. Lưu ý: CDN cần internet khi render PDF, nhưng blob URL đã load trước nên chỉ worker cần CDN.
+**36. react-pdf v7 + workerSrc CDN (Tuần 14+)**
+react-pdf v10 dùng pdfjs-dist v4 (ESM `.mjs`) — webpack Next.js 14 không xử lý được → `Object.defineProperty called on non-object` kể cả với `dynamic ssr:false`. Downgrade về v7 (pdfjs-dist v3, CommonJS `.js`) giải quyết hoàn toàn. workerSrc dùng CDN unpkg: `pdfjs.GlobalWorkerOptions.workerSrc = \`//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js\`` trong `useEffect` (client-side only). CSS path v7: `react-pdf/dist/esm/Page/AnnotationLayer.css` và `TextLayer.css` — import trong `globals.css` (không import trong component để tránh SSR process). `next.config.js`: `config.resolve.alias.canvas = false` — pdfjs-dist optional dep không có trong Next.js.
 
 **37. OCR progress bar — dual polling (Tuần 14+)**
 Khi xử lý scanned PDF, frontend chạy 2 interval song song: `pollRef` (mỗi 2s) poll `/ocr/status/{id}` chờ status=done/error; `progressPollRef` (mỗi 1s) poll `/ocr/progress/{id}` để cập nhật progress bar. Progress bar tắt ngay khi status done/error (clearInterval cả 2 refs). Thiết kế này tránh coupling: nếu progress API lỗi (Redis key expired), status poll vẫn hoạt động bình thường — `setProgress` không được gọi, bar giữ nguyên 0%. Progress key tự xóa sau OCR xong; poll tiếp theo trả `percent=0` nhưng status poll đã done → progressPollRef đã bị clear.
+
+**38. OCR unified PDF viewer — _create_pdf_from_text (Tuần 14+)**
+Vấn đề: scanned_pdf, image, text_docx jobs không có file PDF → viewer phải fallback textarea, không nhất quán. Giải pháp: sau khi OCR/extract xong và LLM format xong, `_create_pdf_from_text(text, filename, job_id)` tái dùng `pdf_service._write_pdf` để tạo PDF từ text, upload R2 key `ocr-jobs/{job_id}/{name}_ocr.pdf`, set `job.file_path`. Hàm best-effort — lỗi chỉ log warning, không fail job. text_pdf không cần (file gốc đã ở R2 từ `POST /extract`). Download endpoint bỏ điều kiện `file_type=="text_pdf"` — chỉ check `not job.file_path` → 400 nếu PDF chưa sẵn sàng. Frontend catch lỗi download → textarea fallback, không báo lỗi.
+
+**39. useEffect dependency phải dùng component state, không phải nested field (Tuần 14+)**
+Bug trong `/ocr/new`: `OcrResult` interface có các field `filename, text, formatted_text, page_count, char_count, file_type` — KHÔNG có field `status`. Tuy nhiên useEffect check `result?.status !== "done"` — `result?.status` luôn `undefined` → điều kiện luôn `true` → useEffect return sớm, không bao giờ fetch PDF. **Fix:** Dùng component state `status: OcrStatus` (track riêng theo flow) thay vì field của result object. Dependency array `[status, jobId]` thay vì `[result?.status, jobId]`. Bài học: khi cần track trạng thái async flow, dùng state riêng — không nest vào object kết quả.
+
+**40. flex flex-col min-h-0 pattern cho full-height scroll child (Tuần 14+)**
+Mặc định, flex child có `min-height: auto` — không thể shrink nhỏ hơn content của nó. Khi PdfViewer (`overflow-y-auto flex-1`) nằm trong flex column mà không có `min-h-0`, nó sẽ expand ra ngoài viewport thay vì scroll bên trong. **Fix chain bắt buộc:** mỗi ancestor flex container trong chain phải có `min-h-0` (hoặc `overflow-hidden`). Cụ thể: outer col → `flex flex-col min-h-0 overflow-hidden`; wrapper → `flex-1 flex flex-col min-h-0`; PdfViewer → `flex-1 min-h-0`; PdfViewer content div → `flex-1 overflow-y-auto, style={{ minHeight: 0 }}`. Thiếu bất kỳ link nào trong chain → scroll không hoạt động đúng.
 
 **34. OCR export paragraph split (Tuần 14+)**
 `POST /ocr/export` nhận text từ LLM formatting (có `\n\n` phân tách đoạn). Trước đây `add_paragraph(text)` gộp tất cả thành 1 đoạn DOCX, `<pre>` không render đúng trong PDF. **Fix:** `text.split("\n\n")` → list paragraphs (fallback `split("\n")` nếu không có double-newline). DOCX: mỗi paragraph thêm `add_run()` với `font.name="Times New Roman"`, `font.size=Pt(13)`. PDF: `<p>` per paragraph, `\n` inline → `<br/>`, CSS `p { margin-bottom: 0.6em }` thay `<pre>`.
