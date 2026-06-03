@@ -104,10 +104,11 @@ export function DashboardOverview() {
     queryFn: documentApi.getStats,
   });
 
-  const { data: recentDocs = [], isLoading: recentLoading } = useQuery<DocumentDto[]>({
+  const { data: recentData, isLoading: recentLoading } = useQuery<{ items: DocumentDto[]; total: number }>({
     queryKey: ["documents-recent"],
-    queryFn: () => documentApi.list({ limit: 5, sort: "updated_at" }),
+    queryFn: () => documentApi.list({ limit: 5, sort_by: "updated_at" }),
   });
+  const recentDocs = recentData?.items ?? [];
 
   // Prepare chart data
   const barData = stats
