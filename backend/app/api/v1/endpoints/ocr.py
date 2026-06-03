@@ -265,12 +265,22 @@ async def ocr_export(
 
     safe_name = re.sub(r"[^\w\-.]", "_", filename)[:120]
 
+    # Split into paragraphs (prefer double-newline, fall back to single)
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+
     if format == "docx":
         from docx import Document as DocxDocument
+        from docx.shared import Pt
 
         doc = DocxDocument()
         doc.add_heading(filename, level=1)
-        doc.add_paragraph(text)
+        for para_text in paragraphs:
+            para = doc.add_paragraph()
+            run = para.add_run(para_text)
+            run.font.name = "Times New Roman"
+            run.font.size = Pt(13)
         buf = io.BytesIO()
         doc.save(buf)
         encoded = quote(f"{safe_name}.docx", safe="")
@@ -295,18 +305,21 @@ async def ocr_export(
     font = _ensure_fonts()
     css = _build_css(font)
     title_h = _html_esc.escape(filename)
-    text_h = _html_esc.escape(text)
+    body_html = "".join(
+        f"<p>{_html_esc.escape(p).replace(chr(10), '<br/>')}</p>"
+        for p in paragraphs
+    )
     html_str = (
         "<!DOCTYPE html>\n<html lang='vi'>\n<head>\n"
         "  <meta charset='UTF-8'>\n"
         f"  <style>{css}\n"
         f"    h1 {{ font-size: 15pt; font-weight: bold; text-align: center;"
         f" margin-bottom: 4pt; }}\n"
-        f"    pre {{ white-space: pre-wrap; font-family: '{font}', serif;"
-        f" font-size: 13pt; line-height: 1.6; }}\n"
+        f"    p {{ font-family: '{font}', serif; font-size: 13pt;"
+        f" line-height: 1.6; margin: 0 0 0.6em 0; }}\n"
         "  </style>\n</head>\n<body>\n"
         f"  <h1>{title_h}</h1>\n"
-        f"  <pre>{text_h}</pre>\n"
+        f"  {body_html}\n"
         "</body>\n</html>"
     )
     pdf_bytes = await asyncio.to_thread(_write_pdf, html_str)

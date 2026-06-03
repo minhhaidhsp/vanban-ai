@@ -6,7 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { ocrApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, Download, FileText, Loader2, Link2, Printer } from "lucide-react";
+import {
+  ChevronDown, ChevronRight, Download, FileText, Link2, Loader2, Printer,
+} from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -15,6 +20,7 @@ interface OcrJob {
   filename: string;
   status: "pending" | "processing" | "done" | "error";
   text: string | null;
+  formatted_text: string | null;
   page_count: number | null;
   char_count: number | null;
   error_msg: string | null;
@@ -36,7 +42,7 @@ function formatDateTime(d: string | null) {
 export default function OcrDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { toast } = useToast();
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExporting, setIsExporting] = useState<"docx" | "pdf" | null>(null);
 
   const { data: rawData, isLoading, isError } = useQuery({
     queryKey: ["ocr-job", id],
@@ -48,9 +54,10 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
   const handleExport = async (format: "docx" | "pdf") => {
     if (!rawData?.text) return;
-    setIsExporting(true);
+    setIsExporting(format);
     try {
-      const res = await ocrApi.export(rawData.text, rawData.filename, format);
+      const textToExport = rawData.formatted_text || rawData.text;
+      const res = await ocrApi.export(textToExport, rawData.filename, format);
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -60,7 +67,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     } catch {
       toast({ title: "Lỗi xuất file", variant: "destructive" });
     } finally {
-      setIsExporting(false);
+      setIsExporting(null);
     }
   };
 
@@ -68,8 +75,6 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     navigator.clipboard.writeText(window.location.href);
     toast({ title: "Đã sao chép liên kết" });
   };
-
-  // ── Loading ────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -90,8 +95,6 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // ── Not ready yet ──────────────────────────────────────────────────────────
-
   if (rawData.status !== "done") {
     const statusLabel: Record<string, string> = {
       pending:    "⏳ Chờ xử lý",
@@ -111,7 +114,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // ── Done — render 2-column layout ─────────────────────────────────────────
+  const displayText = rawData.formatted_text || rawData.text;
 
   return (
     <div className="flex flex-row h-full gap-0">
@@ -128,18 +131,15 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
           <span className="truncate max-w-xs">{rawData.filename}</span>
         </div>
 
-        {/* Tiêu đề */}
         <h1 className="text-xl font-bold">{rawData.filename}</h1>
-
         <div className="border-t my-4" />
 
-        {/* Nội dung văn bản */}
-        {!rawData.text ? (
+        {!displayText ? (
           <p className="text-muted-foreground italic">Không có nội dung</p>
         ) : (
           <textarea
             className="w-full min-h-[600px] font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-            value={rawData.text}
+            value={displayText}
             readOnly
           />
         )}
@@ -157,27 +157,44 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
           <div className="border-t" />
 
-          {/* Xuất file */}
+          {/* Xuất file — split button */}
           <div>
             <p className="text-xs text-muted-foreground uppercase mb-2">Xuất file</p>
-            <div className="flex flex-col gap-2">
+            <div className="flex w-full">
               <Button
-                className="w-full justify-start gap-2"
+                className="flex-1 rounded-r-none justify-start gap-2"
                 onClick={() => handleExport("docx")}
-                disabled={isExporting}
+                disabled={isExporting !== null}
               >
-                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Tải xuống Word
+                {isExporting === "docx"
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Download className="h-4 w-4" />}
+                {isExporting === "docx" ? "Đang xuất..." : "Tải Word"}
               </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => handleExport("pdf")}
-                disabled={isExporting}
-              >
-                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                Tải xuống PDF
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="rounded-l-none border-l-0 px-2"
+                    disabled={isExporting !== null}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport("docx")}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Tải Word (.docx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Tải PDF
+                    {isExporting === "pdf" && (
+                      <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
