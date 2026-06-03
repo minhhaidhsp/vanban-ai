@@ -18,6 +18,7 @@ interface OcrJob {
   filename: string;
   status: "pending" | "processing" | "done" | "error";
   text: string | null;
+  formatted_text: string | null;
   page_count: number | null;
   char_count: number | null;
   error_msg: string | null;
@@ -97,10 +98,10 @@ export default function OcrPage() {
       // Fetch full job to get text (list response may not include text)
       const fullRes = await ocrApi.getJob(job.id);
       const fullJob = fullRes.data as OcrJob;
-      const text = fullJob.text ?? "";
+      const textToExport = fullJob.formatted_text || fullJob.text || "";
       const filename = fullJob.filename;
 
-      const res = await ocrApi.export(text, filename, format);
+      const res = await ocrApi.export(textToExport, filename, format);
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;

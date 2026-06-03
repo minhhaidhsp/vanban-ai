@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-03
-> Phiên bản: Tuần 14+ (OCR Viewer feature complete)
+> Phiên bản: Tuần 14+ (OCR Viewer + auto-migration on deploy)
 
 ---
 
@@ -49,6 +49,10 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | chunk_count indicator: badge "✓ Đã lập chỉ mục" (xanh) / "⚠ Chưa lập chỉ mục" (đỏ) trong `ref-doc-table` và `SourcePickerModal`; batch-count chunks trong `list_ref_docs` (1 query thêm, không N+1); disable doc chưa index trong SourcePickerModal + tooltip |
 | 14+ | Generate system prompt v2: thêm section `== THỂ THỨC TRÌNH BÀY ==` với font Times New Roman 13-14pt và thông số lề NĐ30 (trên/dưới 20-25mm, trái 30-35mm, phải 15-20mm) |
 | 14+ | **OCR Viewer** (tính năng hoàn chỉnh): Menu "OCR Văn bản" trong sidebar → `/dashboard/ocr` danh sách văn bản đã index + nút "OCR PDF mới" → `/dashboard/ocr/[id]` viewer 2 cột với export DOCX/PDF; Backend: `POST /ocr/extract` async job (OcrJob DB + Redis file cache base64) + `POST /ocr/export` stateless + GET jobs/status/detail; Migration 0012 `ocr_jobs` table; `ocrApi` trong lib/api.ts |
+| 14+ | `/dashboard/ocr` rewrite: hiển thị lịch sử `ocr_jobs` (không còn reference_docs); auto-poll 5s khi có job pending/processing (TanStack Query v5 function `refetchInterval`); badge trạng thái màu theo status |
+| 14+ | `/dashboard/ocr/new`: trang upload 2 cột (control trái / kết quả phải); `handleStartOcr` upload → nhận jobId → poll `/ocr/{id}` mỗi 2s; `statusRef` tránh stale closure; `pollRef`/`timeoutRef` cleanup khi unmount; skeleton animation khi processing; timeout 5 phút |
+| 14+ | `/dashboard/ocr/[id]` rewrite: đọc từ `ocrApi.getJob` thay `refDocApi.getContent`; guard `status !== "done"` → badge + "Kết quả chưa sẵn sàng"; textarea nội dung + stats page_count/char_count/created_at |
+| 14+ | Deploy fix: `alembic upgrade head &&` trước `uvicorn` trong `railway.toml` `startCommand` + `nixpacks.toml` `[start] cmd` — đảm bảo migration 0012 được apply tự động khi Railway deploy |
 
 ### Tech stack thực tế
 
@@ -171,8 +175,9 @@ frontend/
 │   │   ├── reference-docs/
 │   │   │   └── page.tsx         # Kho văn bản tham chiếu (filter, phân trang)
 │   │   ├── ocr/
-│   │   │   ├── page.tsx         # Danh sách VB đã index + Dialog "OCR PDF mới" (drag-drop, async job polling)
-│   │   │   └── [id]/page.tsx    # Viewer 2 cột: nội dung chunk + Tools panel (export DOCX/PDF, in, copy link)
+│   │   │   ├── page.tsx         # Lịch sử ocr_jobs; auto-poll 5s khi có job active; badge status
+│   │   │   ├── new/page.tsx     # Upload 2 cột: drag-drop → extract job → poll 2s → skeleton/textarea
+│   │   │   └── [id]/page.tsx    # Viewer 2 cột: OcrJob text + stats (page_count, char_count, created_at)
 │   │   └── rag-search/
 │   │       └── page.tsx         # Tra cứu AI: search bar, ConfidenceMeter, disclaimer/fallback banners, CopyButton, citation cards
 │   ├── print/
@@ -1377,8 +1382,24 @@ Status: ✅ Workaround
 
 ```toml
 [deploy]
+startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
+
+### nixpacks.toml (backend)
+
+```toml
+[phases.setup]
+nixPkgs = ["gcc", "postgresql"]
+
+[phases.install]
+cmds = ["pip install -r requirements-railway.txt"]
+
+[start]
+cmd = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"
+```
+
+`alembic upgrade head` chạy trước `uvicorn` để mọi migration mới (ví dụ 0012 `ocr_jobs`) được apply tự động mỗi lần deploy, không cần chạy tay trên Supabase.

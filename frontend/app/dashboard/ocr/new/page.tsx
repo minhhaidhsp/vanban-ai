@@ -5,8 +5,11 @@ import { ocrApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CheckCircle2, Download, FileText, Loader2, ScanText, Upload, XCircle,
+  CheckCircle2, ChevronDown, Download, FileText, Loader2, ScanText, Upload, XCircle,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { AxiosError } from "axios";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -16,6 +19,7 @@ type OcrStatus = "idle" | "uploading" | "processing" | "done" | "error";
 interface OcrResult {
   filename: string;
   text: string;
+  formatted_text: string | null;
   page_count: number | null;
   char_count: number | null;
 }
@@ -24,6 +28,7 @@ interface OcrJobData {
   status: string;
   filename: string;
   text: string | null;
+  formatted_text: string | null;
   page_count: number | null;
   char_count: number | null;
   error_msg: string | null;
@@ -46,13 +51,13 @@ export default function OcrNewPage() {
   const [status, setStatus]       = useState<OcrStatus>("idle");
   const [result, setResult]       = useState<OcrResult | null>(null);
   const [errorMsg, setErrorMsg]   = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExporting, setIsExporting] = useState<"docx" | "pdf" | null>(null);
+  const [exportFormat, setExportFormat] = useState<"docx" | "pdf">("docx");
   const [dragOver, setDragOver]   = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // statusRef avoids stale closure in setTimeout/setInterval callbacks
   const statusRef    = useRef<OcrStatus>("idle");
 
   const setStatusSync = (s: OcrStatus) => {
@@ -60,7 +65,6 @@ export default function OcrNewPage() {
     statusRef.current = s;
   };
 
-  // Cleanup intervals on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -69,8 +73,8 @@ export default function OcrNewPage() {
   }, []);
 
   const reset = () => {
-    if (pollRef.current)   { clearInterval(pollRef.current);  pollRef.current   = null; }
-    if (timeoutRef.current){ clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    if (pollRef.current)    { clearInterval(pollRef.current);   pollRef.current   = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     setFile(null);
     setJobId(null);
     setStatusSync("idle");
@@ -94,13 +98,11 @@ export default function OcrNewPage() {
     setErrorMsg(null);
 
     try {
-      // Step 1: upload file → get job record (status=pending)
       const res = await ocrApi.extract(file);
       const newJobId = (res.data as { id: string }).id;
       setJobId(newJobId);
       setStatusSync("processing");
 
-      // Step 2: poll every 2 s until done/error
       const poll = setInterval(async () => {
         try {
           const statusRes = await ocrApi.getJob(newJobId);
@@ -110,10 +112,11 @@ export default function OcrNewPage() {
             clearInterval(poll);
             pollRef.current = null;
             setResult({
-              filename:   job.filename,
-              text:       job.text ?? "",
-              page_count: job.page_count,
-              char_count: job.char_count,
+              filename:       job.filename,
+              text:           job.text ?? "",
+              formatted_text: job.formatted_text ?? null,
+              page_count:     job.page_count,
+              char_count:     job.char_count,
             });
             setStatusSync("done");
           } else if (job.status === "error") {
@@ -122,7 +125,6 @@ export default function OcrNewPage() {
             setErrorMsg(job.error_msg ?? "Có lỗi xảy ra khi OCR");
             setStatusSync("error");
           }
-          // "pending" | "processing" → keep polling
         } catch {
           clearInterval(poll);
           pollRef.current = null;
@@ -132,7 +134,6 @@ export default function OcrNewPage() {
       }, 2000);
       pollRef.current = poll;
 
-      // Timeout after 5 minutes
       timeoutRef.current = setTimeout(() => {
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
         if (statusRef.current === "processing") {
@@ -152,9 +153,10 @@ export default function OcrNewPage() {
 
   const handleExport = async (format: "docx" | "pdf") => {
     if (!result) return;
-    setIsExporting(true);
+    setIsExporting(format);
     try {
-      const res = await ocrApi.export(result.text, result.filename, format);
+      const textToExport = result.formatted_text || result.text;
+      const res = await ocrApi.export(textToExport, result.filename, format);
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -164,7 +166,7 @@ export default function OcrNewPage() {
     } catch {
       toast({ title: "Lỗi xuất file", variant: "destructive" });
     } finally {
-      setIsExporting(false);
+      setIsExporting(null);
     }
   };
 
@@ -284,30 +286,51 @@ export default function OcrNewPage() {
           )}
         </div>
 
-        {/* Export buttons */}
+        {/* ── Split button: Word (primary) + dropdown (PDF) ── */}
         {status === "done" && result && (
-          <div className="flex flex-col gap-2">
+          <div className="flex w-full">
             <Button
-              className="w-full justify-start gap-2"
-              onClick={() => handleExport("docx")}
-              disabled={isExporting}
+              className="flex-1 rounded-r-none"
+              onClick={() => handleExport(exportFormat)}
+              disabled={isExporting !== null}
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Tải Word
+              {isExporting === exportFormat
+                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                : exportFormat === "docx"
+                  ? <Download className="w-4 h-4 mr-2" />
+                  : <FileText className="w-4 h-4 mr-2" />}
+              {isExporting === exportFormat
+                ? "Đang xuất..."
+                : exportFormat === "docx" ? "Tải Word" : "Tải PDF"}
             </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => handleExport("pdf")}
-              disabled={isExporting}
-            >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              Tải PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="rounded-l-none border-l-0 px-2"
+                  disabled={isExporting !== null}
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setExportFormat("docx"); handleExport("docx"); }}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Tải Word (.docx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setExportFormat("pdf"); handleExport("pdf"); }}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Tải PDF
+                  {isExporting === "pdf" && (
+                    <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
 
-        {/* OCR file khác (done or error) */}
+        {/* OCR file khác */}
         {(status === "done" || status === "error") && (
           <Button variant="ghost" size="sm" className="w-full" onClick={reset}>
             OCR file khác
@@ -332,7 +355,7 @@ export default function OcrNewPage() {
             {[100, 75, 83, 100, 67, 91, 80].map((w, i) => (
               <div
                 key={i}
-                className={`h-4 rounded bg-muted animate-pulse`}
+                className="h-4 rounded bg-muted animate-pulse"
                 style={{ width: `${w}%` }}
               />
             ))}
@@ -350,7 +373,7 @@ export default function OcrNewPage() {
             <div className="border-t mb-3" />
             <textarea
               className="w-full min-h-[500px] font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-              value={result.text}
+              value={result.formatted_text || result.text}
               readOnly
             />
           </>
