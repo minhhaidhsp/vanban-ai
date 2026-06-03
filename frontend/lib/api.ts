@@ -232,6 +232,12 @@ export const ocrApi = {
       { text, filename, format },
       { responseType: "blob" },
     ),
+
+  getJobs: (params?: { skip?: number; limit?: number }) =>
+    api.get("/ocr/jobs", { params }),
+
+  getJob: (jobId: string) =>
+    api.get(`/ocr/${jobId}`),
 };
 
 export interface ChunkUsed {
