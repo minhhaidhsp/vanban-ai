@@ -29,6 +29,7 @@ import json
 import logging
 import re
 import uuid
+from urllib.parse import quote
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -740,10 +741,11 @@ async def export_reference_doc(
         docx_doc.add_paragraph(full_text)
         buf = io.BytesIO()
         docx_doc.save(buf)
+        encoded = quote(f"{safe_filename}.docx", safe="")
         return Response(
             content=buf.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={"Content-Disposition": f'attachment; filename="{safe_filename}.docx"'},
+            headers={"Content-Disposition": f"attachment; filename=\"vanban.docx\"; filename*=UTF-8''{encoded}"},
         )
 
     # format == "pdf"
@@ -771,8 +773,9 @@ async def export_reference_doc(
         "</body>\n</html>"
     )
     pdf_bytes = await asyncio.to_thread(_write_pdf, html_str)
+    encoded = quote(f"{safe_filename}.pdf", safe="")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{safe_filename}.pdf"'},
+        headers={"Content-Disposition": f"attachment; filename=\"vanban.pdf\"; filename*=UTF-8''{encoded}"},
     )
