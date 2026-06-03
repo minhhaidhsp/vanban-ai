@@ -75,17 +75,38 @@ function StatusBadge({ status }: { status: OcrJob["status"] }) {
   );
 }
 
+// ── Sort icon ─────────────────────────────────────────────────────────────────
+
+function SortIcon({ col, sortBy, sortOrder }: { col: string; sortBy: string; sortOrder: "asc" | "desc" }) {
+  if (sortBy !== col) return <span className="text-gray-300 ml-1">↕</span>;
+  return <span className="ml-1">{sortOrder === "asc" ? "↑" : "↓"}</span>;
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OcrPage() {
   const { toast } = useToast();
   const [page, setPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const skip = (page - 1) * LIMIT;
 
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [filterStatus, filterType]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["ocr-jobs", page],
+    queryKey: ["ocr-jobs", page, filterStatus, filterType, sortBy, sortOrder],
     queryFn: async () => {
-      const res = await ocrApi.getJobs({ skip, limit: LIMIT });
+      const res = await ocrApi.getJobs({
+        skip,
+        limit: LIMIT,
+        status: filterStatus || undefined,
+        file_type: filterType || undefined,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      });
       return res.data as OcrJobListResponse;
     },
     refetchInterval: (query) => {
@@ -105,13 +126,27 @@ export default function OcrPage() {
     if (hasActive) setPage(1);
   }, [data]);
 
+  const handleSort = (col: string) => {
+    if (sortBy === col) setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+    else { setSortBy(col); setSortOrder("desc"); }
+    setPage(1);
+  };
+
   const handleExport = async (job: OcrJob, format: "docx" | "pdf") => {
     try {
-      const fullRes = await ocrApi.getJob(job.id);
-      const fullJob = fullRes.data as OcrJob;
-      const textToExport = fullJob.formatted_text || fullJob.text || "";
-      const filename = fullJob.filename;
-      const res = await ocrApi.export(textToExport, filename, format);
+      const filename = job.filename;
+      let res;
+      if (job.file_type === "text_pdf") {
+        // Use pdf2docx for true layout-preserving DOCX; download original for PDF
+        res = format === "docx"
+          ? await ocrApi.exportDocx(job.id)
+          : await ocrApi.download(job.id);
+      } else {
+        const fullRes = await ocrApi.getJob(job.id);
+        const fullJob = fullRes.data as OcrJob;
+        const textToExport = fullJob.formatted_text || fullJob.text || "";
+        res = await ocrApi.export(textToExport, filename, format);
+      }
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -120,20 +155,6 @@ export default function OcrPage() {
       URL.revokeObjectURL(url);
     } catch {
       toast({ title: "Lỗi xuất file", variant: "destructive" });
-    }
-  };
-
-  const handleDownloadOriginal = async (jobId: string, filename: string) => {
-    try {
-      const res = await ocrApi.download(jobId);
-      const url = URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: "Lỗi tải file", variant: "destructive" });
     }
   };
 
@@ -162,12 +183,49 @@ export default function OcrPage() {
         Lịch sử các lần OCR ({total} văn bản)
       </p>
 
+      {/* ── Filter bar ────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="text-sm border rounded px-2 py-1.5 bg-white"
+        >
+          <option value="">Tất cả trạng thái</option>
+          <option value="done">✓ Hoàn tất</option>
+          <option value="processing">Đang xử lý</option>
+          <option value="error">Lỗi</option>
+        </select>
+
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="text-sm border rounded px-2 py-1.5 bg-white"
+        >
+          <option value="">Tất cả loại</option>
+          <option value="text_pdf">PDF văn bản</option>
+          <option value="scanned_pdf">OCR (scan)</option>
+          <option value="image">OCR (ảnh)</option>
+          <option value="text_docx">Word</option>
+        </select>
+
+        {(filterStatus || filterType) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setFilterStatus(""); setFilterType(""); }}
+          >
+            Xóa filter
+          </Button>
+        )}
+      </div>
+
       {/* ── Content ───────────────────────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : items.length === 0 ? (
+      ) : total === 0 && !filterStatus && !filterType ? (
+        // No jobs ever created
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <ScanText className="h-12 w-12 opacity-20" />
           <p className="text-sm">Chưa có lịch sử OCR nào.</p>
@@ -181,22 +239,44 @@ export default function OcrPage() {
           </p>
         </div>
       ) : (
+        // Always show table (even when filter returns 0 results)
         <>
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-full text-sm">
               <thead className="bg-muted/50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tên file</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[90px]">Số trang</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px]">Số ký tự</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px]">Loại</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[150px]">Ngày tạo</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px]">Trạng thái</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[150px]">Hành động</th>
+                  <th
+                    className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                    onClick={() => handleSort("filename")}
+                  >
+                    Tên file <SortIcon col="filename" sortBy={sortBy} sortOrder={sortOrder} />
+                  </th>
+                  <th
+                    className="px-4 py-3 text-left font-medium text-muted-foreground w-[90px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                    onClick={() => handleSort("page_count")}
+                  >
+                    Số trang <SortIcon col="page_count" sortBy={sortBy} sortOrder={sortOrder} />
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px] whitespace-nowrap">Số ký tự</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px] whitespace-nowrap">Loại</th>
+                  <th
+                    className="px-4 py-3 text-left font-medium text-muted-foreground w-[150px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                    onClick={() => handleSort("created_at")}
+                  >
+                    Ngày tạo <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder} />
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px] whitespace-nowrap">Trạng thái</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[170px] whitespace-nowrap">Hành động</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((job) => (
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">
+                      Không có kết quả phù hợp với bộ lọc đã chọn
+                    </td>
+                  </tr>
+                ) : items.map((job) => (
                   <tr key={job.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-medium max-w-xs truncate">{job.filename}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{job.page_count ?? "—"}</td>
@@ -234,32 +314,21 @@ export default function OcrPage() {
                             <Button variant="outline" size="sm" asChild>
                               <Link href={`/dashboard/ocr/${job.id}`}>Xem</Link>
                             </Button>
-                            {job.file_type === "text_pdf" ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                title="Tải file gốc"
-                                onClick={() => handleDownloadOriginal(job.id, job.filename)}
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Download className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleExport(job, "docx")}>
-                                    Tải Word
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleExport(job, "pdf")}>
-                                    Tải PDF
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <Download className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleExport(job, "docx")}>
+                                  Tải Word
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExport(job, "pdf")}>
+                                  Tải PDF
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </>
                         )}
                         {(job.status === "pending" || job.status === "processing") && (
@@ -282,14 +351,20 @@ export default function OcrPage() {
             </table>
           </div>
 
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            pageSize={LIMIT}
-            onPageChange={setPage}
-            className="mt-4"
-          />
+          {totalPages > 1 ? (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              pageSize={LIMIT}
+              onPageChange={setPage}
+              className="mt-4"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground text-center mt-3">
+              Hiển thị {items.length} / {total} kết quả
+            </p>
+          )}
         </>
       )}
 
