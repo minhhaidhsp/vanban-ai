@@ -44,6 +44,54 @@ _MAX_BYTES = 20 * 1024 * 1024  # 20 MB
 _REDIS_TTL = 3600               # 1 hour
 
 
+# ── LLM text formatter ───────────────────────────────────────────────────────
+
+def _basic_format(text: str) -> str:
+    """Fallback: normalize whitespace when LLM is unavailable."""
+    import re
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r' {2,}', ' ', text)
+    return text.strip()
+
+
+async def _format_ocr_text(raw_text: str, filename: str) -> str:
+    """Use LLM to reformat raw OCR text into clean, readable Vietnamese text."""
+    # Cap at 8000 chars to stay well within Groq context / avoid timeout
+    truncated = raw_text[:8000] if len(raw_text) > 8000 else raw_text
+
+    system_prompt = (
+        "Bạn là trợ lý chuyên xử lý văn bản tiếng Việt được trích xuất từ OCR.\n"
+        "Nhiệm vụ: nhận text OCR thô (có thể bị lỗi định dạng, dính chữ, mất xuống dòng) "
+        "và tái cấu trúc lại thành văn bản có định dạng đẹp, dễ đọc.\n\n"
+        "Nguyên tắc:\n"
+        "- Giữ NGUYÊN nội dung, KHÔNG thêm hoặc bịa thông tin\n"
+        "- Tách đúng các đoạn văn, tiêu đề, danh sách\n"
+        "- Nếu là văn bản hành chính (công văn, quyết định...): giữ cấu trúc quốc hiệu, "
+        "số ký hiệu, trích yếu, nội dung, chữ ký\n"
+        "- Nếu là biểu mẫu (tờ khai, hợp đồng...): giữ cấu trúc các mục, trường thông tin\n"
+        "- Nếu là văn bản thông thường: tách paragraph hợp lý\n"
+        "- Dùng dấu xuống dòng \\n để phân tách đoạn\n"
+        "- KHÔNG thêm markdown (không dùng **, ##, -)\n"
+        "- Chỉ trả về văn bản đã tái cấu trúc, KHÔNG giải thích gì thêm"
+    )
+    user_prompt = f"Tên file: {filename}\n\nText OCR cần tái cấu trúc:\n{truncated}"
+
+    try:
+        from app.services.llm_service import llm_service
+        result = await llm_service.chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            max_tokens=4000,
+        )
+        return result.strip() if result else raw_text
+    except Exception as exc:
+        logger.warning("[ocr_format] LLM failed: %s — falling back to basic format", exc)
+        return _basic_format(raw_text)
+
+
 # ── Background processor ──────────────────────────────────────────────────────
 
 async def _process_ocr_job(job_id: str) -> None:
@@ -71,8 +119,9 @@ async def _process_ocr_job(job_id: str) -> None:
         logger.exception("[ocr_job] %s failed to mark processing: %s", job_id, exc)
         return
 
-    # ── Phase 2: OCR work ─────────────────────────────────────────────────
+    # ── Phase 2: OCR work + LLM formatting ───────────────────────────────
     extracted_text: str = ""
+    formatted: str = ""
     page_count: int = 1
     error_msg: str | None = None
 
@@ -119,8 +168,12 @@ async def _process_ocr_job(job_id: str) -> None:
         # Cleanup Redis (best-effort — TTL covers it if this fails)
         await redis.delete(f"ocr_file:{job_id}")
         logger.info(
-            "[ocr_job] %s done: %d chars, %d pages", job_id, len(extracted_text), page_count
+            "[ocr_job] %s OCR done: %d chars, %d pages", job_id, len(extracted_text), page_count
         )
+
+        # LLM formatting step — non-fatal, falls back to _basic_format on error
+        formatted = await _format_ocr_text(extracted_text, filename)
+        logger.info("[ocr_job] %s formatted: %d chars", job_id, len(formatted))
 
     except Exception as exc:
         logger.exception("[ocr_job] %s OCR failed: %s", job_id, exc)
@@ -139,6 +192,7 @@ async def _process_ocr_job(job_id: str) -> None:
             else:
                 job.status = "done"
                 job.text = extracted_text
+                job.formatted_text = formatted
                 job.page_count = page_count
                 job.char_count = len(extracted_text)
             await db.commit()
