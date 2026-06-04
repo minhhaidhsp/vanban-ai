@@ -67,6 +67,7 @@ export default function OcrNewPage() {
     percent: number
   } | null>(null);
   const [pdfUrl, setPdfUrl]       = useState<string | null>(null);
+  const [showTextFallback, setShowTextFallback] = useState(false);
 
   const fileInputRef      = useRef<HTMLInputElement>(null);
   const pollRef           = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -118,7 +119,7 @@ export default function OcrNewPage() {
         if (retryCount < MAX_RETRY) {
           setTimeout(tryFetch, 2000);
         } else {
-          // All retries failed → textarea fallback
+          setShowTextFallback(true);
           setPdfUrl(null);
         }
       }
@@ -148,6 +149,7 @@ export default function OcrNewPage() {
     setErrorMsg(null);
     setProgress(null);
     setPdfUrl(null);
+    setShowTextFallback(false);
   };
 
   const handleFileSelect = (selected: File | null) => {
@@ -499,11 +501,12 @@ export default function OcrNewPage() {
             <div className="flex-1 flex flex-col min-h-0 px-6 pb-6">
               {pdfUrl ? (
                 <PdfViewer url={pdfUrl} className="flex-1 min-h-0" />
-              ) : (
+              ) : null}
+              {!pdfUrl && showTextFallback && (
                 <textarea
-                  className="flex-1 min-h-0 font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={result.formatted_text || result.text}
                   readOnly
+                  value={result.formatted_text || result.text || ""}
+                  className="w-full flex-1 min-h-[500px] font-mono text-xs resize-none border rounded p-3 bg-muted/30"
                 />
               )}
             </div>
