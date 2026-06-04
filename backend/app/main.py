@@ -58,8 +58,14 @@ async def _load_models() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Fire-and-forget: lifespan yields immediately so /health responds at once.
-    asyncio.create_task(_load_models())
+    try:
+        # Fire-and-forget: lifespan yields immediately so /health responds at once.
+        asyncio.create_task(_load_models())
+    except Exception as e:
+        import traceback
+        print(f"[STARTUP ERROR] {e}", flush=True)
+        traceback.print_exc()
+        raise
     yield
     await close_redis()
 
