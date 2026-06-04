@@ -51,6 +51,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
   const [isExporting, setIsExporting] = useState<"docx" | "pdf" | null>(null);
   const [exportFormat, setExportFormat] = useState<"docx" | "pdf">("docx");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [showTextFallback, setShowTextFallback] = useState(false);
   const pdfUrlRef = useRef<string | null>(null);
 
   const { data: rawData, isLoading, isError } = useQuery({
@@ -61,22 +62,35 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
     },
   });
 
-  // Fetch PDF blob for viewer when job is done (all file types)
+  // Fetch PDF blob for viewer when job is done — retry up to 5× (R2 upload may lag)
   useEffect(() => {
     if (rawData?.status !== "done" || !rawData?.id) return;
     let cancelled = false;
-    ocrApi.download(rawData.id)
-      .then((res) => {
+    let retryCount = 0;
+    const MAX_RETRY = 5;
+
+    const tryFetch = async () => {
+      try {
+        const res = await ocrApi.download(rawData.id);
         if (cancelled) return;
         if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
         const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
         pdfUrlRef.current = url;
         setPdfUrl(url);
-      })
-      .catch(() => {
-        // No PDF available → textarea fallback
-        if (!cancelled) setPdfUrl(null);
-      });
+      } catch {
+        if (cancelled) return;
+        retryCount++;
+        if (retryCount < MAX_RETRY) {
+          setTimeout(tryFetch, 2000);
+        } else {
+          setShowTextFallback(true);
+          setPdfUrl(null);
+        }
+      }
+    };
+
+    tryFetch();
+
     return () => {
       cancelled = true;
       if (pdfUrlRef.current) {
@@ -208,14 +222,15 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
         <div className="flex-1 flex flex-col min-h-0 px-6 pb-6 pt-4">
           {pdfUrl ? (
             <PdfViewer url={pdfUrl} className="flex-1 min-h-0" />
-          ) : (
+          ) : null}
+          {!pdfUrl && showTextFallback && (
             !displayText ? (
               <p className="text-muted-foreground italic">Không có nội dung</p>
             ) : (
               <textarea
-                className="flex-1 min-h-0 font-mono text-xs resize-none border rounded p-3 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
-                value={displayText}
                 readOnly
+                value={displayText}
+                className="w-full flex-1 min-h-[500px] font-mono text-xs resize-none border rounded p-3 bg-muted/30"
               />
             )
           )}
