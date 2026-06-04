@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -74,7 +75,11 @@ def run_migrations_online() -> None:
     asyncio.run(run_async_migrations())
 
 
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+# Migrations are disabled by default to prevent startup timeouts on Railway.
+# To run migrations manually: railway run alembic upgrade head
+# To enable automatic migrations on startup, set RUN_MIGRATIONS=true.
+if os.getenv("RUN_MIGRATIONS", "false").lower() == "true":
+    if context.is_offline_mode():
+        run_migrations_offline()
+    else:
+        run_migrations_online()
