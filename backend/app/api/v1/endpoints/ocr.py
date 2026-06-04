@@ -736,6 +736,14 @@ async def export_ocr_as_docx(
     current_user: User = Depends(get_current_user),
 ):
     """Convert file gốc PDF sang DOCX dùng pdf2docx."""
+    try:
+        from pdf2docx import Converter  # noqa: F401
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Tính năng chuyển đổi Word tạm thời không khả dụng",
+        )
+
     result = await db.execute(
         select(OcrJob).where(
             OcrJob.id == job_id,
