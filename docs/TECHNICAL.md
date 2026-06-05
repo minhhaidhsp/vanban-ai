@@ -76,7 +76,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **Railway deploy overhaul**: bỏ `alembic upgrade head &&` khỏi `startCommand` (chạy migration thủ công); `railway.toml` root + `backend/railway.json` đều dùng port 8080; `healthcheckTimeout` 300→600; `backend/railway.json` bỏ NIXPACKS builder để Railway tự detect Dockerfile; `Dockerfile` sửa `EXPOSE 8000→8080`, đổi CMD sang exec form `["uvicorn", ...]`; thêm `restartPolicyMaxRetries: 3` |
 | 14+ | **pdf2docx lazy import guard**: `GET /ocr/{job_id}/export/docx` thêm `try: from pdf2docx import Converter except ImportError: raise HTTPException(503)` — nếu package chưa install sẽ trả 503 thay vì crash server; `pdf2docx>=0.5.6` trong `requirements-railway.txt` |
 | 14+ | **Startup error logging**: lifespan `asyncio.create_task(_load_models())` wrap trong `try/except` — nếu crash sẽ print traceback ra stderr thay vì im lặng; thêm `backend/start.sh` (import test script chạy trước uvicorn để pinpoint module nào lỗi) |
-| 14+ | **clear_all_data.py script** (`backend/scripts/`): script xóa toàn bộ data dev — xóa DB tables theo thứ tự FK (chunks → reference_documents → ocr_jobs → documents) rồi xóa R2 files theo prefix `reference-docs/` và `ocr-jobs/`; confirm "XOA" trước khi thực thi |
+| 14+ | **clear_all_data.py script** (`backend/scripts/`): script xóa toàn bộ data dev — xóa DB tables theo thứ tự FK (chunks → reference_documents → ocr_jobs → documents) rồi xóa storage files theo prefix `reference-docs/` và `ocr-jobs/`; tự động phân nhánh theo `STORAGE_BACKEND`: `minio` → dùng MinIO SDK `list_objects/remove_object`; `r2` → dùng boto3 paginator `delete_objects`; confirm "XOA" trước khi thực thi |
 
 ### Tech stack thực tế
 
