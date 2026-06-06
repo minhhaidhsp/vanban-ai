@@ -254,6 +254,11 @@ export const ocrApi = {
 
   exportDocx: (jobId: string) =>
     api.get(`/ocr/${jobId}/export/docx`, { responseType: "blob" }),
+
+  review: async (jobId: string) => {
+    const { data } = await api.post(`/ocr/${jobId}/review`);
+    return data as ReviewResult & { job_id: string };
+  },
 };
 
 export interface ChunkUsed {
@@ -472,6 +477,19 @@ export interface DocumentStats {
   recent_7_days: number;
 }
 
+export interface ReviewChange {
+  type: "chinh_ta" | "the_thuc" | "van_phong" | "dau_cau" | "thuat_ngu";
+  original: string;
+  revised: string;
+  reason: string;
+}
+
+export interface ReviewResult {
+  reviewed_text: string;
+  changes: ReviewChange[];
+  summary: string;
+}
+
 export const documentApi = {
   list: async (params?: {
     skip?: number
@@ -565,5 +583,10 @@ export const documentApi = {
       filename: string;
       error: string | null;
     };
+  },
+
+  review: async (docId: string) => {
+    const { data } = await api.post(`/documents/${docId}/review`);
+    return data as ReviewResult & { doc_id: string };
   },
 };
