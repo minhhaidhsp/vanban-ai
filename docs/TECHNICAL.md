@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-04
-> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback)
+> Cập nhật: 2026-06-06
+> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned)
 
 ---
 
@@ -77,6 +77,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **pdf2docx lazy import guard**: `GET /ocr/{job_id}/export/docx` thêm `try: from pdf2docx import Converter except ImportError: raise HTTPException(503)` — nếu package chưa install sẽ trả 503 thay vì crash server; `pdf2docx>=0.5.6` trong `requirements-railway.txt` |
 | 14+ | **Startup error logging**: lifespan `asyncio.create_task(_load_models())` wrap trong `try/except` — nếu crash sẽ print traceback ra stderr thay vì im lặng; thêm `backend/start.sh` (import test script chạy trước uvicorn để pinpoint module nào lỗi) |
 | 14+ | **clear_all_data.py script** (`backend/scripts/`): script xóa toàn bộ data dev — xóa DB tables theo thứ tự FK (chunks → reference_documents → ocr_jobs → documents) rồi xóa storage files theo prefix `reference-docs/` và `ocr-jobs/`; tự động phân nhánh theo `STORAGE_BACKEND`: `minio` → dùng MinIO SDK `list_objects/remove_object`; `r2` → dùng boto3 paginator `delete_objects`; confirm "XOA" trước khi thực thi |
+| 14+ | **Railway healthcheck timeout 900s**: `railway.toml` (root) `healthcheckTimeout` 600→900 — tăng thời gian chờ để Railway không kill service trước khi bge-m3 + CrossEncoder load xong trong background task |
+| 14+ | **requirements-railway.txt torch/transformers fix**: bỏ CPU-only extra-index-url + `torch==2.6.0+cpu` → `torch==2.6.0` (full build); pin `sentence-transformers==3.3.1`, `transformers==4.47.1`, `accelerate==1.2.1` — đảm bảo tương thích version; xóa floating `>=` ở cuối file |
 
 ### Tech stack thực tế
 
@@ -102,7 +104,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - boto3 ≥1.34.0 + botocore (Cloudflare R2, S3-compatible)
 - SQLAlchemy NullPool (thay QueuePool) — tương thích Supabase Transaction pooler
 - python-jose 3.3.0 + passlib[bcrypt] 1.7.4 (JWT auth)
-- sentence-transformers ≥3.0.0 với model **BAAI/bge-m3** (dim=1024)
+- sentence-transformers ==3.3.1 với model **BAAI/bge-m3** (dim=1024)
+- transformers ==4.47.1 + accelerate ==1.2.1 (HuggingFace deps cho sentence-transformers)
 - cross-encoder/ms-marco-MiniLM-L-6-v2 (reranker cho RAG pipeline)
 - httpx ≥0.27.0 (async HTTP client cho LLM API — cả non-stream và stream)
 - FastAPI `StreamingResponse` (SSE streaming — built-in, không cần sse-starlette)
@@ -1477,7 +1480,7 @@ Status: ✅ Workaround
 [deploy]
 startCommand = "uvicorn app.main:app --host 0.0.0.0 --port 8080"
 healthcheckPath = "/health"
-healthcheckTimeout = 600
+healthcheckTimeout = 900
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
