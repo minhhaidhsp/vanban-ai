@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FileText, Zap, Shield } from "lucide-react";
+import ChatWidget from "@/components/public/ChatWidget";
 
 export default function HomePage() {
   return (
@@ -72,6 +73,7 @@ export default function HomePage() {
           </div>
         ))}
       </section>
+      <ChatWidget />
     </main>
   );
 }
