@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-06
-> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned)
+> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned + uuid prepared stmt fix + public chat widget citizen portal)
 
 ---
 
@@ -79,6 +79,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **clear_all_data.py script** (`backend/scripts/`): script xóa toàn bộ data dev — xóa DB tables theo thứ tự FK (chunks → reference_documents → ocr_jobs → documents) rồi xóa storage files theo prefix `reference-docs/` và `ocr-jobs/`; tự động phân nhánh theo `STORAGE_BACKEND`: `minio` → dùng MinIO SDK `list_objects/remove_object`; `r2` → dùng boto3 paginator `delete_objects`; confirm "XOA" trước khi thực thi |
 | 14+ | **Railway healthcheck timeout 900s**: `railway.toml` (root) `healthcheckTimeout` 600→900 — tăng thời gian chờ để Railway không kill service trước khi bge-m3 + CrossEncoder load xong trong background task |
 | 14+ | **requirements-railway.txt torch/transformers fix**: bỏ CPU-only extra-index-url + `torch==2.6.0+cpu` → `torch==2.6.0` (full build); pin `sentence-transformers==3.3.1`, `transformers==4.47.1`, `accelerate==1.2.1` — đảm bảo tương thích version; xóa floating `>=` ở cuối file |
+| 14+ | **uuid prepared statement names**: `database.py` thay `itertools.count()` bằng `uuid.uuid4().hex` cho `prepared_statement_name_func` — tránh race condition tiềm năng khi concurrent connections chia sẻ chung counter (thứ tự không guarantee với async); mỗi prepared statement có tên duy nhất `p{32-hex-chars}` |
+| 14+ | **Public chat widget (citizen portal)**: `POST /api/v1/public/chat/stream` — SSE streaming không cần auth, rate limit 20 req/IP/hour qua Redis key `public_chat_rate:{ip}`; `top_k=5, min_score=0.4` (strict), retry `min_score=0.3` nếu rỗng; `rerank(top_n=3)`; citations compact (title + so_ki_hieu + score); `ChatWidget.tsx` floating button `fixed bottom-4 right-4 z-50` (w-14 h-14 rounded-full) + chat panel 380px/500px slide-up animation; SSE streaming với typing indicator (3 bouncing dots); unread badge đỏ khi widget đóng; `isOpenRef` tránh stale closure; `sessionId` UUID nhẹ, tạo 1 lần mount; nhúng `<ChatWidget />` vào `app/page.tsx` (landing page); đăng ký `/public` prefix trong `router.py` |
 
 ### Tech stack thực tế
 
@@ -92,7 +94,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - Tailwind CSS 3.4.1 + Radix UI (shadcn/ui components)
 - Zod 3.24.1 + React Hook Form 7.54.2 (form validation)
 - Puppeteer 25.0.4 (xuất PDF phía server Next.js)
-- react-pdf 10.4.1 (render PDF trong browser; pdfjs-dist CDN worker)
+- react-pdf 7.x (render PDF trong browser; pdfjs-dist v3 CJS; downgrade từ v10 vì pdfjs-dist v4 ESM không tương thích webpack Next.js 14; workerSrc CDN unpkg)
 - js-cookie 3.0.5 (lưu JWT token)
 
 **Backend:**
@@ -144,6 +146,7 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 │  /api/v1/constants   /api/v1/organizations                   │
 │  /api/v1/recipient-suggestions                               │
 │  /api/v1/llm         /api/v1/rag                             │
+│  /api/v1/public/chat/stream  (no auth, rate-limited)         │
 │                                                              │
 │  Services: embedding_service, chunking_service,              │
 │            pipeline_service, pdf_service,                    │
@@ -218,6 +221,8 @@ frontend/
 │           └── route.ts         # Next.js API Route: Puppeteer PDF export
 ├── components/
 │   ├── providers.tsx            # TanStack Query + Toast providers
+│   ├── public/
+│   │   └── ChatWidget.tsx       # "use client" floating chat widget: SSE streaming, unread badge, typing indicator; nhúng vào landing page
 │   ├── dashboard/
 │   │   ├── sidebar.tsx          # Nav sidebar: Tổng quan, Tài liệu, Kho văn bản, Tra cứu AI...
 │   │   ├── document-list.tsx    # Grid danh sách tài liệu, nút xóa/sửa
@@ -270,6 +275,7 @@ backend/
 │   │           ├── recipient_suggestions.py  # GET /  POST /increment
 │   │           ├── reference_docs.py  # CRUD + upload + 3 search + metadata + /content + /export
 │   │           ├── ocr.py             # POST /extract (detect file_type, R2 upload cho text_pdf) + /export + GET /jobs /status/{id} /progress/{id} /{id}/download /{id}
+│   │           ├── public_chat.py     # POST /public/chat/stream — SSE không auth, rate limit 20/IP/hour Redis
 │   │           ├── llm.py             # GET /health, POST /test, PATCH /config
 │   │           ├── rag.py             # GET /health, POST /query, POST /query/stream, POST /chat/stream, GET+DELETE /chat/history
 │   │           └── constants.py # GET /nd30 (hằng số NĐ30)
@@ -597,6 +603,16 @@ _process_ocr_job (scanned_pdf/image, 3 phases):
            → _format_ocr_text() LLM format
   Phase 3: persist done/error result
 ```
+
+### Public (`/public`) — không cần auth
+
+| Method | Path | Mô tả | Request | Response |
+|--------|------|-------|---------|----------|
+| POST | `/public/chat/stream` | SSE streaming chat không cần đăng nhập; rate limit 20 req/IP/hour (Redis); top_k=5, min_score=0.4, rerank top_n=3; session history Redis | `{query: str, session_id: str}` | `text/event-stream`: `token` → `citations` → `[DONE]`; 429 nếu rate limit |
+
+**Rate limit key:** `public_chat_rate:{client_ip}` — `INCR` + `EXPIRE 3600` khi count==1. Vượt 20 → HTTP 429.
+
+**Citations compact format:** `{document_title, so_ki_hieu, score}` — bỏ `content`, `dieu_khoan` để giảm payload.
 
 ### LLM (`/llm`)
 
@@ -1313,6 +1329,12 @@ Mặc định, flex child có `min-height: auto` — không thể shrink nhỏ h
 Hai cách xuất DOCX từ OCR:
 1. **text-based** (`POST /ocr/export`): dùng `python-docx` tạo DOCX từ `formatted_text`. Nhanh (~100ms), không cần file gốc. Dùng cho scanned_pdf/image/text_docx (những job không có PDF gốc chính xác).
 2. **pdf2docx** (`GET /ocr/{job_id}/export/docx`): convert PDF gốc → DOCX bảo toàn layout (bảng, cột, font). Chậm hơn (~2-10s tùy PDF size). Dùng cho text_pdf có `file_path` trên R2. `Converter` cần temp files thực (không nhận BytesIO) — tạo NamedTemporaryFile, cleanup trong `finally`. OpenCV deps: `libglib2.0-0` cần thiết trên Debian/Railway (`libgl1-mesa-glx` không tồn tại trên Railway → đã bỏ sau PR #10).
+
+**43. UUID cho prepared statement names tránh race condition (Tuần 14+)**
+`asyncpg` + Supabase Transaction pooler yêu cầu `statement_cache_size=0` (note #24). Ngoài ra, tên prepared statement phải unique. `itertools.count()` tạo counter tuần tự `p0, p1, p2...` — trong môi trường async nhiều coroutine chạy song song, không có race condition thực sự (Python GIL bảo vệ `itertools.count()`), nhưng counter là module-level state — nếu module reload (hot-reload dev server) counter reset về 0, có thể tạo tên trùng với statement cũ trong pgbouncer. **Fix:** `lambda: f"p{uuid.uuid4().hex}"` — tên 33 ký tự duy nhất tuyệt đối, không phụ thuộc state. Zero overhead vì statement cache đã bị tắt (`statement_cache_size=0`).
+
+**44. Public chat widget — thiết kế security cho public endpoint (Tuần 14+)**
+Endpoint `/public/chat/stream` không có JWT auth — bất kỳ ai truy cập landing page đều dùng được. Hai layer protection: (1) IP rate limiting 20 req/hour qua Redis `INCR/EXPIRE` — chặn abuse đơn giản và DDoS nhỏ; (2) RAG thresholds cao hơn (`min_score=0.4` so với `0.35` của auth endpoint) + `rerank(top_n=3)` — chặt hơn để tránh hallucination với người dùng không authenticate. Session history lưu Redis với key `chat_history:public-user:{session_id}` — session_id là random string tạo phía client khi mount widget (không dùng user UUID). History tự expire sau 24h như chat auth. `isOpenRef` (useRef sync với `isOpen` state) tránh stale closure trong SSE stream callback khi đọc `isOpenRef.current` để increment unread count — không dùng `isOpen` trực tiếp vì closure capture giá trị cũ.
 
 **42. Server-side pagination vs client-side — trade-offs (Tuần 14+)**
 `documents` ban đầu dùng client-side: fetch 200 records, filter/sort/paginate trong browser. Vấn đề khi có >200 docs: không load được. Migration sang server-side: backend thêm `q` (ILIKE), `loai_vb`, `sort_by`, `sort_order` params + count query, trả `{items, total}`. Response format đổi từ `list[DocumentResponse]` → `{"items": list, "total": int}` — không có response_model strict để tránh thêm Pydantic schema. `documentApi.list` trả `{items: DocumentDto[], total: number}`. Query key thêm filter params để TanStack Query cache per-filter-combination. `useEffect([q, loaiFilter, sourceFilter], setPage(1))` reset pagination khi filter thay đổi.
