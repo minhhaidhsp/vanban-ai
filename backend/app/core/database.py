@@ -1,4 +1,3 @@
-import itertools
 import logging
 import ssl
 from urllib.parse import urlparse
@@ -42,11 +41,11 @@ if _is_remote:
     # Generate globally-unique prepared statement names to avoid
     # DuplicatePreparedStatementError when Supabase internal pooler
     # fails to forward DEALLOCATE — names never repeat across connections.
-    _stmt_counter = itertools.count()
+    import uuid
     _connect_args: dict = {
         "ssl": _ssl_ctx,
         "statement_cache_size": 0,
-        "prepared_statement_name_func": lambda: f"p{next(_stmt_counter)}",
+        "prepared_statement_name_func": lambda: f"p{uuid.uuid4().hex}",
     }
     logger.info("[db] SSL enabled (cert verify disabled) for remote host: %s", _parsed.hostname)
 else:
