@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-03
-> Phiên bản: Tuần 14+ (OCR unified PDF viewer — generate PDF từ OCR text, scroll mode, full-height layout)
+> Cập nhật: 2026-06-04
+> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback)
 
 ---
 
@@ -67,6 +67,16 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **pdfUrl useEffect fix** (`/ocr/new`): `OcrResult` type không có field `status` — điều kiện `result?.status !== "done"` luôn `undefined`/falsy → useEffect không trigger; **fix**: dùng component state `status: OcrStatus` thay vì `result?.status`; dependency array `[status, jobId]` thay `[result?.status, jobId]`; thêm retry logic (5 lần, 2s delay) vì R2 upload sau OCR có thể lag vài giây |
 | 14+ | **react-pdf downgrade v10→v7**: pdfjs-dist v4 (dùng bởi v10) dùng ESM `.mjs` không tương thích webpack Next.js 14 — `Object.defineProperty called on non-object`; v7 dùng pdfjs-dist v3 CJS `.js`; CSS path đổi `dist/Page/` → `dist/esm/Page/`; workerSrc đổi `.mjs` → `.js`; `next.config.js` thêm `canvas=false` alias; CSS imports chuyển sang `globals.css` |
 | 14+ | **OCR badge fix** (`/dashboard/ocr`): bỏ emoji (📄📝🔍) khỏi badge file_type; thêm `whitespace-nowrap` tránh xuống hàng trong cột hẹp; bỏ `gap-1` (không cần khi không có icon) |
+| 14+ | **OCR filter + sort** (`/dashboard/ocr`): backend `GET /ocr/jobs` thêm `status`, `file_type`, `sort_by`, `sort_order` params; frontend filter bar (select trạng thái + loại); sortable headers (Tên file, Số trang, Ngày tạo); `exportingJobId` state → loading spinner per-job; always-show table với empty row; bỏ text "Hiển thị 0/0 kết quả" |
+| 14+ | **pdf2docx export** (`GET /ocr/{job_id}/export/docx`): convert file gốc PDF sang DOCX giữ layout qua `pdf2docx.Converter`; chạy trong thread với temp files cleanup; `requirements.txt` thêm `pdf2docx>=0.5.6`; `Dockerfile` thêm `libglib2.0-0`; `ocrApi.exportDocx()`; `handleExport` phân nhánh: text_pdf → pdf2docx/download-original; scanned/image/docx → text-based export |
+| 14+ | **Ref-docs sort** (`ref-doc-table.tsx`): thêm sortable cho 3 cột nữa: `so_ki_hieu`, `loai_van_ban`, `ngay_ban_hanh` (cùng với `created_at`); `whitespace-nowrap` tất cả `<th>`; always-show table thay vì empty state div |
+| 14+ | **Documents server-side** (`/dashboard/documents`): `GET /documents/` thêm `q` (ILIKE title), `loai_vb`, `sort_by`, `sort_order` params + count query + trả `{items, total}`; `document-list.tsx` migrate từ fetch-200-client-filter sang server-side: `useDebounce(qInput, 300)`, `limit=20`, query key per-filter, sort headers (Tên/Loại/Ngày tạo), always-show table, Pagination từ `data.total` |
+| 14+ | **DashboardOverview bug fix** (`recentDocs.map is not a function`): `documentApi.list` trả `{items, total}` nhưng `useQuery<DocumentDto[]>` typed sai → `recentDocs` là object thay vì array; fix: type đúng `{items, total}`, extract `recentData?.items ?? []`; sửa thêm param `sort` → `sort_by` |
+| 14+ | **OCR textarea fallback cải tiến** (`showTextFallback` state): trước đây textarea hiển thị ngay khi `pdfUrl===null` kể cả trong lúc retry 5×2s; thêm `showTextFallback` state chỉ set `true` sau khi MAX_RETRY hết → textarea không flash rồi biến mất khi PDF load thành công; `ocr/[id]/page.tsx` nâng từ 1 lần thử lên retry 5× với delay 2s |
+| 14+ | **Railway deploy overhaul**: bỏ `alembic upgrade head &&` khỏi `startCommand` (chạy migration thủ công); `railway.toml` root + `backend/railway.json` đều dùng port 8080; `healthcheckTimeout` 300→600; `backend/railway.json` bỏ NIXPACKS builder để Railway tự detect Dockerfile; `Dockerfile` sửa `EXPOSE 8000→8080`, đổi CMD sang exec form `["uvicorn", ...]`; thêm `restartPolicyMaxRetries: 3` |
+| 14+ | **pdf2docx lazy import guard**: `GET /ocr/{job_id}/export/docx` thêm `try: from pdf2docx import Converter except ImportError: raise HTTPException(503)` — nếu package chưa install sẽ trả 503 thay vì crash server; `pdf2docx>=0.5.6` trong `requirements-railway.txt` |
+| 14+ | **Startup error logging**: lifespan `asyncio.create_task(_load_models())` wrap trong `try/except` — nếu crash sẽ print traceback ra stderr thay vì im lặng; thêm `backend/start.sh` (import test script chạy trước uvicorn để pinpoint module nào lỗi) |
+| 14+ | **clear_all_data.py script** (`backend/scripts/`): script xóa toàn bộ data dev — xóa DB tables theo thứ tự FK (chunks → reference_documents → ocr_jobs → documents) rồi xóa storage files theo prefix `reference-docs/` và `ocr-jobs/`; tự động phân nhánh theo `STORAGE_BACKEND`: `minio` → dùng MinIO SDK `list_objects/remove_object`; `r2` → dùng boto3 paginator `delete_objects`; confirm "XOA" trước khi thực thi |
 
 ### Tech stack thực tế
 
@@ -497,7 +507,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 
 | Method | Path | Mô tả | Request | Response |
 |--------|------|-------|---------|----------|
-| GET | `/documents/` | Danh sách văn bản của user | `?skip=0&limit=20&source=editor\|upload` | `DocumentResponse[]` |
+| GET | `/documents/` | Danh sách văn bản của user | `?skip&limit&source&q&loai_vb&sort_by&sort_order` | `{items: DocumentResponse[], total: int}` |
 | POST | `/documents/` | Tạo văn bản mới | `{title, content?, loai_vb?, so_van_ban?, nam?}` | `DocumentResponse` (201) |
 | GET | `/documents/stats` | Thống kê văn bản | — | `{total, editor_count, upload_count, by_type, recent_7_days}` |
 | GET | `/documents/next-number` | Lấy số thứ tự tiếp theo | `?loai=QĐ` | `{so, nam, loai}` |
@@ -551,10 +561,11 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 |--------|------|-------|---------|----------|
 | POST | `/ocr/extract` | Detect file type → upload R2 (text_pdf) → tạo OcrJob → chạy background task; 202 ngay | `multipart: file (PDF/JPG/PNG/DOCX ≤20MB)` | `OcrJobResponse` (status=pending, có `file_type`) |
 | POST | `/ocr/export` | Chuyển text → DOCX hoặc PDF (stateless, không lưu DB) | `{text, filename, format: "docx"\|"pdf"}` | Binary file |
-| GET | `/ocr/jobs` | Danh sách OCR jobs của user | `?skip&limit` | `OcrJobListResponse {items[], total}` |
+| GET | `/ocr/jobs` | Danh sách OCR jobs của user với filter/sort | `?skip&limit&status&file_type&sort_by&sort_order` | `OcrJobListResponse {items[], total}` |
 | GET | `/ocr/status/{job_id}` | Poll trạng thái nhẹ (không có text payload) | — | `OcrJobStatusResponse` (có `file_type`, `file_path`) |
 | GET | `/ocr/progress/{job_id}` | Tiến độ OCR theo trang từ Redis (chỉ trong lúc scan) | — | `{job_id, current_page, total_pages, percent}` |
-| GET | `/ocr/{job_id}/download` | Stream file gốc từ R2 (chỉ text_pdf có file_path) | — | Binary PDF |
+| GET | `/ocr/{job_id}/export/docx` | Convert PDF gốc → DOCX bảo toàn layout qua pdf2docx (chỉ text_pdf) | — | Binary DOCX |
+| GET | `/ocr/{job_id}/download` | Stream PDF từ R2 — text_pdf: file gốc; scan/image/docx: PDF tạo từ OCR text | — | Binary PDF |
 | GET | `/ocr/{job_id}` | Chi tiết đầy đủ kể cả text kết quả | — | `OcrJobResponse` |
 
 **Luồng `POST /ocr/extract` (sau khi nâng cấp):**
@@ -1295,6 +1306,14 @@ Bug trong `/ocr/new`: `OcrResult` interface có các field `filename, text, form
 **40. flex flex-col min-h-0 pattern cho full-height scroll child (Tuần 14+)**
 Mặc định, flex child có `min-height: auto` — không thể shrink nhỏ hơn content của nó. Khi PdfViewer (`overflow-y-auto flex-1`) nằm trong flex column mà không có `min-h-0`, nó sẽ expand ra ngoài viewport thay vì scroll bên trong. **Fix chain bắt buộc:** mỗi ancestor flex container trong chain phải có `min-h-0` (hoặc `overflow-hidden`). Cụ thể: outer col → `flex flex-col min-h-0 overflow-hidden`; wrapper → `flex-1 flex flex-col min-h-0`; PdfViewer → `flex-1 min-h-0`; PdfViewer content div → `flex-1 overflow-y-auto, style={{ minHeight: 0 }}`. Thiếu bất kỳ link nào trong chain → scroll không hoạt động đúng.
 
+**41. pdf2docx vs text-based DOCX export (Tuần 14+)**
+Hai cách xuất DOCX từ OCR:
+1. **text-based** (`POST /ocr/export`): dùng `python-docx` tạo DOCX từ `formatted_text`. Nhanh (~100ms), không cần file gốc. Dùng cho scanned_pdf/image/text_docx (những job không có PDF gốc chính xác).
+2. **pdf2docx** (`GET /ocr/{job_id}/export/docx`): convert PDF gốc → DOCX bảo toàn layout (bảng, cột, font). Chậm hơn (~2-10s tùy PDF size). Dùng cho text_pdf có `file_path` trên R2. `Converter` cần temp files thực (không nhận BytesIO) — tạo NamedTemporaryFile, cleanup trong `finally`. OpenCV deps: `libglib2.0-0` cần thiết trên Debian/Railway (`libgl1-mesa-glx` không tồn tại trên Railway → đã bỏ sau PR #10).
+
+**42. Server-side pagination vs client-side — trade-offs (Tuần 14+)**
+`documents` ban đầu dùng client-side: fetch 200 records, filter/sort/paginate trong browser. Vấn đề khi có >200 docs: không load được. Migration sang server-side: backend thêm `q` (ILIKE), `loai_vb`, `sort_by`, `sort_order` params + count query, trả `{items, total}`. Response format đổi từ `list[DocumentResponse]` → `{"items": list, "total": int}` — không có response_model strict để tránh thêm Pydantic schema. `documentApi.list` trả `{items: DocumentDto[], total: number}`. Query key thêm filter params để TanStack Query cache per-filter-combination. `useEffect([q, loaiFilter, sourceFilter], setPage(1))` reset pagination khi filter thay đổi.
+
 **34. OCR export paragraph split (Tuần 14+)**
 `POST /ocr/export` nhận text từ LLM formatting (có `\n\n` phân tách đoạn). Trước đây `add_paragraph(text)` gộp tất cả thành 1 đoạn DOCX, `<pre>` không render đúng trong PDF. **Fix:** `text.split("\n\n")` → list paragraphs (fallback `split("\n")` nếu không có double-newline). DOCX: mỗi paragraph thêm `add_run()` với `font.name="Times New Roman"`, `font.size=Pt(13)`. PDF: `<p>` per paragraph, `\n` inline → `<br/>`, CSS `p { margin-bottom: 0.6em }` thay `<pre>`.
 
@@ -1452,16 +1471,32 @@ Status: ✅ Workaround
 | `NEXT_PUBLIC_APP_URL` | `https://vanban-ai-one.vercel.app` |
 | `NEXTAUTH_URL` | `https://vanban-ai-one.vercel.app` |
 
-### railway.toml
+### railway.toml (root)
 
 ```toml
 [deploy]
-startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port 8080"
 healthcheckPath = "/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 600
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
+
+### backend/railway.json
+
+```json
+{
+  "deploy": {
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 600,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
+```
+
+> **Lưu ý:** `alembic upgrade head` đã bỏ khỏi `startCommand`. Migration chạy thủ công qua Supabase SQL editor hoặc local `alembic upgrade head` trước khi deploy.
 
 ### nixpacks.toml (backend)
 
@@ -1473,7 +1508,5 @@ nixPkgs = ["gcc", "postgresql"]
 cmds = ["pip install -r requirements-railway.txt"]
 
 [start]
-cmd = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"
+cmd = "uvicorn app.main:app --host 0.0.0.0 --port 8080"
 ```
-
-`alembic upgrade head` chạy trước `uvicorn` để mọi migration mới (ví dụ 0012 `ocr_jobs`) được apply tự động mỗi lần deploy, không cần chạy tay trên Supabase.
