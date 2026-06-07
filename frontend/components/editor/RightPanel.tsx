@@ -301,6 +301,13 @@ export function RightPanel({
     }
   }, [reviewChanges.length, isReviewing]);
 
+  // Add task history entry after review completes
+  useEffect(() => {
+    if (reviewChanges.length > 0 && !isReviewing) {
+      addTask("review");
+    }
+  }, [reviewChanges, isReviewing, addTask]);
+
   // Load chat history on mount
   useEffect(() => {
     if (!docId || docId === "new-doc") return;
