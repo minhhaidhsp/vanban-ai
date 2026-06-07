@@ -237,7 +237,7 @@ export function RightPanel({
             icon={<ShieldCheck className="h-4 w-4" />}
             label="Rà soát văn bản"
             description="AI kiểm tra chính tả, thể thức NĐ30, văn phong"
-            onClick={onAiReview}
+            onClick={() => onAiReview()}
           />
 
           {sourceIds.length > 0 && (
