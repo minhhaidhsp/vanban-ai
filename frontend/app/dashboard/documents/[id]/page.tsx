@@ -119,7 +119,13 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [rejectedIds, setRejectedIds] = useState<Set<number>>(new Set());
 
   const handleReview = async (checkContent?: string) => {
+    console.log('[Review] checkContent:', checkContent)
+    console.log('[Review] checkContent type:', typeof checkContent)
     const contentToReview = checkContent ?? getCurrentContentFromEditors();
+    console.log('[Review] editorMap size:', editorMapRef.current.size)
+    console.log('[Review] editorMap keys:', [...editorMapRef.current.keys()])
+    console.log('[Review] contentToReview type:', typeof contentToReview)
+    console.log('[Review] contentToReview instanceof:', contentToReview instanceof Element ? 'DOM Element' : 'not DOM')
     if (!contentToReview || !hasText(contentToReview)) {
       toast({
         title: "Chưa có nội dung",
@@ -179,6 +185,40 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     setRejectedIds((prev) => new Set([...prev, i]));
   };
 
+  const scrollToAndHighlight = (change: ReviewChange) => {
+    const fieldId = change.section
+      ? (SECTION_TO_FIELD[change.section] ?? 'noiDung')
+      : 'noiDung'
+    const editor = editorMapRef.current.get(fieldId)
+    if (!editor) return
+
+    const { doc } = editor.state
+    const searchText = change.original.replace(/<[^>]*>/g, '').trim()
+    if (!searchText) return
+
+    let found = false
+    doc.descendants((node, pos) => {
+      if (found) return false
+      if (node.isText && node.text?.includes(searchText)) {
+        const index = node.text.indexOf(searchText)
+        const from = pos + index
+        const to = from + searchText.length
+
+        editor.commands.setTextSelection({ from, to })
+        editor.commands.focus()
+        const domNode = editor.view.domAtPos(from)?.node
+        if (domNode) {
+          const el = domNode instanceof Element
+            ? domNode
+            : domNode.parentElement
+          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+        found = true
+        return false
+      }
+    })
+  };
+
   const applyAllPending = () => {
     const newAccepted = new Set(acceptedIds);
 
@@ -223,10 +263,17 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
   const getCurrentContentFromEditors = (): string | null => {
     const map = editorMapRef.current;
+    console.log('[getContent] map size:', map.size)
     if (map.size === 0) return overrideContentRef.current ?? doc?.content ?? null;
     const nd30: Record<string, string> = { version: "nd30" };
-    map.forEach((editor, fieldId) => { nd30[fieldId] = editor.getHTML(); });
-    return JSON.stringify(nd30);
+    map.forEach((editor, fieldId) => {
+      const html = editor.getHTML()
+      console.log('[getContent] field:', fieldId, 'html type:', typeof html, 'html slice:', String(html).slice(0, 50))
+      nd30[fieldId] = html
+    });
+    const result = JSON.stringify(nd30)
+    console.log('[getContent] result type:', typeof result)
+    return result
   };
 
   if (isLoading) {
@@ -350,7 +397,11 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
                 {/* Original → Revised */}
                 <div className="space-y-1">
-                  <div className="line-through text-red-600 bg-red-50 px-2 py-1 rounded leading-relaxed break-words">
+                  <div
+                    className="line-through text-red-600 bg-red-50 px-2 py-1 rounded leading-relaxed break-words cursor-pointer hover:bg-red-100 transition-colors"
+                    onClick={() => scrollToAndHighlight(change)}
+                    title="Click để tìm trong văn bản"
+                  >
                     {change.original}
                   </div>
                   <div className="text-green-700 bg-green-50 px-2 py-1 rounded leading-relaxed break-words">
