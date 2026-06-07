@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-06
-> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned + uuid prepared stmt fix + public chat widget citizen portal)
+> Cập nhật: 2026-06-07
+> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned + uuid prepared stmt fix + public chat widget citizen portal + AI Review TipTap inject + editorMapRef pattern + Review panel accept/reject + scrollToAndHighlight)
 
 ---
 
@@ -81,6 +81,11 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **requirements-railway.txt torch/transformers fix**: bỏ CPU-only extra-index-url + `torch==2.6.0+cpu` → `torch==2.6.0` (full build); pin `sentence-transformers==3.3.1`, `transformers==4.47.1`, `accelerate==1.2.1` — đảm bảo tương thích version; xóa floating `>=` ở cuối file |
 | 14+ | **uuid prepared statement names**: `database.py` thay `itertools.count()` bằng `uuid.uuid4().hex` cho `prepared_statement_name_func` — tránh race condition tiềm năng khi concurrent connections chia sẻ chung counter (thứ tự không guarantee với async); mỗi prepared statement có tên duy nhất `p{32-hex-chars}` |
 | 14+ | **Public chat widget (citizen portal)**: `POST /api/v1/public/chat/stream` — SSE streaming không cần auth, rate limit 20 req/IP/hour qua Redis key `public_chat_rate:{ip}`; `top_k=5, min_score=0.4` (strict), retry `min_score=0.3` nếu rỗng; `rerank(top_n=3)`; citations compact (title + so_ki_hieu + score); `ChatWidget.tsx` floating button `fixed bottom-4 right-4 z-50` (w-14 h-14 rounded-full) + chat panel 380px/500px slide-up animation; SSE streaming với typing indicator (3 bouncing dots); unread badge đỏ khi widget đóng; `isOpenRef` tránh stale closure; `sessionId` UUID nhẹ, tạo 1 lần mount; nhúng `<ChatWidget />` vào `app/page.tsx` (landing page); đăng ký `/public` prefix trong `router.py` |
+| 14+ | **AI Review endpoint** (`POST /documents/{id}/review`): `ReviewRequest` body có `content?: str` — frontend gửi live editor content thay vì để backend đọc từ DB (tránh stale khi chưa autosave 30s); `_extract_tiptap_text()` strip HTML tags + JSON keys + parse nd30 JSON; backend trả `{changes[], summary}` — mỗi change có `{original, revised, type, section, reason}` |
+| 14+ | **editorMapRef pattern**: `useRef<Map<string, Editor>>(new Map())` trong `page.tsx` truyền xuống `DocumentEditor` → `Nd30Document` → collect từ `SectionEditor` qua callback `onEditorReady(editor)` (useEffect khi TipTap init); `editorMapRef.current` là Map `fieldId → Editor instance`; `getCurrentContentFromEditors()` đọc `editor.getHTML()` từng field → serialize nd30 JSON gửi backend |
+| 14+ | **Track Changes inject (no remount)**: `applyChange()` dùng normalized text matching — `normalize()` strip HTML/entities/dashes/whitespace → tìm vị trí qua `doc.descendants()` ProseMirror → `editor.chain().focus().setTextSelection({from,to}).insertContent(revisedText).run()`; `applyAllPending()` group changes by fieldId rồi apply tuần tự từng field; fallback remount (`setEditorKey`) nếu `editorMapRef.current.size === 0` |
+| 14+ | **Review Panel UX**: slide-in drawer `translate-x-full/0` — không unmount; filter `original === revised` bỏ change vô nghĩa; `scrollToAndHighlight()` click vào text gạch đỏ → tìm trong ProseMirror doc, `setTextSelection` + scroll smooth; cache bust `?t=${Date.now()}` trên review URL; fix bug `onClick={onAiReview}` → `onClick={() => onAiReview()}` trong `RightPanel.tsx` (tránh `MouseEvent` bị pass vào `handleReview(checkContent?)`) |
+| 14+ | **Migrations 0015–0016**: 0015 tăng `documents.file_path` VARCHAR(50) → TEXT; 0016 tăng `documents.file_type` VARCHAR(50) → TEXT — tránh truncation khi lưu object path dài và MIME type |
 
 ### Tech stack thực tế
 
@@ -348,8 +353,8 @@ backend/
 | `id` | VARCHAR(36) PK | UUID v4 |
 | `title` | VARCHAR(500) | Tiêu đề văn bản (= trichYeu hoặc coQuanBanHanh) |
 | `content` | TEXT | JSON string với `version: "nd30"` + toàn bộ Nd30Data |
-| `file_path` | VARCHAR(1000) | Object path trên MinIO bucket `vanban-ai` |
-| `file_type` | VARCHAR(50) | MIME type của file đính kèm |
+| `file_path` | TEXT | Object path trên MinIO bucket `vanban-ai` (migration 0015: VARCHAR(50)→TEXT) |
+| `file_type` | TEXT | MIME type của file đính kèm (migration 0016: VARCHAR(50)→TEXT) |
 | `loai_vb` | VARCHAR(10) | Loại văn bản: QĐ, CV, NQ, ... (indexed) |
 | `so_van_ban` | INTEGER | Số thứ tự trong năm |
 | `nam` | INTEGER | Năm ban hành |
@@ -492,6 +497,8 @@ reference_documents (1) ──< reference_doc_chunks (N) [document_id → refere
 | `0012` | Tạo bảng `ocr_jobs` + 3 index (user_id, status, created_at) |
 | `0013` | Thêm cột `formatted_text TEXT nullable` vào `ocr_jobs` (LLM-reformatted output) |
 | `0014` | Thêm `file_type VARCHAR(20) nullable` + `file_path VARCHAR(1000) nullable` vào `ocr_jobs` |
+| `0015` | Tăng `documents.file_path` từ VARCHAR(50) → TEXT — tránh truncation object path dài |
+| `0016` | Tăng `documents.file_type` từ VARCHAR(50) → TEXT — tránh truncation MIME type |
 
 ---
 
@@ -526,6 +533,7 @@ Tất cả endpoints đều có prefix `/api/v1`. Xác thực bằng `Authorizat
 | DELETE | `/documents/{id}` | Xóa văn bản | — | 204 No Content |
 | POST | `/documents/{id}/export/pdf` | Xuất PDF (xhtml2pdf) | — | PDF binary (`application/pdf`) |
 | POST | `/documents/{id}/export/docx` | Xuất DOCX (python-docx NĐ30 Times New Roman) | — | DOCX binary |
+| POST | `/documents/{id}/review` | AI Review văn bản — gọi LLM phân tích chính tả/thể thức/văn phong | `{content?: str}` (live editor content; nếu rỗng dùng DB) | `{changes[], summary, doc_id}` |
 | POST | `/documents/{id}/upload` | Upload file đính kèm | `multipart: file` | `DocumentResponse` |
 | POST | `/documents/upload-batch` | Batch upload nhiều file (BackgroundTask + Redis tracking) | `multipart: files[]` | `{jobs: [{job_id, filename}]}` (202) |
 | GET | `/documents/status/{job_id}` | Poll trạng thái xử lý upload | — | `{job_id, status, filename, error}` |
