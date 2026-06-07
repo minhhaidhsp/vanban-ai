@@ -542,6 +542,15 @@ export const documentApi = {
     return data;
   },
 
+  uploadFile: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const { data } = await api.post(`/documents/${id}/upload`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data as DocumentDto & { extracted_text: string };
+  },
+
   generate: async (payload: {
     document_id: string;
     loai_van_ban: string;

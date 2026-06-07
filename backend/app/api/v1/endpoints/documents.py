@@ -16,6 +16,7 @@ from app.models.trich_yeu_history import TrichYeuHistory
 from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.services.document_pipeline_service import process_document_background
 from datetime import datetime
+import asyncio
 import json
 import logging
 import re
@@ -39,6 +40,26 @@ _TRICH_YEU_PREFIX: dict[str, str] = {
 
 def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html).strip()
+
+
+def _extract_file_text(data: bytes, file_type: str | None, filename: str) -> str:
+    """Synchronous text extraction from DOCX or PDF bytes. Call via asyncio.to_thread."""
+    import io as _io
+    ft = (file_type or "").lower()
+    fn = (filename or "").lower()
+    try:
+        if "pdf" in ft or fn.endswith(".pdf"):
+            import pdfplumber
+            with pdfplumber.open(_io.BytesIO(data)) as pdf:
+                pages = [p.extract_text() or "" for p in pdf.pages]
+            return "\n\n".join(pages).strip()
+        if "word" in ft or "docx" in ft or fn.endswith(".docx"):
+            from docx import Document as _DocxDoc
+            doc = _DocxDoc(_io.BytesIO(data))
+            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    except Exception as exc:
+        logger.warning("[upload] text extraction failed for %s: %s", filename, exc)
+    return ""
 
 
 def _normalize_trich_yeu(trich_yeu: str, loai_vb: str | None) -> str:
@@ -615,14 +636,14 @@ async def export_document_docx(
     )
 
 
-@router.post("/{document_id}/upload", response_model=DocumentResponse)
+@router.post("/{document_id}/upload")
 async def upload_document_file(
     document_id: str,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Upload file vào document editor: extract text đồng bộ, lưu nd30 JSON, trả extracted_text."""
     result = await db.execute(
         select(Document).where(
             Document.id == document_id, Document.owner_id == current_user.id
@@ -632,39 +653,48 @@ async def upload_document_file(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    # Read bytes and upload to MinIO immediately (needed for the response)
     file_data = await file.read()
     filename = file.filename or "unknown"
     file_type = file.content_type or "application/octet-stream"
     object_name = f"{current_user.id}/{document_id}/{uuid.uuid4()}_{filename}"
     await upload_file(file_data, object_name, file_type)
 
+    # Extract text synchronously in thread pool (avoids blocking event loop)
+    extracted_text = await asyncio.to_thread(_extract_file_text, file_data, file_type, filename)
+    logger.info("[upload] extracted %d chars from %s doc=%s", len(extracted_text), filename, document_id)
+
+    # Save nd30-compatible content so AI Review and editor work immediately
+    if extracted_text:
+        paras = "".join(
+            f"<p>{line}</p>"
+            for line in extracted_text.splitlines()
+            if line.strip()
+        )
+        document.content = json.dumps(
+            {"version": "nd30", "noiDung": paras},
+            ensure_ascii=False,
+        )
+
     document.file_path = object_name
     document.file_type = file_type
     await db.flush()
     await db.refresh(document)
 
-    # Schedule text extraction + embedding in background (avoids timeout on large files)
-    settings = get_settings()
-    redis = await get_redis()
-    job_id = str(uuid.uuid4())
-    await redis.set(
-        f"doc_job:{job_id}",
-        json.dumps({"status": "pending", "filename": filename, "doc_id": document_id}),
-        ex=settings.doc_job_ttl_seconds,
-    )
-    background_tasks.add_task(
-        process_document_background,
-        job_id=job_id,
-        doc_id=document_id,
-        file_data=file_data,
-        filename=filename,
-        file_type=file_type,
-        owner_id=str(current_user.id),
-    )
-    logger.info("[upload] queued background processing job=%s doc=%s", job_id, document_id)
-
-    return document
+    return {
+        "id": str(document.id),
+        "title": document.title,
+        "content": document.content,
+        "file_path": document.file_path,
+        "file_type": document.file_type,
+        "loai_vb": document.loai_vb,
+        "so_van_ban": document.so_van_ban,
+        "nam": document.nam,
+        "source": document.source,
+        "owner_id": str(document.owner_id),
+        "created_at": document.created_at.isoformat() if document.created_at else None,
+        "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+        "extracted_text": extracted_text,
+    }
 
 
 _REVIEW_SYSTEM_PROMPT = """\
