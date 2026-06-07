@@ -770,11 +770,38 @@ Chỉ trả về JSON, không thêm gì khác.\
 def sanitize_json_string(s: str) -> str:
     # Xóa control characters trừ \n \r \t
     s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
+
     # Extract JSON nếu bị wrap trong markdown
     match = re.search(r'\{.*\}', s, re.DOTALL)
     if match:
-        return match.group(0)
-    return s
+        s = match.group(0)
+
+    # Fix: escape newlines thật bên trong JSON string values
+    def fix_newlines_in_strings(json_str: str) -> str:
+        result = []
+        in_string = False
+        escape = False
+        for char in json_str:
+            if escape:
+                result.append(char)
+                escape = False
+            elif char == '\\' and in_string:
+                result.append(char)
+                escape = True
+            elif char == '"':
+                result.append(char)
+                in_string = not in_string
+            elif char == '\n' and in_string:
+                result.append('\\n')
+            elif char == '\r' and in_string:
+                result.append('\\r')
+            elif char == '\t' and in_string:
+                result.append('\\t')
+            else:
+                result.append(char)
+        return ''.join(result)
+
+    return fix_newlines_in_strings(s)
 
 
 class ReviewRequest(BaseModel):
