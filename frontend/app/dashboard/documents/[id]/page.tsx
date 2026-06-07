@@ -52,25 +52,18 @@ const ND30_SECTION_FIELDS = ["trichYeu", "canCu", "noiDung", "noiNhan"] as const
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function hasText(content: string): boolean {
+function hasText(content: unknown): boolean {
   try {
-    const data = JSON.parse(content);
-    if (data.type === "doc") {
-      const check = (node: Record<string, unknown>): boolean => {
-        if (node.type === "text" && String(node.text ?? "").trim()) return true;
-        return ((node.content as unknown[]) ?? []).some((c) =>
-          check(c as Record<string, unknown>)
-        );
-      };
-      return check(data);
-    }
-    return !!(
-      String(data.trichYeu ?? "").trim() ||
-      String(data.canCu ?? "").trim() ||
-      String(data.noiDung ?? "").trim()
-    );
+    const str = typeof content === "string" ? content : JSON.stringify(content);
+    if (!str || str.trim().length === 0 || str === "{}") return false;
+    const data = typeof content === "string" ? JSON.parse(content) : content;
+    if (data?.noiDung) return data.noiDung.replace(/<[^>]*>/g, "").trim().length > 0;
+    if (data?.trichYeu) return data.trichYeu.trim().length > 0;
+    if (data?.canCu) return data.canCu.replace(/<[^>]*>/g, "").trim().length > 0;
+    if (data?.type === "doc") return JSON.stringify(data).length > 50;
+    return str.trim().length > 10;
   } catch {
-    return content.trim().length > 0;
+    return false;
   }
 }
 
