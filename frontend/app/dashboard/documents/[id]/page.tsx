@@ -169,38 +169,69 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     const fieldId = change.section ? (SECTION_TO_FIELD[change.section] ?? "noiDung") : "noiDung";
     const editor = editorMapRef.current.get(fieldId);
 
+    console.log('[Apply] change.original:', change.original)
+    console.log('[Apply] change.revised:', change.revised)
+    console.log('[Apply] fieldId:', fieldId)
+    console.log('[Apply] editor exists:', !!editor)
+
     if (editor) {
-      const currentHtml = editor.getHTML()
+      const normalize = (s: string) => s
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/–|—/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim()
 
-      let newHtml = currentHtml.replace(change.original, change.revised)
+      const normalizedOriginal = normalize(change.original)
+      const normalizedRevised = normalize(change.revised)
 
-      if (newHtml === currentHtml) {
-        const plainOriginal = change.original
-          .replace(/<[^>]*>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .trim()
-        const plainRevised = change.revised
-          .replace(/<[^>]*>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .trim()
-        if (plainOriginal && currentHtml.includes(plainOriginal)) {
-          newHtml = currentHtml.replace(plainOriginal, plainRevised)
+      if (normalizedOriginal === normalizedRevised) {
+        toast({ title: "Không cần sửa", description: "Nội dung gốc và đề nghị sửa giống nhau." })
+        setAcceptedIds((prev) => new Set(Array.from(prev).concat(i)))
+        return
+      }
+
+      const { doc } = editor.state
+      const fullText = editor.getText()
+      const normalizedFull = normalize(fullText)
+      const searchIdx = normalizedFull.indexOf(normalizedOriginal)
+
+      if (searchIdx !== -1) {
+        let mappedFrom = -1
+        let mappedTo = -1
+        let normalizedCount = 0
+
+        doc.descendants((node, pos) => {
+          if (mappedTo !== -1) return false
+          if (!node.isText || !node.text) return
+
+          const nodeNorm = normalize(node.text)
+
+          if (mappedFrom === -1 && normalizedCount + nodeNorm.length > searchIdx) {
+            mappedFrom = pos + (searchIdx - normalizedCount)
+          }
+
+          const endIdx = searchIdx + normalizedOriginal.length
+          if (mappedFrom !== -1 && normalizedCount + nodeNorm.length >= endIdx) {
+            mappedTo = pos + (endIdx - normalizedCount)
+          }
+
+          normalizedCount += nodeNorm.length + 1
+        })
+
+        if (mappedFrom !== -1 && mappedTo !== -1) {
+          editor.chain().focus().setTextSelection({ from: mappedFrom, to: mappedTo }).insertContent(normalizedRevised).run()
+          setAcceptedIds((prev) => new Set(Array.from(prev).concat(i)))
+          return
         }
       }
 
-      if (newHtml !== currentHtml) {
-        editor.commands.setContent(newHtml)
-        editor.commands.focus()
-      } else {
-        toast({
-          title: "Không thể áp dụng",
-          description: "Không tìm thấy đoạn văn bản cần sửa trong editor.",
-          variant: "destructive",
-        })
-        return
-      }
+      toast({
+        title: "Không thể áp dụng",
+        description: "Không tìm thấy đoạn văn bản trong editor. Có thể đã được sửa trước đó.",
+        variant: "destructive",
+      })
     } else {
       // Fallback: remount editor với nội dung mới (khi editors chưa sẵn sàng)
       const raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
