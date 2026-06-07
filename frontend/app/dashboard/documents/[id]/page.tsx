@@ -57,7 +57,19 @@ function hasText(content: unknown): boolean {
     const str = typeof content === "string" ? content : JSON.stringify(content);
     if (!str || str.trim().length === 0 || str === "{}") return false;
     const data = typeof content === "string" ? JSON.parse(content) : content;
-    if (data?.noiDung) return data.noiDung.replace(/<[^>]*>/g, "").trim().length > 0;
+    if (data?.noiDung) {
+      const stripped = data.noiDung
+        .replace(/<[^>]*>/g, "")
+        .replace(/&nbsp;/g, " ")
+        .trim();
+      return stripped.length > 0;
+    }
+    if (data?.version === "nd30") {
+      const fields = [data.noiDung, data.trichYeu, data.canCu];
+      return fields.some(
+        (f) => f && f.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim().length > 0
+      );
+    }
     if (data?.trichYeu) return data.trichYeu.trim().length > 0;
     if (data?.canCu) return data.canCu.replace(/<[^>]*>/g, "").trim().length > 0;
     if (data?.type === "doc") return JSON.stringify(data).length > 50;
