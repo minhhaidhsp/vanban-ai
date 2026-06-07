@@ -170,9 +170,37 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     const editor = editorMapRef.current.get(fieldId);
 
     if (editor) {
-      // Inject trực tiếp vào TipTap — không remount, giữ cursor và undo history
-      const newHtml = editor.getHTML().replace(change.original, change.revised);
-      editor.commands.setContent(newHtml);
+      const currentHtml = editor.getHTML()
+
+      let newHtml = currentHtml.replace(change.original, change.revised)
+
+      if (newHtml === currentHtml) {
+        const plainOriginal = change.original
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .trim()
+        const plainRevised = change.revised
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .trim()
+        if (plainOriginal && currentHtml.includes(plainOriginal)) {
+          newHtml = currentHtml.replace(plainOriginal, plainRevised)
+        }
+      }
+
+      if (newHtml !== currentHtml) {
+        editor.commands.setContent(newHtml)
+        editor.commands.focus()
+      } else {
+        toast({
+          title: "Không thể áp dụng",
+          description: "Không tìm thấy đoạn văn bản cần sửa trong editor.",
+          variant: "destructive",
+        })
+        return
+      }
     } else {
       // Fallback: remount editor với nội dung mới (khi editors chưa sẵn sàng)
       const raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
