@@ -5,9 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { documentApi } from "@/lib/api";
 import type { ReviewChange } from "@/lib/api";
 import type { Editor } from "@tiptap/react";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, ShieldCheck, Upload, X } from "lucide-react";
+import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const DocumentEditor = dynamic(
@@ -46,8 +45,6 @@ const SECTION_LABEL: Record<string, string> = {
   noiDung: "Nội dung",
   noiNhan: "Nơi nhận",
 };
-
-const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 const ND30_SECTION_FIELDS = ["trichYeu", "canCu", "noiDung", "noiNhan"] as const;
 
@@ -113,12 +110,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   // Sync ref so handleReview called right after setOverrideContent sees the new value
   const overrideContentRef = useRef<string | undefined>(undefined);
 
-  const setContent = (c: string) => {
-    overrideContentRef.current = c;
-    setOverrideContent(c);
-    setEditorKey((k) => k + 1);
-  };
-
   // ── AI Review state ───────────────────────────────────────────────────────
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewChanges, setReviewChanges] = useState<ReviewChange[]>([]);
@@ -127,7 +118,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [acceptedIds, setAcceptedIds] = useState<Set<number>>(new Set());
   const [rejectedIds, setRejectedIds] = useState<Set<number>>(new Set());
 
-  // checkContent: explicit override (import flow passes fresh nd30 JSON before re-render)
   const handleReview = async (checkContent?: string) => {
     const contentToReview = checkContent ?? getCurrentContentFromEditors();
     if (!contentToReview || !hasText(contentToReview)) {
@@ -229,12 +219,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
   const pendingCount = reviewChanges.filter((_, i) => !acceptedIds.has(i) && !rejectedIds.has(i)).length;
 
-  // ── Import state ──────────────────────────────────────────────────────────
-  const [showImport, setShowImport] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const editorMapRef = useRef<Map<string, Editor>>(new Map());
 
   const getCurrentContentFromEditors = (): string | null => {
@@ -243,64 +227,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     const nd30: Record<string, string> = { version: "nd30" };
     map.forEach((editor, fieldId) => { nd30[fieldId] = editor.getHTML(); });
     return JSON.stringify(nd30);
-  };
-
-  const handleImportFileSelect = (f: File) => {
-    if (f.size > MAX_FILE_BYTES) {
-      toast({
-        title: "File quá lớn",
-        description: "Kích thước file không được vượt quá 50 MB.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setImportFile(f);
-  };
-
-  const handleImport = async () => {
-    if (!importFile) return;
-    setIsImporting(true);
-    try {
-      const res = await documentApi.uploadFile(params.id, importFile);
-      const extractedText = res.extracted_text ?? "";
-
-      if (!extractedText.trim()) {
-        toast({
-          title: "Không thể trích xuất nội dung",
-          description: "File không có văn bản có thể đọc được (có thể là ảnh scan).",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const paras = extractedText
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((l) => `<p>${l}</p>`)
-        .join("");
-      const nd30Json = JSON.stringify({ version: "nd30", noiDung: paras });
-
-      // Update ref synchronously before calling handleReview
-      overrideContentRef.current = nd30Json;
-      setOverrideContent(nd30Json);
-      setEditorKey((k) => k + 1);
-
-      setShowImport(false);
-      setImportFile(null);
-      toast({ title: "Import thành công", description: `Đã nhập nội dung từ "${importFile.name}".` });
-
-      // Auto-trigger AI Review; pass nd30Json so content check uses fresh content
-      handleReview(nd30Json);
-    } catch {
-      toast({
-        title: "Import thất bại",
-        description: "Không thể xử lý file. Vui lòng thử lại.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsImporting(false);
-    }
   };
 
   if (isLoading) {
@@ -314,19 +240,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   return (
     <div className="flex flex-col h-full relative">
 
-      {/* Thin action bar — Import only (AI Review moved to Tools tab) */}
-      <div className="flex items-center justify-end px-4 py-1.5 border-b bg-muted/20 shrink-0">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
-          onClick={() => { setImportFile(null); setShowImport(true); }}
-        >
-          <Upload className="h-3.5 w-3.5" />
-          Import từ file
-        </Button>
-      </div>
-
       <div className="flex-1 min-h-0 flex flex-col">
         <DocumentEditor
           key={editorKey}
@@ -337,104 +250,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
           editorMapRef={editorMapRef}
         />
       </div>
-
-      {/* ── Import Modal ──────────────────────────────────────────────────── */}
-      {showImport && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-50"
-            onClick={() => !isImporting && setShowImport(false)}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <div
-              className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-                <div className="flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-blue-600" />
-                  <span className="font-semibold text-sm">Import văn bản từ file</span>
-                </div>
-                <button
-                  onClick={() => !isImporting && setShowImport(false)}
-                  className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-                  aria-label="Đóng"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-4">
-                <div
-                  className={[
-                    "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
-                    isDragging
-                      ? "border-blue-400 bg-blue-50"
-                      : importFile
-                        ? "border-green-400 bg-green-50"
-                        : "border-muted-foreground/25 hover:border-blue-300 hover:bg-muted/30",
-                  ].join(" ")}
-                  onClick={() => !isImporting && fileInputRef.current?.click()}
-                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDragging(false);
-                    const f = e.dataTransfer.files[0];
-                    if (f) handleImportFileSelect(f);
-                  }}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleImportFileSelect(f);
-                      e.target.value = "";
-                    }}
-                  />
-                  {importFile ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Check className="h-8 w-8 text-green-500" />
-                      <p className="text-sm font-medium text-green-700">{importFile.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(importFile.size / 1024).toFixed(0)} KB — click để đổi file
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <Upload className="h-8 w-8 text-muted-foreground/50" />
-                      <p className="text-sm font-medium">Kéo file vào đây hoặc click để chọn</p>
-                      <p className="text-xs text-muted-foreground">Hỗ trợ: .docx, .pdf — tối đa 50 MB</p>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Nội dung sẽ được trích xuất và đưa vào editor. AI Review tự động chạy sau khi import.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2 px-5 py-3 border-t shrink-0">
-                <Button variant="outline" size="sm" onClick={() => setShowImport(false)} disabled={isImporting}>
-                  Hủy
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                  onClick={handleImport}
-                  disabled={!importFile || isImporting}
-                >
-                  {isImporting
-                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Đang xử lý...</>
-                    : <><Upload className="h-3.5 w-3.5" />Import</>}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* ── Review Panel (slide-in drawer over right panel) ───────────────── */}
       <div
