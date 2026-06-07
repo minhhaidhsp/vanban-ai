@@ -23,6 +23,7 @@ import {
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
 import type { Editor } from "@tiptap/react";
+import type { ReviewChange } from "@/lib/api";
 
 // ── Welcome panel constants ────────────────────────────────────────────────────
 
@@ -127,8 +128,17 @@ interface DocumentEditorProps {
   documentId?: string;
   initialContent?: string;
   initialTitle?: string;
-  onAiReview?: () => void;
+  onAiReview?: (checkContent?: string) => void;
   editorMapRef?: React.MutableRefObject<Map<string, Editor>>;
+  reviewChanges?: ReviewChange[];
+  reviewSummary?: string;
+  acceptedIds?: Set<number>;
+  rejectedIds?: Set<number>;
+  isReviewing?: boolean;
+  onApplyChange?: (i: number) => void;
+  onRejectChange?: (i: number) => void;
+  onApplyAll?: () => void;
+  onScrollToChange?: (change: ReviewChange) => void;
 }
 
 function SaveIndicator({ status, label }: { status: string; label: string }) {
@@ -160,7 +170,11 @@ function isAiGenerated(content?: string): boolean {
   try { return JSON.parse(content)?.ai_generated === true; } catch { return false; }
 }
 
-export function DocumentEditor({ documentId, initialContent, initialTitle, onAiReview, editorMapRef }: DocumentEditorProps) {
+export function DocumentEditor({
+  documentId, initialContent, initialTitle, onAiReview, editorMapRef,
+  reviewChanges, reviewSummary, acceptedIds, rejectedIds, isReviewing,
+  onApplyChange, onRejectChange, onApplyAll, onScrollToChange,
+}: DocumentEditorProps) {
   const queryClient = useQueryClient();
   const { toast }   = useToast();
   const router      = useRouter();
@@ -608,6 +622,15 @@ export function DocumentEditor({ documentId, initialContent, initialTitle, onAiR
                 onInsertText={handleInsertText}
                 sourceIds={sourceIds}
                 onAiReview={onAiReview ?? (() => {})}
+                reviewChanges={reviewChanges}
+                reviewSummary={reviewSummary}
+                acceptedIds={acceptedIds}
+                rejectedIds={rejectedIds}
+                isReviewing={isReviewing}
+                onApplyChange={onApplyChange}
+                onRejectChange={onRejectChange}
+                onApplyAll={onApplyAll}
+                onScrollToChange={onScrollToChange}
               />
             </div>
           </>
