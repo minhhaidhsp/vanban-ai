@@ -825,6 +825,7 @@ async def review_document(
             max_tokens=4000,
             json_mode=True,
         )
+        logger.error("[review_doc] raw response: %r", raw[:200])
         raw_clean = sanitize_json_string(raw)
         review_data = json.loads(raw_clean)
     except HTTPException:
