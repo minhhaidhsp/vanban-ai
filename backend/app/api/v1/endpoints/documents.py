@@ -42,6 +42,47 @@ def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html).strip()
 
 
+def _extract_tiptap_text(content_str: str) -> str:
+    """Extract plain text from document.content — handles nd30 JSON and TipTap JSON."""
+    if not content_str:
+        return ""
+    try:
+        data = json.loads(content_str)
+    except Exception:
+        return _strip_html(content_str)
+
+    # TipTap native format: {"type": "doc", "content": [...]}
+    if data.get("type") == "doc":
+        texts: list[str] = []
+        def _walk(node: dict) -> None:
+            if node.get("type") == "text":
+                texts.append(node.get("text", ""))
+            for child in (node.get("content") or []):
+                _walk(child)
+        _walk(data)
+        return " ".join(t for t in texts if t).strip()
+
+    # nd30 / nd30-compatible format
+    parts: list[str] = []
+    if data.get("trichYeu"):
+        parts.append(f"Trích yếu: {data['trichYeu']}")
+    if data.get("canCu"):
+        parts.append(f"Căn cứ:\n{_strip_html(data['canCu'])}")
+    if data.get("noiDung"):
+        parts.append(f"Nội dung:\n{_strip_html(data['noiDung'])}")
+    noi_nhan = data.get("noiNhan")
+    if noi_nhan:
+        if isinstance(noi_nhan, list):
+            parts.append(f"Nơi nhận:\n{chr(10).join(noi_nhan)}")
+        elif isinstance(noi_nhan, str):
+            parts.append(f"Nơi nhận:\n{noi_nhan}")
+    if parts:
+        return "\n\n".join(parts)
+
+    # Fallback: strip HTML from raw string
+    return _strip_html(content_str)
+
+
 def _extract_file_text(data: bytes, file_type: str | None, filename: str) -> str:
     """Synchronous text extraction from DOCX or PDF bytes. Call via asyncio.to_thread."""
     import io as _io
@@ -706,19 +747,22 @@ Nhiệm vụ: Phân tích và chỉnh sửa văn bản theo các tiêu chí:
 4. Dấu câu và cách trình bày
 5. Thuật ngữ pháp lý đúng chuẩn
 
-Trả về JSON với format:
+Trả về JSON (KHÔNG markdown, KHÔNG ```json):
 {
   "reviewed_text": "toàn bộ văn bản đã chỉnh sửa",
   "changes": [
     {
+      "section": "trichYeu|canCu|noiDung|noiNhan|general",
       "type": "chinh_ta|the_thuc|van_phong|dau_cau|thuat_ngu",
-      "original": "đoạn gốc",
+      "original": "đoạn gốc trích nguyên văn từ văn bản",
       "revised": "đoạn đã sửa",
-      "reason": "lý do chỉnh sửa"
+      "reason": "lý do chỉnh sửa ngắn gọn"
     }
   ],
-  "summary": "tóm tắt các điểm đã chỉnh sửa"
+  "summary": "tóm tắt ngắn gọn các điểm đã chỉnh sửa"
 }
+Quy tắc field "section": "trichYeu" = phần Trích yếu, "canCu" = phần Căn cứ,
+"noiDung" = phần Nội dung, "noiNhan" = phần Nơi nhận, "general" = không xác định.
 Chỉ trả về JSON, không thêm gì khác.\
 """
 
@@ -740,30 +784,11 @@ async def review_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    try:
-        data = json.loads(document.content or "{}")
-    except Exception:
-        data = {}
-
-    parts: list[str] = []
-    if data.get("trichYeu"):
-        parts.append(f"Trích yếu: {data['trichYeu']}")
-    if data.get("canCu"):
-        parts.append(f"Căn cứ:\n{_strip_html(data['canCu'])}")
-    if data.get("noiDung"):
-        parts.append(f"Nội dung:\n{_strip_html(data['noiDung'])}")
-    noi_nhan = data.get("noiNhan")
-    if noi_nhan:
-        if isinstance(noi_nhan, list):
-            parts.append(f"Nơi nhận:\n{chr(10).join(noi_nhan)}")
-        elif isinstance(noi_nhan, str):
-            parts.append(f"Nơi nhận:\n{noi_nhan}")
-
-    plain_text = "\n\n".join(parts) or _strip_html(document.content or "")
+    plain_text = _extract_tiptap_text(document.content or "")
     if not plain_text.strip():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Document không có nội dung để rà soát",
+            status_code=422,
+            detail="Vui lòng nhập nội dung văn bản trước khi rà soát",
         )
 
     try:

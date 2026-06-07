@@ -126,6 +126,7 @@ interface DocumentEditorProps {
   documentId?: string;
   initialContent?: string;
   initialTitle?: string;
+  onAiReview?: () => void;
 }
 
 function SaveIndicator({ status, label }: { status: string; label: string }) {
@@ -157,7 +158,7 @@ function isAiGenerated(content?: string): boolean {
   try { return JSON.parse(content)?.ai_generated === true; } catch { return false; }
 }
 
-export function DocumentEditor({ documentId, initialContent, initialTitle }: DocumentEditorProps) {
+export function DocumentEditor({ documentId, initialContent, initialTitle, onAiReview }: DocumentEditorProps) {
   const queryClient = useQueryClient();
   const { toast }   = useToast();
   const router      = useRouter();
@@ -603,6 +604,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
                 getDocContext={getDocContext}
                 onInsertText={handleInsertText}
                 sourceIds={sourceIds}
+                onAiReview={onAiReview ?? (() => {})}
               />
             </div>
           </>

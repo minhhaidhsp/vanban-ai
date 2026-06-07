@@ -3,10 +3,10 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { documentApi } from "@/lib/api";
-import type { ReviewChange, ReviewResult } from "@/lib/api";
+import type { ReviewChange } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Copy, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Upload, X } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const DocumentEditor = dynamic(
@@ -39,7 +39,72 @@ const BADGE_LABEL: Record<string, string> = {
   thuat_ngu: "Thuật ngữ",
 };
 
+const SECTION_LABEL: Record<string, string> = {
+  trichYeu: "Trích yếu",
+  canCu: "Căn cứ",
+  noiDung: "Nội dung",
+  noiNhan: "Nơi nhận",
+};
+
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
+
+const ND30_SECTION_FIELDS = ["trichYeu", "canCu", "noiDung", "noiNhan"] as const;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hasText(content: string): boolean {
+  try {
+    const data = JSON.parse(content);
+    if (data.type === "doc") {
+      const check = (node: Record<string, unknown>): boolean => {
+        if (node.type === "text" && String(node.text ?? "").trim()) return true;
+        return ((node.content as unknown[]) ?? []).some((c) =>
+          check(c as Record<string, unknown>)
+        );
+      };
+      return check(data);
+    }
+    return !!(
+      String(data.trichYeu ?? "").trim() ||
+      String(data.canCu ?? "").trim() ||
+      String(data.noiDung ?? "").trim()
+    );
+  } catch {
+    return content.trim().length > 0;
+  }
+}
+
+function applyChangeToContent(
+  raw: string,
+  change: ReviewChange
+): string {
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const target =
+      ND30_SECTION_FIELDS.includes(
+        change.section as (typeof ND30_SECTION_FIELDS)[number]
+      ) && change.section !== "general"
+        ? (change.section as string)
+        : null;
+
+    let replaced = false;
+    if (target && typeof data[target] === "string" && (data[target] as string).includes(change.original)) {
+      data[target] = (data[target] as string).replace(change.original, change.revised);
+      replaced = true;
+    }
+    if (!replaced) {
+      for (const field of ND30_SECTION_FIELDS) {
+        if (typeof data[field] === "string" && (data[field] as string).includes(change.original)) {
+          data[field] = (data[field] as string).replace(change.original, change.revised);
+          break;
+        }
+      }
+    }
+    return JSON.stringify(data);
+  } catch {
+    return raw;
+  }
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -51,20 +116,45 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     queryFn: () => documentApi.get(params.id),
   });
 
+  // Forces DocumentEditor remount with overridden content
+  const [editorKey, setEditorKey] = useState(0);
+  const [overrideContent, setOverrideContent] = useState<string | undefined>(undefined);
+  // Sync ref so handleReview called right after setOverrideContent sees the new value
+  const overrideContentRef = useRef<string | undefined>(undefined);
+
+  const setContent = (c: string) => {
+    overrideContentRef.current = c;
+    setOverrideContent(c);
+    setEditorKey((k) => k + 1);
+  };
+
   // ── AI Review state ───────────────────────────────────────────────────────
   const [isReviewing, setIsReviewing] = useState(false);
-  const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
-  const [showReview, setShowReview] = useState(false);
-  const [reviewTab, setReviewTab] = useState<"text" | "changes">("text");
-  const [copied, setCopied] = useState(false);
+  const [reviewChanges, setReviewChanges] = useState<ReviewChange[]>([]);
+  const [reviewSummary, setReviewSummary] = useState("");
+  const [showReviewPanel, setShowReviewPanel] = useState(false);
+  const [acceptedIds, setAcceptedIds] = useState<Set<number>>(new Set());
+  const [rejectedIds, setRejectedIds] = useState<Set<number>>(new Set());
 
-  const handleReview = async () => {
+  // checkContent: optional override for content-check (used after import before re-render)
+  const handleReview = async (checkContent?: string) => {
+    const content = checkContent ?? overrideContentRef.current ?? overrideContent ?? doc?.content;
+    if (!content || !hasText(content)) {
+      toast({
+        title: "Chưa có nội dung",
+        description: "Vui lòng nhập nội dung văn bản trước khi rà soát.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsReviewing(true);
     try {
       const data = await documentApi.review(params.id);
-      setReviewResult(data);
-      setShowReview(true);
-      setReviewTab("text");
+      setReviewChanges(data.changes);
+      setReviewSummary(data.summary ?? "");
+      setAcceptedIds(new Set());
+      setRejectedIds(new Set());
+      setShowReviewPanel(true);
     } catch {
       toast({
         title: "Lỗi AI Review",
@@ -76,18 +166,34 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     }
   };
 
-  const handleCopyReview = async () => {
-    if (!reviewResult) return;
-    await navigator.clipboard.writeText(reviewResult.reviewed_text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const applyChange = (i: number) => {
+    const raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
+    const newContent = applyChangeToContent(raw, reviewChanges[i]);
+    overrideContentRef.current = newContent;
+    setOverrideContent(newContent);
+    setEditorKey((k) => k + 1);
+    setAcceptedIds((prev) => new Set([...prev, i]));
   };
 
-  const handleApplyToEditor = async () => {
-    if (!reviewResult) return;
-    await navigator.clipboard.writeText(reviewResult.reviewed_text);
-    toast({ title: "Đã copy vào clipboard", description: "Ctrl+V để dán vào văn bản." });
+  const rejectChange = (i: number) => {
+    setRejectedIds((prev) => new Set([...prev, i]));
   };
+
+  const applyAllPending = () => {
+    let raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
+    const newAccepted = new Set(acceptedIds);
+    reviewChanges.forEach((change, i) => {
+      if (acceptedIds.has(i) || rejectedIds.has(i)) return;
+      raw = applyChangeToContent(raw, change);
+      newAccepted.add(i);
+    });
+    overrideContentRef.current = raw;
+    setOverrideContent(raw);
+    setEditorKey((k) => k + 1);
+    setAcceptedIds(newAccepted);
+  };
+
+  const pendingCount = reviewChanges.filter((_, i) => !acceptedIds.has(i) && !rejectedIds.has(i)).length;
 
   // ── Import state ──────────────────────────────────────────────────────────
   const [showImport, setShowImport] = useState(false);
@@ -95,10 +201,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Forces DocumentEditor remount with overridden content after import
-  const [editorKey, setEditorKey] = useState(0);
-  const [overrideContent, setOverrideContent] = useState<string | undefined>(undefined);
 
   const handleImportFileSelect = (f: File) => {
     if (f.size > MAX_FILE_BYTES) {
@@ -128,7 +230,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
         return;
       }
 
-      // Convert plain text → nd30 JSON with noiDung set to HTML paragraphs
       const paras = extractedText
         .split("\n")
         .map((l) => l.trim())
@@ -136,15 +237,18 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
         .map((l) => `<p>${l}</p>`)
         .join("");
       const nd30Json = JSON.stringify({ version: "nd30", noiDung: paras });
+
+      // Update ref synchronously before calling handleReview
+      overrideContentRef.current = nd30Json;
       setOverrideContent(nd30Json);
-      setEditorKey((k) => k + 1); // remount editor with new content
+      setEditorKey((k) => k + 1);
 
       setShowImport(false);
       setImportFile(null);
       toast({ title: "Import thành công", description: `Đã nhập nội dung từ "${importFile.name}".` });
 
-      // Auto-trigger AI Review so user sees suggestions right away
-      handleReview();
+      // Auto-trigger AI Review; pass nd30Json so content check uses fresh content
+      handleReview(nd30Json);
     } catch {
       toast({
         title: "Import thất bại",
@@ -167,8 +271,8 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   return (
     <div className="flex flex-col h-full relative">
 
-      {/* Thin action bar */}
-      <div className="flex items-center justify-end gap-1.5 px-4 py-1.5 border-b bg-muted/20 shrink-0">
+      {/* Thin action bar — Import only (AI Review moved to Tools tab) */}
+      <div className="flex items-center justify-end px-4 py-1.5 border-b bg-muted/20 shrink-0">
         <Button
           size="sm"
           variant="ghost"
@@ -178,18 +282,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
           <Upload className="h-3.5 w-3.5" />
           Import từ file
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs gap-1.5 text-violet-700 hover:text-violet-800 hover:bg-violet-50"
-          onClick={handleReview}
-          disabled={isReviewing}
-        >
-          {isReviewing
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <Sparkles className="h-3.5 w-3.5" />}
-          {isReviewing ? "Đang rà soát..." : "AI Review"}
-        </Button>
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col">
@@ -198,6 +290,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
           documentId={params.id}
           initialContent={overrideContent ?? doc?.content}
           initialTitle={doc?.title}
+          onAiReview={handleReview}
         />
       </div>
 
@@ -213,7 +306,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
               className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
                 <div className="flex items-center gap-2">
                   <Upload className="h-4 w-4 text-blue-600" />
@@ -228,7 +320,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                 </button>
               </div>
 
-              {/* Dropzone */}
               <div className="p-5 space-y-4">
                 <div
                   className={[
@@ -276,20 +367,13 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                     </div>
                   )}
                 </div>
-
                 <p className="text-xs text-muted-foreground">
-                  Nội dung file sẽ được trích xuất và đưa vào editor. Sau khi import, AI Review sẽ tự động chạy để gợi ý chỉnh sửa.
+                  Nội dung sẽ được trích xuất và đưa vào editor. AI Review tự động chạy sau khi import.
                 </p>
               </div>
 
-              {/* Footer */}
               <div className="flex justify-end gap-2 px-5 py-3 border-t shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowImport(false)}
-                  disabled={isImporting}
-                >
+                <Button variant="outline" size="sm" onClick={() => setShowImport(false)} disabled={isImporting}>
                   Hủy
                 </Button>
                 <Button
@@ -308,134 +392,160 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
         </>
       )}
 
-      {/* ── Review Modal ─────────────────────────────────────────────────── */}
-      {showReview && reviewResult && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-50"
-            onClick={() => setShowReview(false)}
-          />
-
-          {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <div
-              className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-violet-600" />
-                  <span className="font-semibold text-sm">AI Review văn bản</span>
-                </div>
-                <button
-                  onClick={() => setShowReview(false)}
-                  className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-                  aria-label="Đóng"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Summary */}
-              {reviewResult.summary && (
-                <div className="mx-5 mt-3 p-3 bg-green-50 rounded-lg border border-green-200 shrink-0">
-                  <p className="text-[10px] font-semibold uppercase text-green-700 mb-1">Tóm tắt</p>
-                  <p className="text-sm text-green-800">{reviewResult.summary}</p>
-                </div>
-              )}
-
-              {/* Tabs */}
-              <div className="flex border-b mt-3 px-5 shrink-0">
-                {(["text", "changes"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setReviewTab(tab)}
-                    className={[
-                      "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                      reviewTab === tab
-                        ? "border-violet-600 text-violet-700"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    ].join(" ")}
-                  >
-                    {tab === "text"
-                      ? "Văn bản đã chỉnh"
-                      : `Thay đổi (${reviewResult.changes.length})`}
-                  </button>
-                ))}
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-h-0 overflow-y-auto p-5">
-
-                {reviewTab === "text" && (
-                  <div className="flex flex-col gap-3 h-full">
-                    <textarea
-                      readOnly
-                      value={reviewResult.reviewed_text}
-                      className="flex-1 min-h-[280px] font-mono text-xs resize-none border rounded-lg p-3 bg-muted/30"
-                    />
-                    <div className="flex gap-2 shrink-0">
-                      <Button size="sm" variant="outline" className="gap-1.5" onClick={handleCopyReview}>
-                        {copied
-                          ? <Check className="h-3.5 w-3.5 text-green-600" />
-                          : <Copy className="h-3.5 w-3.5" />}
-                        {copied ? "Đã copy" : "Copy"}
-                      </Button>
-                      <Button size="sm" variant="outline" className="gap-1.5" onClick={handleApplyToEditor}>
-                        <Sparkles className="h-3.5 w-3.5" />
-                        Áp dụng vào editor
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {reviewTab === "changes" && (
-                  <div className="space-y-3">
-                    {reviewResult.changes.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Không có thay đổi nào
-                      </p>
-                    )}
-                    {reviewResult.changes.map((change: ReviewChange, i: number) => (
-                      <div key={i} className="border rounded-lg p-3 space-y-2 text-xs">
-                        <span
-                          className={[
-                            "inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded",
-                            BADGE_COLOR[change.type] ?? "bg-gray-100 text-gray-700",
-                          ].join(" ")}
-                        >
-                          {BADGE_LABEL[change.type] ?? change.type}
-                        </span>
-                        <div className="space-y-1">
-                          <div className="line-through text-red-600 bg-red-50 px-2 py-1 rounded leading-relaxed">
-                            {change.original}
-                          </div>
-                          <div className="text-green-700 bg-green-50 px-2 py-1 rounded leading-relaxed">
-                            {change.revised}
-                          </div>
-                        </div>
-                        {change.reason && (
-                          <p className="text-[11px] text-muted-foreground">{change.reason}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-              </div>
-
-              {/* Footer */}
-              <div className="flex justify-end px-5 py-3 border-t shrink-0">
-                <Button variant="outline" size="sm" onClick={() => setShowReview(false)}>
-                  Đóng
-                </Button>
-              </div>
-            </div>
+      {/* ── Review Panel (slide-in drawer over right panel) ───────────────── */}
+      <div
+        className={[
+          "fixed right-0 top-0 bottom-0 z-40 flex flex-col bg-white border-l shadow-2xl",
+          "w-full sm:w-[400px] transition-transform duration-300",
+          showReviewPanel ? "translate-x-0" : "translate-x-full",
+        ].join(" ")}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-violet-50 shrink-0">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-violet-600" />
+            <span className="font-semibold text-sm text-violet-900">Kết quả rà soát</span>
+            <span className="text-[11px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium">
+              {reviewChanges.length} thay đổi
+            </span>
           </div>
-        </>
-      )}
+          <button
+            onClick={() => setShowReviewPanel(false)}
+            className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+            aria-label="Đóng"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Stats bar */}
+        <div className="px-4 py-3 border-b shrink-0 space-y-2">
+          {reviewChanges.length > 0 && (
+            <>
+              <div className="flex h-1.5 rounded-full overflow-hidden bg-gray-200">
+                <div
+                  className="bg-green-500 transition-all duration-300"
+                  style={{ width: `${(acceptedIds.size / reviewChanges.length) * 100}%` }}
+                />
+                <div
+                  className="bg-red-400 transition-all duration-300"
+                  style={{ width: `${(rejectedIds.size / reviewChanges.length) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px]">
+                <span className="text-green-600 font-medium">{acceptedIds.size} áp dụng</span>
+                <span className="text-muted-foreground">{pendingCount} chờ xử lý</span>
+                <span className="text-red-500 font-medium">{rejectedIds.size} bỏ qua</span>
+              </div>
+            </>
+          )}
+          {reviewSummary && (
+            <p className="text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg p-2 leading-relaxed">
+              {reviewSummary}
+            </p>
+          )}
+        </div>
+
+        {/* Changes list */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+          {reviewChanges.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-10">
+              Không tìm thấy thay đổi nào.
+            </p>
+          )}
+          {reviewChanges.map((change, i) => {
+            const accepted = acceptedIds.has(i);
+            const rejected = rejectedIds.has(i);
+            return (
+              <div
+                key={i}
+                className={[
+                  "border rounded-lg p-3 space-y-2 text-xs transition-opacity",
+                  accepted || rejected ? "opacity-50" : "",
+                  accepted ? "border-green-200 bg-green-50/30" : "",
+                  rejected ? "border-red-200 bg-red-50/30" : "",
+                ].join(" ")}
+              >
+                {/* Badges row */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className={["inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                    BADGE_COLOR[change.type] ?? "bg-gray-100 text-gray-700"].join(" ")}>
+                    {BADGE_LABEL[change.type] ?? change.type}
+                  </span>
+                  {change.section && change.section !== "general" && SECTION_LABEL[change.section] && (
+                    <span className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                      {SECTION_LABEL[change.section]}
+                    </span>
+                  )}
+                  {accepted && (
+                    <span className="ml-auto text-[10px] text-green-600 font-medium flex items-center gap-0.5">
+                      <Check className="h-2.5 w-2.5" /> Đã áp dụng
+                    </span>
+                  )}
+                  {rejected && (
+                    <span className="ml-auto text-[10px] text-red-500 font-medium flex items-center gap-0.5">
+                      <X className="h-2.5 w-2.5" /> Bỏ qua
+                    </span>
+                  )}
+                </div>
+
+                {/* Original → Revised */}
+                <div className="space-y-1">
+                  <div className="line-through text-red-600 bg-red-50 px-2 py-1 rounded leading-relaxed break-words">
+                    {change.original}
+                  </div>
+                  <div className="text-green-700 bg-green-50 px-2 py-1 rounded leading-relaxed break-words">
+                    {change.revised}
+                  </div>
+                </div>
+
+                {change.reason && (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{change.reason}</p>
+                )}
+
+                {/* Action buttons */}
+                {!accepted && !rejected && (
+                  <div className="flex gap-1.5 pt-0.5">
+                    <button
+                      onClick={() => applyChange(i)}
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-green-50 text-green-700 hover:bg-green-100 text-[11px] font-medium transition-colors border border-green-200"
+                    >
+                      <Check className="h-3 w-3" /> Áp dụng
+                    </button>
+                    <button
+                      onClick={() => rejectChange(i)}
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-red-50 text-red-600 hover:bg-red-100 text-[11px] font-medium transition-colors border border-red-200"
+                    >
+                      <X className="h-3 w-3" /> Bỏ qua
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer — Apply all pending */}
+        {pendingCount > 0 && (
+          <div className="px-4 py-3 border-t shrink-0">
+            <button
+              onClick={applyAllPending}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Áp dụng tất cả ({pendingCount})
+            </button>
+          </div>
+        )}
+
+        {/* Loading overlay while reviewing */}
+        {isReviewing && (
+          <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center gap-3 z-10">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+            <p className="text-sm text-violet-700 font-medium">Đang rà soát văn bản...</p>
+          </div>
+        )}
+      </div>
 
     </div>
   );

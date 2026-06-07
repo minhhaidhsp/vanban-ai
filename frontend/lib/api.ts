@@ -478,6 +478,7 @@ export interface DocumentStats {
 }
 
 export interface ReviewChange {
+  section?: "trichYeu" | "canCu" | "noiDung" | "noiNhan" | "general";
   type: "chinh_ta" | "the_thuc" | "van_phong" | "dau_cau" | "thuat_ngu";
   original: string;
   revised: string;
