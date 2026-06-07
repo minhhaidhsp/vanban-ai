@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { documentApi } from "@/lib/api";
 import type { ReviewChange } from "@/lib/api";
+import type { Editor } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Loader2, ShieldCheck, Upload, X } from "lucide-react";
@@ -126,10 +127,10 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [acceptedIds, setAcceptedIds] = useState<Set<number>>(new Set());
   const [rejectedIds, setRejectedIds] = useState<Set<number>>(new Set());
 
-  // checkContent: optional override for content-check (used after import before re-render)
+  // checkContent: explicit override (import flow passes fresh nd30 JSON before re-render)
   const handleReview = async (checkContent?: string) => {
-    const content = checkContent ?? overrideContentRef.current ?? overrideContent ?? doc?.content;
-    if (!content || !hasText(content)) {
+    const contentToReview = checkContent ?? getCurrentContentFromEditors();
+    if (!contentToReview || !hasText(contentToReview)) {
       toast({
         title: "Chưa có nội dung",
         description: "Vui lòng nhập nội dung văn bản trước khi rà soát.",
@@ -139,7 +140,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     }
     setIsReviewing(true);
     try {
-      const data = await documentApi.review(params.id);
+      const data = await documentApi.review(params.id, contentToReview);
       setReviewChanges(data.changes);
       setReviewSummary(data.summary ?? "");
       setAcceptedIds(new Set());
@@ -156,12 +157,31 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     }
   };
 
+  const SECTION_TO_FIELD: Record<string, string> = {
+    trichYeu: "trichYeu",
+    canCu: "canCu",
+    noiDung: "noiDung",
+    noiNhan: "noiNhan",
+  };
+
   const applyChange = (i: number) => {
-    const raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
-    const newContent = applyChangeToContent(raw, reviewChanges[i]);
-    overrideContentRef.current = newContent;
-    setOverrideContent(newContent);
-    setEditorKey((k) => k + 1);
+    const change = reviewChanges[i];
+    const fieldId = change.section ? (SECTION_TO_FIELD[change.section] ?? "noiDung") : "noiDung";
+    const editor = editorMapRef.current.get(fieldId);
+
+    if (editor) {
+      // Inject trực tiếp vào TipTap — không remount, giữ cursor và undo history
+      const newHtml = editor.getHTML().replace(change.original, change.revised);
+      editor.commands.setContent(newHtml);
+    } else {
+      // Fallback: remount editor với nội dung mới (khi editors chưa sẵn sàng)
+      const raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
+      const newContent = applyChangeToContent(raw, change);
+      overrideContentRef.current = newContent;
+      setOverrideContent(newContent);
+      setEditorKey((k) => k + 1);
+    }
+
     setAcceptedIds((prev) => new Set([...prev, i]));
   };
 
@@ -170,16 +190,40 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   };
 
   const applyAllPending = () => {
-    let raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
     const newAccepted = new Set(acceptedIds);
-    reviewChanges.forEach((change, i) => {
-      if (acceptedIds.has(i) || rejectedIds.has(i)) return;
-      raw = applyChangeToContent(raw, change);
-      newAccepted.add(i);
-    });
-    overrideContentRef.current = raw;
-    setOverrideContent(raw);
-    setEditorKey((k) => k + 1);
+
+    if (editorMapRef.current.size > 0) {
+      // Group pending changes by fieldId, apply sequentially per field
+      const byField = new Map<string, ReviewChange[]>();
+      reviewChanges.forEach((change, i) => {
+        if (acceptedIds.has(i) || rejectedIds.has(i)) return;
+        const fid = change.section ? (SECTION_TO_FIELD[change.section] ?? "noiDung") : "noiDung";
+        if (!byField.has(fid)) byField.set(fid, []);
+        byField.get(fid)!.push(change);
+        newAccepted.add(i);
+      });
+      byField.forEach((changes, fieldId) => {
+        const editor = editorMapRef.current.get(fieldId);
+        if (!editor) return;
+        let html = editor.getHTML();
+        for (const change of changes) {
+          html = html.replace(change.original, change.revised);
+        }
+        editor.commands.setContent(html);
+      });
+    } else {
+      // Fallback: string replace + remount
+      let raw = overrideContentRef.current ?? overrideContent ?? doc?.content ?? "{}";
+      reviewChanges.forEach((change, i) => {
+        if (acceptedIds.has(i) || rejectedIds.has(i)) return;
+        raw = applyChangeToContent(raw, change);
+        newAccepted.add(i);
+      });
+      overrideContentRef.current = raw;
+      setOverrideContent(raw);
+      setEditorKey((k) => k + 1);
+    }
+
     setAcceptedIds(newAccepted);
   };
 
@@ -191,6 +235,15 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorMapRef = useRef<Map<string, Editor>>(new Map());
+
+  const getCurrentContentFromEditors = (): string | null => {
+    const map = editorMapRef.current;
+    if (map.size === 0) return overrideContentRef.current ?? doc?.content ?? null;
+    const nd30: Record<string, string> = { version: "nd30" };
+    map.forEach((editor, fieldId) => { nd30[fieldId] = editor.getHTML(); });
+    return JSON.stringify(nd30);
+  };
 
   const handleImportFileSelect = (f: File) => {
     if (f.size > MAX_FILE_BYTES) {
@@ -281,6 +334,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
           initialContent={overrideContent ?? doc?.content}
           initialTitle={doc?.title}
           onAiReview={handleReview}
+          editorMapRef={editorMapRef}
         />
       </div>
 

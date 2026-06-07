@@ -1,10 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func, case
 from datetime import timedelta
-from typing import List
+from typing import List, Optional
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.redis import get_redis
@@ -767,9 +767,14 @@ Chỉ trả về JSON, không thêm gì khác.\
 """
 
 
+class ReviewRequest(BaseModel):
+    content: Optional[str] = None
+
+
 @router.post("/{document_id}/review")
 async def review_document(
     document_id: str,
+    body: ReviewRequest = Body(default=ReviewRequest()),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -784,7 +789,12 @@ async def review_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    plain_text = _extract_tiptap_text(document.content or "")
+    # Ưu tiên content từ frontend (real-time), fallback đọc từ DB
+    if body.content:
+        plain_text = _extract_tiptap_text(body.content)
+    else:
+        plain_text = _extract_tiptap_text(document.content or "")
+
     if not plain_text.strip():
         raise HTTPException(
             status_code=422,
