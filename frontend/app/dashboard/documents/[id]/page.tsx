@@ -137,7 +137,11 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     setIsReviewing(true);
     try {
       const data = await documentApi.review(params.id, contentToReview);
-      setReviewChanges(data.changes);
+      const validChanges = data.changes.filter(c =>
+        c.original?.trim() !== c.revised?.trim() &&
+        c.original?.trim().length > 0
+      );
+      setReviewChanges(validChanges);
       setReviewSummary(data.summary ?? "");
       setAcceptedIds(new Set());
       setRejectedIds(new Set());
@@ -192,31 +196,69 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     const editor = editorMapRef.current.get(fieldId)
     if (!editor) return
 
+    const searchText = change.original
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .trim()
+    if (!searchText || searchText.length < 3) return
+
     const { doc } = editor.state
-    const searchText = change.original.replace(/<[^>]*>/g, '').trim()
-    if (!searchText) return
+    let foundFrom = -1
+    let foundTo = -1
 
-    let found = false
     doc.descendants((node, pos) => {
-      if (found) return false
-      if (node.isText && node.text?.includes(searchText)) {
-        const index = node.text.indexOf(searchText)
-        const from = pos + index
-        const to = from + searchText.length
-
-        editor.commands.setTextSelection({ from, to })
-        editor.commands.focus()
-        const domNode = editor.view.domAtPos(from)?.node
-        if (domNode) {
-          const el = domNode instanceof Element
-            ? domNode
-            : domNode.parentElement
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-        found = true
+      if (foundFrom !== -1) return false
+      if (!node.isText || !node.text) return
+      const idx = node.text.indexOf(searchText)
+      if (idx !== -1) {
+        foundFrom = pos + idx
+        foundTo = foundFrom + searchText.length
         return false
       }
     })
+
+    if (foundFrom === -1 && searchText.length > 50) {
+      const shortSearch = searchText.slice(0, 50)
+      doc.descendants((node, pos) => {
+        if (foundFrom !== -1) return false
+        if (!node.isText || !node.text) return
+        const idx = node.text.indexOf(shortSearch)
+        if (idx !== -1) {
+          foundFrom = pos + idx
+          foundTo = foundFrom + shortSearch.length
+          return false
+        }
+      })
+    }
+
+    if (foundFrom === -1) {
+      toast({
+        title: "Không tìm thấy",
+        description: "Đoạn văn bản này có thể đã được sửa hoặc không còn trong editor.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    editor.commands.focus()
+    editor.commands.setTextSelection({ from: foundFrom, to: foundTo })
+
+    setTimeout(() => {
+      const { from } = editor.state.selection
+      const coords = editor.view.coordsAtPos(from)
+      const editorEl = editor.view.dom.closest('.overflow-y-auto')
+        ?? editor.view.dom.parentElement
+      if (editorEl && coords) {
+        const rect = editorEl.getBoundingClientRect()
+        editorEl.scrollTo({
+          top: editorEl.scrollTop + coords.top - rect.top - 200,
+          behavior: 'smooth',
+        })
+      }
+    }, 50)
   };
 
   const applyAllPending = () => {

@@ -597,7 +597,7 @@ export const documentApi = {
 
   review: async (docId: string, content?: string) => {
     const { data } = await api.post(
-      `/documents/${docId}/review`,
+      `/documents/${docId}/review?t=${Date.now()}`,
       content ? { content } : {}
     );
     return data as ReviewResult & { doc_id: string };
