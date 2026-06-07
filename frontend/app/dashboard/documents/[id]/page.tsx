@@ -54,26 +54,11 @@ const ND30_SECTION_FIELDS = ["trichYeu", "canCu", "noiDung", "noiNhan"] as const
 
 function hasText(content: unknown): boolean {
   try {
-    const str = typeof content === "string" ? content : JSON.stringify(content);
-    if (!str || str.trim().length === 0 || str === "{}") return false;
-    const data = typeof content === "string" ? JSON.parse(content) : content;
-    if (data?.noiDung) {
-      const stripped = data.noiDung
-        .replace(/<[^>]*>/g, "")
-        .replace(/&nbsp;/g, " ")
-        .trim();
-      return stripped.length > 0;
-    }
-    if (data?.version === "nd30") {
-      const fields = [data.noiDung, data.trichYeu, data.canCu];
-      return fields.some(
-        (f) => f && f.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim().length > 0
-      );
-    }
-    if (data?.trichYeu) return data.trichYeu.trim().length > 0;
-    if (data?.canCu) return data.canCu.replace(/<[^>]*>/g, "").trim().length > 0;
-    if (data?.type === "doc") return JSON.stringify(data).length > 50;
-    return str.trim().length > 10;
+    const str = typeof content === "string" ? content : JSON.stringify(content ?? "");
+    if (!str || str === "{}" || str === "null") return false;
+    const stripped = str.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    const textOnly = stripped.replace(/"[^"]*":/g, "").replace(/[{}"\\[\]]/g, "").trim();
+    return textOnly.length > 5;
   } catch {
     return false;
   }
