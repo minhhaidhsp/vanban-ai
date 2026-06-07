@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data } from "@/lib/nd30";
+import type { Editor } from "@tiptap/react";
 
 // ── Welcome panel constants ────────────────────────────────────────────────────
 
@@ -126,6 +127,8 @@ interface DocumentEditorProps {
   documentId?: string;
   initialContent?: string;
   initialTitle?: string;
+  onAiReview?: () => void;
+  editorMapRef?: React.MutableRefObject<Map<string, Editor>>;
 }
 
 function SaveIndicator({ status, label }: { status: string; label: string }) {
@@ -157,7 +160,7 @@ function isAiGenerated(content?: string): boolean {
   try { return JSON.parse(content)?.ai_generated === true; } catch { return false; }
 }
 
-export function DocumentEditor({ documentId, initialContent, initialTitle }: DocumentEditorProps) {
+export function DocumentEditor({ documentId, initialContent, initialTitle, onAiReview, editorMapRef }: DocumentEditorProps) {
   const queryClient = useQueryClient();
   const { toast }   = useToast();
   const router      = useRouter();
@@ -579,6 +582,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
               }
               onChange={handleChange}
               isNew={!generatedContent && wasNewDoc.current}
+              editorMapRef={editorMapRef}
             />
           )}
         </div>
@@ -603,6 +607,7 @@ export function DocumentEditor({ documentId, initialContent, initialTitle }: Doc
                 getDocContext={getDocContext}
                 onInsertText={handleInsertText}
                 sourceIds={sourceIds}
+                onAiReview={onAiReview ?? (() => {})}
               />
             </div>
           </>

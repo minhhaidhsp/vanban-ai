@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot, Trash2, SendHorizonal, Loader2, Wrench,
-  CheckSquare, Sparkles, FileSearch, AlignLeft,
+  CheckSquare, Sparkles, FileSearch, AlignLeft, ShieldCheck,
 } from "lucide-react";
 import { chatApi, type ChatCitation } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ export interface RightPanelProps {
   getDocContext: () => string;
   onInsertText: (text: string) => void;
   sourceIds: string[];
+  onAiReview: () => void;
 }
 
 const QUICK_PROMPTS = [
@@ -65,7 +66,7 @@ function ToolCard({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function RightPanel({
-  docId, getDocContext, onInsertText, sourceIds,
+  docId, getDocContext, onInsertText, sourceIds, onAiReview,
 }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<"tools" | "chat">("tools");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -231,6 +232,12 @@ export function RightPanel({
             description="Tóm tắt văn bản đang soạn trong 3-5 câu"
             onClick={handleSummarize}
             loading={summaryLoading}
+          />
+          <ToolCard
+            icon={<ShieldCheck className="h-4 w-4" />}
+            label="Rà soát văn bản"
+            description="AI kiểm tra chính tả, thể thức NĐ30, văn phong"
+            onClick={() => onAiReview()}
           />
 
           {sourceIds.length > 0 && (

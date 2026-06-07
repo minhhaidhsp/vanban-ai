@@ -37,6 +37,7 @@ interface SectionEditorProps {
   italic?: boolean;
   isActive?: boolean;
   onEditorFocused?: (editor: Editor) => void;
+  onEditorReady?: (editor: Editor) => void;
 }
 
 function SectionEditor({
@@ -44,6 +45,7 @@ function SectionEditor({
   minHeight = "80px", italic = false,
   isActive = false,
   onEditorFocused,
+  onEditorReady,
 }: SectionEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -67,6 +69,11 @@ function SectionEditor({
       },
     },
   });
+
+  useEffect(() => {
+    if (editor) onEditorReady?.(editor);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
@@ -191,9 +198,10 @@ export interface Nd30DocumentProps {
   initialData?: Partial<Nd30Data>;
   onChange?: (data: Nd30Data) => void;
   isNew?: boolean;
+  editorMapRef?: React.MutableRefObject<Map<string, Editor>>;
 }
 
-export function Nd30Document({ initialData, onChange, isNew = false }: Nd30DocumentProps) {
+export function Nd30Document({ initialData, onChange, isNew = false, editorMapRef }: Nd30DocumentProps) {
   const [data, setData] = useState<Nd30Data>(() => ({
     ...defaultNd30Data(initialData?.loaiVanBan ?? "QĐ"),
     ...initialData,
@@ -217,6 +225,13 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
     setActiveEditor(editor);
     setActiveFieldId(fieldId);
   }, []);
+
+  const editorRefs = useRef<Map<string, Editor>>(new Map());
+
+  const handleEditorReady = useCallback((fieldId: string, editor: Editor) => {
+    editorRefs.current.set(fieldId, editor);
+    if (editorMapRef) editorMapRef.current = editorRefs.current;
+  }, [editorMapRef]);
 
   // Auto-shrink quốc hiệu nếu tràn cột
   useEffect(() => {
@@ -586,7 +601,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
               placeholder="Căn cứ [tên văn bản] số [số/KH] ngày ... tháng ... năm ... của [cơ quan] về ...;"
               minHeight="60px" italic
               isActive={activeFieldId === "canCu"}
-              onEditorFocused={(ed) => handleEditorFocused("canCu", ed)} />
+              onEditorFocused={(ed) => handleEditorFocused("canCu", ed)}
+              onEditorReady={(ed) => handleEditorReady("canCu", ed)} />
           </div>
 
           {/* ══ VÙNG C — NỘI DUNG ══════════════════════════════════════ */}
@@ -595,7 +611,8 @@ export function Nd30Document({ initialData, onChange, isNew = false }: Nd30Docum
               placeholder="Nội dung chính của văn bản..."
               minHeight="200px"
               isActive={activeFieldId === "noiDung"}
-              onEditorFocused={(ed) => handleEditorFocused("noiDung", ed)} />
+              onEditorFocused={(ed) => handleEditorFocused("noiDung", ed)}
+              onEditorReady={(ed) => handleEditorReady("noiDung", ed)} />
           </div>
 
           {/* ══ PHẦN KÝ ════════════════════════════════════════════════ */}

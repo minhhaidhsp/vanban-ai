@@ -12,6 +12,7 @@ Route ordering: /jobs and /status/{id} MUST come before /{id}.
 import asyncio
 import base64
 import io
+import json
 import logging
 import re
 import uuid
@@ -45,6 +46,31 @@ _ALLOWED_TYPES = {
 _MAX_BYTES = 20 * 1024 * 1024  # 20 MB
 _REDIS_TTL = 3600               # 1 hour
 _OCR_BUCKET = get_bucket_name()
+
+_REVIEW_SYSTEM_PROMPT = """\
+Bạn là chuyên gia rà soát văn bản hành chính Việt Nam.
+Nhiệm vụ: Phân tích và chỉnh sửa văn bản theo các tiêu chí:
+1. Chính tả và typo (sửa lỗi viết sai)
+2. Thể thức văn bản theo Nghị định 30/2020/NĐ-CP
+3. Văn phong hành chính (trang trọng, rõ ràng, súc tích)
+4. Dấu câu và cách trình bày
+5. Thuật ngữ pháp lý đúng chuẩn
+
+Trả về JSON với format:
+{
+  "reviewed_text": "toàn bộ văn bản đã chỉnh sửa",
+  "changes": [
+    {
+      "type": "chinh_ta|the_thuc|van_phong|dau_cau|thuat_ngu",
+      "original": "đoạn gốc",
+      "revised": "đoạn đã sửa",
+      "reason": "lý do chỉnh sửa"
+    }
+  ],
+  "summary": "tóm tắt các điểm đã chỉnh sửa"
+}
+Chỉ trả về JSON, không thêm gì khác.\
+"""
 
 
 # ── LLM text formatter ───────────────────────────────────────────────────────
@@ -849,6 +875,73 @@ async def download_ocr_file(
             )
         },
     )
+
+
+# ── POST /{job_id}/review ────────────────────────────────────────────────────
+
+@router.post("/{job_id}/review")
+async def review_ocr_job(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gọi LLM rà soát chính tả/thể thức văn bản OCR. Kết quả cache Redis 24h."""
+    result = await db.execute(
+        select(OcrJob).where(
+            OcrJob.id == job_id,
+            OcrJob.user_id == str(current_user.id),
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if job.status != "done":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job chưa hoàn thành",
+        )
+
+    text = job.formatted_text or job.text
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Không có nội dung để rà soát",
+        )
+
+    try:
+        from app.services.llm_service import llm_service
+        if not llm_service._base_url:
+            raise HTTPException(status_code=503, detail="LLM service không khả dụng")
+
+        raw = await llm_service.chat(
+            messages=[
+                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                {"role": "user", "content": text[:6000]},
+            ],
+            temperature=0.1,
+            max_tokens=4000,
+            json_mode=True,
+        )
+        review_data = json.loads(raw)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[review_ocr] job=%s error: %s", job_id, exc)
+        raise HTTPException(status_code=503, detail=f"LLM error: {exc}")
+
+    redis = await get_redis()
+    await redis.set(
+        f"review:{job_id}",
+        json.dumps(review_data, ensure_ascii=False),
+        ex=86400,
+    )
+
+    return {
+        "job_id": job_id,
+        "reviewed_text": review_data.get("reviewed_text", ""),
+        "changes": review_data.get("changes", []),
+        "summary": review_data.get("summary", ""),
+    }
 
 
 # ── GET /{job_id} ─────────────────────────────────────────────────────────────

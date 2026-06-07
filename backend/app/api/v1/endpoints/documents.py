@@ -1,10 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sql_func, case
 from datetime import timedelta
-from typing import List
+from typing import List, Optional
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.redis import get_redis
@@ -16,6 +16,7 @@ from app.models.trich_yeu_history import TrichYeuHistory
 from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.services.document_pipeline_service import process_document_background
 from datetime import datetime
+import asyncio
 import json
 import logging
 import re
@@ -35,6 +36,71 @@ _TRICH_YEU_PREFIX: dict[str, str] = {
     "GM": "Về việc ",
     "GGT": "Về việc ",
 }
+
+
+def _strip_html(html: str) -> str:
+    return re.sub(r"<[^>]+>", " ", html).strip()
+
+
+def _extract_tiptap_text(content_str: str) -> str:
+    """Extract plain text from document.content — handles nd30 JSON and TipTap JSON."""
+    if not content_str:
+        return ""
+    try:
+        data = json.loads(content_str)
+    except Exception:
+        return _strip_html(content_str)
+
+    # TipTap native format: {"type": "doc", "content": [...]}
+    if data.get("type") == "doc":
+        texts: list[str] = []
+        def _walk(node: dict) -> None:
+            if node.get("type") == "text":
+                texts.append(node.get("text", ""))
+            for child in (node.get("content") or []):
+                _walk(child)
+        _walk(data)
+        return " ".join(t for t in texts if t).strip()
+
+    # nd30 / nd30-compatible format
+    parts: list[str] = []
+    if data.get("trichYeu"):
+        parts.append(f"Trích yếu: {data['trichYeu']}")
+    if data.get("canCu"):
+        parts.append(f"Căn cứ:\n{_strip_html(data['canCu'])}")
+    if data.get("noiDung"):
+        parts.append(f"Nội dung:\n{_strip_html(data['noiDung'])}")
+    noi_nhan = data.get("noiNhan")
+    if noi_nhan:
+        if isinstance(noi_nhan, list):
+            parts.append(f"Nơi nhận:\n{chr(10).join(noi_nhan)}")
+        elif isinstance(noi_nhan, str):
+            parts.append(f"Nơi nhận:\n{noi_nhan}")
+    if parts:
+        return "\n\n".join(parts)
+
+    # Fallback: strip HTML from raw string
+    return _strip_html(content_str)
+
+
+def _extract_file_text(data: bytes, file_type: str | None, filename: str) -> str:
+    """Synchronous text extraction from DOCX or PDF bytes. Call via asyncio.to_thread."""
+    import io as _io
+    ft = (file_type or "").lower()
+    fn = (filename or "").lower()
+    try:
+        if "pdf" in ft or fn.endswith(".pdf"):
+            import pdfplumber
+            with pdfplumber.open(_io.BytesIO(data)) as pdf:
+                pages = [p.extract_text() or "" for p in pdf.pages]
+            return "\n\n".join(pages).strip()
+        if "word" in ft or "docx" in ft or fn.endswith(".docx"):
+            from docx import Document as _DocxDoc
+            doc = _DocxDoc(_io.BytesIO(data))
+            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    except Exception as exc:
+        logger.warning("[upload] text extraction failed for %s: %s", filename, exc)
+    return ""
 
 
 def _normalize_trich_yeu(trich_yeu: str, loai_vb: str | None) -> str:
@@ -611,14 +677,14 @@ async def export_document_docx(
     )
 
 
-@router.post("/{document_id}/upload", response_model=DocumentResponse)
+@router.post("/{document_id}/upload")
 async def upload_document_file(
     document_id: str,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Upload file vào document editor: extract text đồng bộ, lưu nd30 JSON, trả extracted_text."""
     result = await db.execute(
         select(Document).where(
             Document.id == document_id, Document.owner_id == current_user.id
@@ -628,36 +694,144 @@ async def upload_document_file(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    # Read bytes and upload to MinIO immediately (needed for the response)
     file_data = await file.read()
     filename = file.filename or "unknown"
     file_type = file.content_type or "application/octet-stream"
     object_name = f"{current_user.id}/{document_id}/{uuid.uuid4()}_{filename}"
     await upload_file(file_data, object_name, file_type)
 
+    # Extract text synchronously in thread pool (avoids blocking event loop)
+    extracted_text = await asyncio.to_thread(_extract_file_text, file_data, file_type, filename)
+    logger.info("[upload] extracted %d chars from %s doc=%s", len(extracted_text), filename, document_id)
+
+    # Save nd30-compatible content so AI Review and editor work immediately
+    if extracted_text:
+        paras = "".join(
+            f"<p>{line}</p>"
+            for line in extracted_text.splitlines()
+            if line.strip()
+        )
+        document.content = json.dumps(
+            {"version": "nd30", "noiDung": paras},
+            ensure_ascii=False,
+        )
+
     document.file_path = object_name
     document.file_type = file_type
     await db.flush()
     await db.refresh(document)
 
-    # Schedule text extraction + embedding in background (avoids timeout on large files)
-    settings = get_settings()
-    redis = await get_redis()
-    job_id = str(uuid.uuid4())
-    await redis.set(
-        f"doc_job:{job_id}",
-        json.dumps({"status": "pending", "filename": filename, "doc_id": document_id}),
-        ex=settings.doc_job_ttl_seconds,
-    )
-    background_tasks.add_task(
-        process_document_background,
-        job_id=job_id,
-        doc_id=document_id,
-        file_data=file_data,
-        filename=filename,
-        file_type=file_type,
-        owner_id=str(current_user.id),
-    )
-    logger.info("[upload] queued background processing job=%s doc=%s", job_id, document_id)
+    return {
+        "id": str(document.id),
+        "title": document.title,
+        "content": document.content,
+        "file_path": document.file_path,
+        "file_type": document.file_type,
+        "loai_vb": document.loai_vb,
+        "so_van_ban": document.so_van_ban,
+        "nam": document.nam,
+        "source": document.source,
+        "owner_id": str(document.owner_id),
+        "created_at": document.created_at.isoformat() if document.created_at else None,
+        "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+        "extracted_text": extracted_text,
+    }
 
-    return document
+
+_REVIEW_SYSTEM_PROMPT = """\
+Bạn là chuyên gia rà soát văn bản hành chính Việt Nam.
+Nhiệm vụ: Phân tích và chỉnh sửa văn bản theo các tiêu chí:
+1. Chính tả và typo (sửa lỗi viết sai)
+2. Thể thức văn bản theo Nghị định 30/2020/NĐ-CP
+3. Văn phong hành chính (trang trọng, rõ ràng, súc tích)
+4. Dấu câu và cách trình bày
+5. Thuật ngữ pháp lý đúng chuẩn
+
+Trả về JSON (KHÔNG markdown, KHÔNG ```json):
+{
+  "reviewed_text": "toàn bộ văn bản đã chỉnh sửa",
+  "changes": [
+    {
+      "section": "trichYeu|canCu|noiDung|noiNhan|general",
+      "type": "chinh_ta|the_thuc|van_phong|dau_cau|thuat_ngu",
+      "original": "đoạn gốc trích nguyên văn từ văn bản",
+      "revised": "đoạn đã sửa",
+      "reason": "lý do chỉnh sửa ngắn gọn"
+    }
+  ],
+  "summary": "tóm tắt ngắn gọn các điểm đã chỉnh sửa"
+}
+Quy tắc field "section": "trichYeu" = phần Trích yếu, "canCu" = phần Căn cứ,
+"noiDung" = phần Nội dung, "noiNhan" = phần Nơi nhận, "general" = không xác định.
+Chỉ trả về JSON, không thêm gì khác.\
+"""
+
+
+class ReviewRequest(BaseModel):
+    content: Optional[str] = None
+
+
+@router.post("/{document_id}/review")
+async def review_document(
+    document_id: str,
+    body: ReviewRequest = Body(default=ReviewRequest()),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gọi LLM rà soát chính tả/thể thức văn bản hành chính. Kết quả cache Redis 24h."""
+    result = await db.execute(
+        select(Document).where(
+            Document.id == document_id,
+            Document.owner_id == current_user.id,
+        )
+    )
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Ưu tiên content từ frontend (real-time), fallback đọc từ DB
+    if body.content:
+        plain_text = _extract_tiptap_text(body.content)
+    else:
+        plain_text = _extract_tiptap_text(document.content or "")
+
+    if not plain_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Vui lòng nhập nội dung văn bản trước khi rà soát",
+        )
+
+    try:
+        from app.services.llm_service import llm_service
+        if not llm_service._base_url:
+            raise HTTPException(status_code=503, detail="LLM service không khả dụng")
+
+        raw = await llm_service.chat(
+            messages=[
+                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                {"role": "user", "content": plain_text[:6000]},
+            ],
+            temperature=0.1,
+            max_tokens=4000,
+            json_mode=True,
+        )
+        review_data = json.loads(raw)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[review_doc] doc=%s error: %s", document_id, exc)
+        raise HTTPException(status_code=503, detail=f"LLM error: {exc}")
+
+    redis = await get_redis()
+    await redis.set(
+        f"review:doc:{document_id}",
+        json.dumps(review_data, ensure_ascii=False),
+        ex=86400,
+    )
+
+    return {
+        "doc_id": document_id,
+        "reviewed_text": review_data.get("reviewed_text", ""),
+        "changes": review_data.get("changes", []),
+        "summary": review_data.get("summary", ""),
+    }
