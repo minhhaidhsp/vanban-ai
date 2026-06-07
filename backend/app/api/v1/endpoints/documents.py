@@ -767,6 +767,16 @@ Chỉ trả về JSON, không thêm gì khác.\
 """
 
 
+def sanitize_json_string(s: str) -> str:
+    # Xóa control characters trừ \n \r \t
+    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
+    # Extract JSON nếu bị wrap trong markdown
+    match = re.search(r'\{.*\}', s, re.DOTALL)
+    if match:
+        return match.group(0)
+    return s
+
+
 class ReviewRequest(BaseModel):
     content: Optional[str] = None
 
@@ -815,7 +825,8 @@ async def review_document(
             max_tokens=4000,
             json_mode=True,
         )
-        review_data = json.loads(raw)
+        raw_clean = sanitize_json_string(raw)
+        review_data = json.loads(raw_clean)
     except HTTPException:
         raise
     except Exception as exc:
