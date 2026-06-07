@@ -4,8 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot, Trash2, SendHorizonal, Loader2, Wrench,
   CheckSquare, Sparkles, FileSearch, AlignLeft, ShieldCheck,
+  ChevronLeft, Clock, Check, X, LayoutGrid,
 } from "lucide-react";
-import { chatApi, type ChatCitation } from "@/lib/api";
+import { chatApi, type ChatCitation, type ReviewChange } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +20,54 @@ interface Message {
   isStreaming?: boolean;
 }
 
+interface ToolTask {
+  id: string;
+  toolId: string;
+  label: string;
+  timestamp: Date;
+}
+
 export interface RightPanelProps {
   docId: string;
   getDocContext: () => string;
   onInsertText: (text: string) => void;
   sourceIds: string[];
   onAiReview: () => void;
+  reviewChanges?: ReviewChange[];
+  reviewSummary?: string;
+  acceptedIds?: Set<number>;
+  rejectedIds?: Set<number>;
+  isReviewing?: boolean;
+  onApplyChange?: (i: number) => void;
+  onRejectChange?: (i: number) => void;
+  onApplyAll?: () => void;
+  onScrollToChange?: (change: ReviewChange) => void;
 }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const BADGE_COLOR: Record<string, string> = {
+  chinh_ta: "bg-red-100 text-red-700",
+  the_thuc: "bg-purple-100 text-purple-700",
+  van_phong: "bg-blue-100 text-blue-700",
+  dau_cau: "bg-yellow-100 text-yellow-700",
+  thuat_ngu: "bg-green-100 text-green-700",
+};
+
+const BADGE_LABEL: Record<string, string> = {
+  chinh_ta: "Chính tả",
+  the_thuc: "Thể thức",
+  van_phong: "Văn phong",
+  dau_cau: "Dấu câu",
+  thuat_ngu: "Thuật ngữ",
+};
+
+const SECTION_LABEL: Record<string, string> = {
+  trichYeu: "Trích yếu",
+  canCu: "Căn cứ",
+  noiDung: "Nội dung",
+  noiNhan: "Nơi nhận",
+};
 
 const QUICK_PROMPTS = [
   { emoji: "📋", label: "Tìm căn cứ pháp lý" },
@@ -34,32 +76,201 @@ const QUICK_PROMPTS = [
   { emoji: "📖", label: "Tóm tắt nội dung" },
 ];
 
-// ── Tool card ─────────────────────────────────────────────────────────────────
+type ToolId =
+  | "review" | "summarize" | "qa" | "table" | "draft"
+  | "nd30" | "citation" | "template" | "compare";
 
-function ToolCard({
-  icon, label, description, onClick, loading,
-}: {
-  icon: React.ReactNode;
+interface Tool {
+  id: ToolId;
   label: string;
-  description: string;
-  onClick: () => void;
-  loading?: boolean;
+  Icon: React.ComponentType<{ className?: string }>;
+}
+
+const TOOLS: Tool[] = [
+  { id: "review",   label: "Rà soát",  Icon: ShieldCheck },
+  { id: "summarize",label: "Tóm tắt",  Icon: AlignLeft   },
+  { id: "qa",       label: "Hỏi đáp",  Icon: Bot         },
+  { id: "table",    label: "Bảng",     Icon: LayoutGrid  },
+  { id: "draft",    label: "Soạn",     Icon: Sparkles    },
+  { id: "nd30",     label: "NĐ30",     Icon: CheckSquare },
+  { id: "citation", label: "Căn cứ",   Icon: FileSearch  },
+  { id: "template", label: "Mẫu câu",  Icon: AlignLeft   },
+  { id: "compare",  label: "So sánh",  Icon: Wrench      },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(date: Date): string {
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 60) return "Vừa xong";
+  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+  return `${Math.floor(diff / 86400)} ngày trước`;
+}
+
+// ── ReviewPanelContent ────────────────────────────────────────────────────────
+
+function ReviewPanelContent({
+  reviewChanges = [],
+  reviewSummary = "",
+  acceptedIds = new Set<number>(),
+  rejectedIds = new Set<number>(),
+  isReviewing = false,
+  onApplyChange,
+  onRejectChange,
+  onApplyAll,
+  onScrollToChange,
+}: {
+  reviewChanges?: ReviewChange[];
+  reviewSummary?: string;
+  acceptedIds?: Set<number>;
+  rejectedIds?: Set<number>;
+  isReviewing?: boolean;
+  onApplyChange?: (i: number) => void;
+  onRejectChange?: (i: number) => void;
+  onApplyAll?: () => void;
+  onScrollToChange?: (change: ReviewChange) => void;
 }) {
+  const pendingCount = reviewChanges.filter(
+    (_, i) => !acceptedIds.has(i) && !rejectedIds.has(i)
+  ).length;
+
+  if (isReviewing) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+        <p className="text-sm text-violet-700 font-medium">Đang rà soát văn bản...</p>
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={loading}
-      className="w-full text-left flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors group disabled:opacity-50"
-    >
-      <div className="p-2 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+    <div className="flex flex-col h-full min-h-0">
+      {/* Stats bar */}
+      {reviewChanges.length > 0 && (
+        <div className="px-3 py-2 border-b shrink-0 space-y-1.5">
+          <div className="flex h-1.5 rounded-full overflow-hidden bg-gray-200">
+            <div
+              className="bg-green-500 transition-all duration-300"
+              style={{ width: `${(acceptedIds.size / reviewChanges.length) * 100}%` }}
+            />
+            <div
+              className="bg-red-400 transition-all duration-300"
+              style={{ width: `${(rejectedIds.size / reviewChanges.length) * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-green-600 font-medium">{acceptedIds.size} áp dụng</span>
+            <span className="text-muted-foreground">{pendingCount} chờ xử lý</span>
+            <span className="text-red-500 font-medium">{rejectedIds.size} bỏ qua</span>
+          </div>
+        </div>
+      )}
+
+      {reviewSummary && (
+        <div className="px-3 py-2 border-b shrink-0">
+          <p className="text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg p-2 leading-relaxed">
+            {reviewSummary}
+          </p>
+        </div>
+      )}
+
+      {/* Changes list */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+        {reviewChanges.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-10">
+            Không tìm thấy thay đổi nào.
+          </p>
+        )}
+        {reviewChanges.map((change, i) => {
+          const accepted = acceptedIds.has(i);
+          const rejected = rejectedIds.has(i);
+          return (
+            <div
+              key={i}
+              className={cn(
+                "border rounded-lg p-3 space-y-2 text-xs transition-opacity",
+                (accepted || rejected) ? "opacity-50" : "",
+                accepted ? "border-green-200 bg-green-50/30" : "",
+                rejected ? "border-red-200 bg-red-50/30" : "",
+              )}
+            >
+              <div className="flex items-center gap-1 flex-wrap">
+                <span
+                  className={cn(
+                    "inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                    BADGE_COLOR[change.type] ?? "bg-gray-100 text-gray-700"
+                  )}
+                >
+                  {BADGE_LABEL[change.type] ?? change.type}
+                </span>
+                {change.section && change.section !== "general" && SECTION_LABEL[change.section] && (
+                  <span className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                    {SECTION_LABEL[change.section]}
+                  </span>
+                )}
+                {accepted && (
+                  <span className="ml-auto text-[10px] text-green-600 font-medium flex items-center gap-0.5">
+                    <Check className="h-2.5 w-2.5" /> Đã áp dụng
+                  </span>
+                )}
+                {rejected && (
+                  <span className="ml-auto text-[10px] text-red-500 font-medium flex items-center gap-0.5">
+                    <X className="h-2.5 w-2.5" /> Bỏ qua
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <div
+                  className="line-through text-red-600 bg-red-50 px-2 py-1 rounded leading-relaxed break-words cursor-pointer hover:bg-red-100 transition-colors"
+                  onClick={() => onScrollToChange?.(change)}
+                  title="Click để tìm trong văn bản"
+                >
+                  {change.original}
+                </div>
+                <div className="text-green-700 bg-green-50 px-2 py-1 rounded leading-relaxed break-words">
+                  {change.revised}
+                </div>
+              </div>
+
+              {change.reason && (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{change.reason}</p>
+              )}
+
+              {!accepted && !rejected && (
+                <div className="flex gap-1.5 pt-0.5">
+                  <button
+                    onClick={() => onApplyChange?.(i)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-green-50 text-green-700 hover:bg-green-100 text-[11px] font-medium transition-colors border border-green-200"
+                  >
+                    <Check className="h-3 w-3" /> Áp dụng
+                  </button>
+                  <button
+                    onClick={() => onRejectChange?.(i)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-red-50 text-red-600 hover:bg-red-100 text-[11px] font-medium transition-colors border border-red-200"
+                  >
+                    <X className="h-3 w-3" /> Bỏ qua
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      <div>
-        <p className="text-sm font-medium text-gray-800">{label}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{description}</p>
-      </div>
-    </button>
+
+      {pendingCount > 0 && (
+        <div className="px-3 py-2 border-t shrink-0">
+          <button
+            onClick={onApplyAll}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Áp dụng tất cả ({pendingCount})
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -67,26 +278,39 @@ function ToolCard({
 
 export function RightPanel({
   docId, getDocContext, onInsertText, sourceIds, onAiReview,
+  reviewChanges = [], reviewSummary = "",
+  acceptedIds = new Set<number>(), rejectedIds = new Set<number>(),
+  isReviewing = false,
+  onApplyChange, onRejectChange, onApplyAll, onScrollToChange,
 }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<"tools" | "chat">("tools");
+  const [activeTool, setActiveTool] = useState<ToolId | null>(null);
+  const [tasks, setTasks] = useState<ToolTask[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [checkLoading, setCheckLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
+  // Auto-switch to review panel when results arrive
+  useEffect(() => {
+    if (reviewChanges.length > 0 || isReviewing) {
+      setActiveTool("review");
+      setActiveTab("tools");
+    }
+  }, [reviewChanges.length, isReviewing]);
+
   // Load chat history on mount
   useEffect(() => {
     if (!docId || docId === "new-doc") return;
-    chatApi.getHistory(docId)
+    chatApi
+      .getHistory(docId)
       .then((res) => {
         if (res.history.length > 0) {
-          setMessages(res.history.map((h, i) => ({
-            id: `h-${i}`, role: h.role, content: h.content,
-          })));
+          setMessages(
+            res.history.map((h, i) => ({ id: `h-${i}`, role: h.role, content: h.content }))
+          );
         }
       })
       .catch(() => {});
@@ -102,54 +326,81 @@ export function RightPanel({
     }
   }, [activeTab]);
 
-  const sendMessage = useCallback(async (query: string) => {
-    if (!query.trim() || isStreaming) return;
-    const now = Date.now();
-    const userMsgId = `u-${now}`;
-    const asstMsgId = `a-${now + 1}`;
+  const addTask = useCallback(
+    (toolId: ToolId) => {
+      const tool = TOOLS.find((t) => t.id === toolId);
+      if (!tool) return;
+      setTasks((prev) => [
+        { id: `${toolId}-${Date.now()}`, toolId, label: tool.label, timestamp: new Date() },
+        ...prev.slice(0, 9),
+      ]);
+    },
+    []
+  );
 
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, role: "user", content: query },
-      { id: asstMsgId, role: "assistant", content: "", isStreaming: true },
-    ]);
-    setInput("");
-    setIsStreaming(true);
-    setActiveTab("chat");
+  const sendMessage = useCallback(
+    async (query: string) => {
+      if (!query.trim() || isStreaming) return;
+      const now = Date.now();
+      const userMsgId = `u-${now}`;
+      const asstMsgId = `a-${now + 1}`;
 
-    try {
-      await chatApi.streamChat(
-        query, docId, getDocContext() || undefined,
-        (token) => setMessages((prev) =>
-          prev.map((m) => m.id === asstMsgId ? { ...m, content: m.content + token } : m)
-        ),
-        (citations) => setMessages((prev) =>
-          prev.map((m) => m.id === asstMsgId ? { ...m, citations } : m)
-        ),
-        () => {
-          setMessages((prev) =>
-            prev.map((m) => m.id === asstMsgId ? { ...m, isStreaming: false } : m)
-          );
-          setIsStreaming(false);
-        },
-        (error) => {
-          setMessages((prev) =>
-            prev.map((m) => m.id === asstMsgId
-              ? { ...m, content: `Lỗi: ${error}`, isStreaming: false } : m)
-          );
-          setIsStreaming(false);
-          toast({ title: "Lỗi chat", description: error, variant: "destructive" });
-        },
-        sourceIds,
-      );
-    } catch {
-      setMessages((prev) =>
-        prev.map((m) => m.id === asstMsgId
-          ? { ...m, content: "Lỗi kết nối.", isStreaming: false } : m)
-      );
-      setIsStreaming(false);
-    }
-  }, [docId, getDocContext, isStreaming, sourceIds, toast]);
+      setMessages((prev) => [
+        ...prev,
+        { id: userMsgId, role: "user", content: query },
+        { id: asstMsgId, role: "assistant", content: "", isStreaming: true },
+      ]);
+      setInput("");
+      setIsStreaming(true);
+      setActiveTab("chat");
+
+      try {
+        await chatApi.streamChat(
+          query,
+          docId,
+          getDocContext() || undefined,
+          (token) =>
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === asstMsgId ? { ...m, content: m.content + token } : m
+              )
+            ),
+          (citations) =>
+            setMessages((prev) =>
+              prev.map((m) => (m.id === asstMsgId ? { ...m, citations } : m))
+            ),
+          () => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === asstMsgId ? { ...m, isStreaming: false } : m
+              )
+            );
+            setIsStreaming(false);
+          },
+          (error) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === asstMsgId
+                  ? { ...m, content: `Lỗi: ${error}`, isStreaming: false }
+                  : m
+              )
+            );
+            setIsStreaming(false);
+            toast({ title: "Lỗi chat", description: error, variant: "destructive" });
+          },
+          sourceIds
+        );
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === asstMsgId ? { ...m, content: "Lỗi kết nối.", isStreaming: false } : m
+          )
+        );
+        setIsStreaming(false);
+      }
+    },
+    [docId, getDocContext, isStreaming, sourceIds, toast]
+  );
 
   const handleClearHistory = async () => {
     try {
@@ -160,16 +411,76 @@ export function RightPanel({
     }
   };
 
-  const handleCheckND30 = async () => {
-    setCheckLoading(true);
-    await sendMessage("Kiểm tra thể thức văn bản này theo NĐ30/2020/NĐ-CP. Liệt kê những điểm chưa đúng (nếu có).");
-    setCheckLoading(false);
+  const handleToolClick = (toolId: ToolId) => {
+    switch (toolId) {
+      case "review":
+        setActiveTool("review");
+        onAiReview();
+        break;
+      case "summarize":
+        sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.");
+        addTask("summarize");
+        break;
+      case "nd30":
+        sendMessage(
+          "Kiểm tra thể thức văn bản này theo NĐ30/2020/NĐ-CP. Liệt kê những điểm chưa đúng (nếu có)."
+        );
+        addTask("nd30");
+        break;
+      case "citation":
+        sendMessage(
+          "Gợi ý các căn cứ pháp lý phù hợp cho văn bản đang soạn thảo. Liệt kê số/ký hiệu, tên văn bản cụ thể."
+        );
+        addTask("citation");
+        break;
+      case "qa":
+        setActiveTab("chat");
+        break;
+      default:
+        setActiveTool(toolId);
+        break;
+    }
   };
 
-  const handleSummarize = async () => {
-    setSummaryLoading(true);
-    await sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.");
-    setSummaryLoading(false);
+  const renderToolPanel = () => {
+    switch (activeTool) {
+      case "review":
+        return (
+          <ReviewPanelContent
+            reviewChanges={reviewChanges}
+            reviewSummary={reviewSummary}
+            acceptedIds={acceptedIds}
+            rejectedIds={rejectedIds}
+            isReviewing={isReviewing}
+            onApplyChange={onApplyChange}
+            onRejectChange={onRejectChange}
+            onApplyAll={onApplyAll}
+            onScrollToChange={onScrollToChange}
+          />
+        );
+      case "summarize":
+      case "nd30":
+      case "citation":
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm p-4 text-center">
+            <Bot className="h-8 w-8 text-gray-200" />
+            <p>Kết quả đã gửi vào tab Chat AI</p>
+            <button
+              onClick={() => setActiveTab("chat")}
+              className="text-xs text-blue-600 hover:underline mt-1"
+            >
+              Xem Chat →
+            </button>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm">
+            <Wrench className="h-8 w-8 text-gray-200" />
+            <p>Tính năng đang phát triển</p>
+          </div>
+        );
+    }
   };
 
   return (
@@ -187,79 +498,116 @@ export function RightPanel({
                 : "border-transparent text-gray-500 hover:text-gray-700"
             )}
           >
-            {tab === "tools"
-              ? <><Wrench className="h-3.5 w-3.5" />Công cụ</>
-              : <><Bot className="h-3.5 w-3.5" />Chat AI
-                  {messages.length > 0 && (
-                    <span className="ml-1 bg-blue-600 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
-                      {Math.ceil(messages.length / 2)}
-                    </span>
-                  )}
-                </>
-            }
+            {tab === "tools" ? (
+              <>
+                <Wrench className="h-3.5 w-3.5" />
+                Công cụ
+              </>
+            ) : (
+              <>
+                <Bot className="h-3.5 w-3.5" />
+                Chat AI
+                {messages.length > 0 && (
+                  <span className="ml-1 bg-blue-600 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
+                    {Math.ceil(messages.length / 2)}
+                  </span>
+                )}
+              </>
+            )}
           </button>
         ))}
       </div>
 
       {/* Tab: Tools */}
-      {activeTab === "tools" && (
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-3">
-            Trợ lý soạn thảo
-          </p>
-          <ToolCard
-            icon={<CheckSquare className="h-4 w-4" />}
-            label="Kiểm tra NĐ30"
-            description="Phát hiện lỗi thể thức, bố cục văn bản"
-            onClick={handleCheckND30}
-            loading={checkLoading}
-          />
-          <ToolCard
-            icon={<FileSearch className="h-4 w-4" />}
-            label="Gợi ý căn cứ pháp lý"
-            description="Tìm văn bản liên quan từ kho tài liệu"
-            onClick={() => sendMessage("Gợi ý các căn cứ pháp lý phù hợp cho văn bản đang soạn thảo. Liệt kê số/ký hiệu, tên văn bản cụ thể.")}
-          />
-          <ToolCard
-            icon={<Sparkles className="h-4 w-4" />}
-            label="Gợi ý trích yếu"
-            description="AI đề xuất trích yếu phù hợp loại văn bản"
-            onClick={() => sendMessage("Đề xuất 3 mẫu trích yếu ngắn gọn, phù hợp với loại và nội dung văn bản đang soạn thảo.")}
-          />
-          <ToolCard
-            icon={<AlignLeft className="h-4 w-4" />}
-            label="Tóm tắt nội dung"
-            description="Tóm tắt văn bản đang soạn trong 3-5 câu"
-            onClick={handleSummarize}
-            loading={summaryLoading}
-          />
-          <ToolCard
-            icon={<ShieldCheck className="h-4 w-4" />}
-            label="Rà soát văn bản"
-            description="AI kiểm tra chính tả, thể thức NĐ30, văn phong"
-            onClick={() => onAiReview()}
-          />
-
-          {sourceIds.length > 0 && (
-            <div className="mt-4 pt-3 border-t">
-              <p className="text-[10px] text-blue-600 font-medium">
-                ✓ Chat đang tìm trong {sourceIds.length} tài liệu đã ghim
-              </p>
+      {activeTab === "tools" &&
+        (activeTool ? (
+          /* Per-tool panel */
+          <div className="flex flex-col h-full min-h-0">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b shrink-0 bg-gray-50">
+              <button
+                onClick={() => setActiveTool(null)}
+                className="p-1 rounded-md hover:bg-gray-200 text-gray-500 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm font-medium text-gray-700">
+                {TOOLS.find((t) => t.id === activeTool)?.label ?? activeTool}
+              </span>
             </div>
-          )}
-        </div>
-      )}
+            <div className="flex-1 min-h-0">{renderToolPanel()}</div>
+          </div>
+        ) : (
+          /* Tool grid + history */
+          <div className="flex-1 overflow-y-auto p-3">
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-2">
+              Công cụ AI
+            </p>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {TOOLS.map((tool) => (
+                <button
+                  key={tool.id}
+                  type="button"
+                  onClick={() => handleToolClick(tool.id)}
+                  className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors text-center group"
+                >
+                  <div className="p-2 rounded-lg bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                    <tool.Icon className="h-4 w-4" />
+                  </div>
+                  <span className="text-[11px] font-medium text-gray-700 leading-tight">
+                    {tool.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Task history */}
+            {tasks.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Clock className="h-3 w-3 text-gray-400" />
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                    Gần đây
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  {tasks.map((task) => (
+                    <button
+                      key={task.id}
+                      onClick={() => setActiveTool(task.toolId as ToolId)}
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <span className="text-xs text-gray-600">{task.label}</span>
+                      <span className="text-[10px] text-gray-400">
+                        {formatRelativeTime(task.timestamp)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {sourceIds.length > 0 && (
+              <div className="mt-4 pt-3 border-t">
+                <p className="text-[10px] text-blue-600 font-medium">
+                  ✓ Chat đang tìm trong {sourceIds.length} tài liệu đã ghim
+                </p>
+              </div>
+            )}
+          </div>
+        ))}
 
       {/* Tab: Chat */}
       {activeTab === "chat" && (
         <>
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0 space-y-3">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center text-xs text-gray-400 gap-3 py-8">
                 <Bot className="h-10 w-10 text-gray-200" />
                 <p className="leading-relaxed">
-                  Hỏi về căn cứ pháp lý,<br />thể thức NĐ30, thủ tục hành chính...
+                  Hỏi về căn cứ pháp lý,
+                  <br />
+                  thể thức NĐ30, thủ tục hành chính...
                 </p>
               </div>
             )}
@@ -269,19 +617,24 @@ export function RightPanel({
                 key={msg.id}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div className={cn(
-                  "max-w-[88%] rounded-2xl px-3 py-2 text-sm",
-                  msg.role === "user"
-                    ? "bg-blue-600 text-white rounded-tr-sm"
-                    : "bg-gray-100 text-gray-900 rounded-tl-sm"
-                )}>
+                <div
+                  className={cn(
+                    "max-w-[88%] rounded-2xl px-3 py-2 text-sm",
+                    msg.role === "user"
+                      ? "bg-blue-600 text-white rounded-tr-sm"
+                      : "bg-gray-100 text-gray-900 rounded-tl-sm"
+                  )}
+                >
                   {msg.isStreaming ? (
                     <>
                       <span className="whitespace-pre-wrap">{msg.content}</span>
                       <span className="inline-flex gap-1 ml-1">
                         {[0, 150, 300].map((d) => (
-                          <span key={d} className="inline-block w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-                            style={{ animationDelay: `${d}ms` }} />
+                          <span
+                            key={d}
+                            className="inline-block w-1 h-1 bg-gray-400 rounded-full animate-bounce"
+                            style={{ animationDelay: `${d}ms` }}
+                          />
                         ))}
                       </span>
                     </>
@@ -292,7 +645,10 @@ export function RightPanel({
                   {msg.citations && msg.citations.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {msg.citations.map((c, i) => (
-                        <div key={i} className="text-xs bg-white rounded px-2 py-1 border border-gray-200">
+                        <div
+                          key={i}
+                          className="text-xs bg-white rounded px-2 py-1 border border-gray-200"
+                        >
                           <span className="font-medium text-blue-600">[{i + 1}]</span>{" "}
                           {c.so_ki_hieu || c.document_title || "—"}
                         </div>
@@ -314,7 +670,6 @@ export function RightPanel({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick prompts */}
           <div className="flex flex-wrap gap-1 px-3 pb-1.5 shrink-0">
             {QUICK_PROMPTS.map((p) => (
               <button
@@ -328,7 +683,6 @@ export function RightPanel({
             ))}
           </div>
 
-          {/* Input */}
           <div className="flex gap-2 p-3 border-t shrink-0">
             <div className="flex-1 relative">
               <textarea
@@ -336,7 +690,10 @@ export function RightPanel({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); sendMessage(input); }
+                  if (e.key === "Enter" && e.ctrlKey) {
+                    e.preventDefault();
+                    sendMessage(input);
+                  }
                 }}
                 placeholder="Hỏi về văn bản... (Ctrl+Enter)"
                 disabled={isStreaming}
@@ -357,9 +714,11 @@ export function RightPanel({
                 disabled={isStreaming || !input.trim()}
                 className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
               >
-                {isStreaming
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <SendHorizonal className="h-3.5 w-3.5" />}
+                {isStreaming ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <SendHorizonal className="h-3.5 w-3.5" />
+                )}
               </button>
             </div>
           </div>
