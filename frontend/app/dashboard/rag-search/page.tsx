@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { AlertCircle, BookOpen, Search, Sparkles, Wifi, WifiOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -385,10 +387,8 @@ export default function RAGSearchPage() {
 
               {/* Answer text */}
               {hasChunks && (
-                <div className="rounded-lg border bg-card p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                  {result.fallback_mode
-                    ? result.answer
-                    : parseAnswerWithCitations(result.answer, scrollToCitation)}
+                <div className="rounded-lg border bg-card p-4 text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-2">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.answer}</ReactMarkdown>
                 </div>
               )}
             </div>

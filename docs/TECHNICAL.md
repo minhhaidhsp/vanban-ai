@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-07
-> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned + uuid prepared stmt fix + public chat widget citizen portal + AI Review TipTap inject + editorMapRef pattern + Review panel accept/reject + scrollToAndHighlight)
+> Cập nhật: 2026-06-11
+> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned + uuid prepared stmt fix + public chat widget citizen portal + AI Review TipTap inject + editorMapRef pattern + Review panel accept/reject + scrollToAndHighlight + RightPanel 9-tool redesign + ReviewPanelContent sidebar migration + sanitize_json_string + Gemini API compat)
 
 ---
 
@@ -86,6 +86,11 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **Track Changes inject (no remount)**: `applyChange()` dùng normalized text matching — `normalize()` strip HTML/entities/dashes/whitespace → tìm vị trí qua `doc.descendants()` ProseMirror → `editor.chain().focus().setTextSelection({from,to}).insertContent(revisedText).run()`; `applyAllPending()` group changes by fieldId rồi apply tuần tự từng field; fallback remount (`setEditorKey`) nếu `editorMapRef.current.size === 0` |
 | 14+ | **Review Panel UX**: slide-in drawer `translate-x-full/0` — không unmount; filter `original === revised` bỏ change vô nghĩa; `scrollToAndHighlight()` click vào text gạch đỏ → tìm trong ProseMirror doc, `setTextSelection` + scroll smooth; cache bust `?t=${Date.now()}` trên review URL; fix bug `onClick={onAiReview}` → `onClick={() => onAiReview()}` trong `RightPanel.tsx` (tránh `MouseEvent` bị pass vào `handleReview(checkContent?)`) |
 | 14+ | **Migrations 0015–0016**: 0015 tăng `documents.file_path` VARCHAR(50) → TEXT; 0016 tăng `documents.file_type` VARCHAR(50) → TEXT — tránh truncation khi lưu object path dài và MIME type |
+| 14+ | **RightPanel 9-tool redesign** (`RightPanel.tsx` full rewrite ~730 dòng): thay thế 4 ToolCard cũ bằng 9-tool grid 3 cột (Kiểm tra NĐ30, Trợ lý AI, Tóm tắt, Trích dẫn, Soạn thảo tự động, Dịch thuật, So sánh, Kiểm tra văn phong, Lịch sử thay đổi); mỗi tool bấm vào mở sidebar riêng với nút "← Quay lại"; `ToolId` union type + `TOOLS` array với `Icon` reference; `formatRelativeTime()` helper; task history "Gần đây" (`ToolTask[]`); `addTask()` via `useCallback` được gọi khi review/summarize/nd30/citation hoàn thành |
+| 14+ | **ReviewPanelContent sidebar migration** (`page.tsx` + `RightPanel.tsx`): chuyển `ReviewPanelContent` từ fixed overlay `translate-x-full/0` trong `page.tsx` (150 dòng) sang component inline trong RightPanel sidebar; `useEffect` auto-switch sang review panel khi `reviewChanges.length > 0 \|\| isReviewing`; `useEffect` gọi `addTask("review")` sau khi review xong (đặt SAU `addTask` declaration — sửa bug `ReferenceError: Cannot access 'addTask' before initialization`); 9 review props mới được thread qua `page.tsx → DocumentEditor → RightPanel`; loại bỏ `showReviewPanel` state, 8 debug console.logs, `BADGE_COLOR/BADGE_LABEL/SECTION_LABEL` constants khỏi `page.tsx` |
+| 14+ | **`sanitize_json_string()` — 3-step LLM JSON cleanup** (`documents.py`): bước 1 strip control chars `\x00-\x08\x0b\x0c\x0e-\x1f\x7f`; bước 2 extract `{...}` từ markdown fence bằng `re.search(r'\{.*\}', s, re.DOTALL)`; bước 3 char-by-char parser `fix_newlines_in_strings()` escape literal `\n\r\t` bên trong JSON string values thành `\\n\\r\\t` — dùng trong `review_document` endpoint và `generate` endpoint (thay `json.loads(raw)` → `json.loads(sanitize_json_string(raw))`) |
+| 14+ | **Gemini API compat** (`llm_service.py`): detect `"generativelanguage.googleapis.com" in self._base_url` → skip `repetition_penalty` (không hỗ trợ) và `response_format: {"type": "json_object"}` (không hỗ trợ) khi build payload; cùng with Groq check `"groq.com" in self._base_url` cho `repetition_penalty`; thêm log `logger.error("[llm] status=%d body=%s", resp.status_code, resp.text[:500])` trước `raise_for_status()` để debug response |
+| 14+ | **generate endpoint max_tokens** (`documents.py`): tăng từ `max_tokens=1500` → `max_tokens=4000` để cho phép soạn thảo văn bản dài hơn; thêm `sanitize_json_string` trước `json.loads` trong endpoint `/documents/generate` |
 
 ### Tech stack thực tế
 
@@ -744,6 +749,13 @@ _process_ocr_job (scanned_pdf/image, 3 phases):
 - Nếu `_base_url` rỗng: yield `"[LLM_OFFLINE]"` rồi return
 - Lỗi network: yield `"[ERROR: ...]"` rồi return
 
+**Provider detection (Tuần 14+):**
+- `is_groq = "groq.com" in self._base_url`
+- `is_gemini = "generativelanguage.googleapis.com" in self._base_url`
+- `repetition_penalty=1.15` chỉ gửi khi `not is_groq and not is_gemini`
+- `response_format: {"type": "json_object"}` chỉ gửi khi `json_mode and not is_gemini`
+- Log `logger.error("[llm] status=%d body=%s", resp.status_code, resp.text[:500])` trước `raise_for_status()` để debug 4xx/5xx từ provider
+
 ### `rag_service.py`
 
 **Mô tả:** Orchestrator RAG pipeline — kết hợp pgvector retrieval, CrossEncoder rerank, LLM generation và hallucination guard. Phiên bản Tuần 10 thêm hybrid search, fallback chain và system prompt v2.
@@ -1344,6 +1356,15 @@ Hai cách xuất DOCX từ OCR:
 **44. Public chat widget — thiết kế security cho public endpoint (Tuần 14+)**
 Endpoint `/public/chat/stream` không có JWT auth — bất kỳ ai truy cập landing page đều dùng được. Hai layer protection: (1) IP rate limiting 20 req/hour qua Redis `INCR/EXPIRE` — chặn abuse đơn giản và DDoS nhỏ; (2) RAG thresholds cao hơn (`min_score=0.4` so với `0.35` của auth endpoint) + `rerank(top_n=3)` — chặt hơn để tránh hallucination với người dùng không authenticate. Session history lưu Redis với key `chat_history:public-user:{session_id}` — session_id là random string tạo phía client khi mount widget (không dùng user UUID). History tự expire sau 24h như chat auth. `isOpenRef` (useRef sync với `isOpen` state) tránh stale closure trong SSE stream callback khi đọc `isOpenRef.current` để increment unread count — không dùng `isOpen` trực tiếp vì closure capture giá trị cũ.
 
+**45. sanitize_json_string — 3-bước làm sạch JSON từ LLM (Tuần 14+)**
+LLM (kể cả Groq llama-3.3-70b) đôi khi trả JSON không hợp lệ theo 3 cách: (1) bọc trong markdown fence `` ```json ... ``` ``; (2) chứa literal newline/tab bên trong string value (ví dụ: `{"text": "dòng 1\ndòng 2"}` với `\n` là byte thực, không phải `\\n`); (3) chứa control characters `\x00-\x1f`. `sanitize_json_string()` xử lý tuần tự: strip control chars qua `re.sub` → extract `{...}` via `re.search(re.DOTALL)` → char-by-char parser `fix_newlines_in_strings()` track `in_string` + `escape` state để chỉ escape `\n\r\t` bên trong string. Dùng ở cả `review_document` và `generate` endpoint. Không dùng `json.loads` thứ 2 để double-parse — chỉ clean rồi parse 1 lần.
+
+**46. RightPanel useCallback initialization order (Tuần 14+)**
+`useEffect` trong React chạy sau render nhưng được khai báo khi component parse. Nếu `useEffect` callback reference `addTask` trước dòng `const addTask = useCallback(...)` trong source code, React ném `ReferenceError: Cannot access 'addTask' before initialization` tại runtime (dù JavaScript hoisting không apply cho `const`). **Fix:** Luôn đặt `useEffect` gọi `addTask` SAU dòng `const addTask = useCallback(...)`. Tương tự áp dụng cho bất kỳ `useCallback`/`useState`/`useMemo` nào được reference trong `useEffect` — thứ tự khai báo trong component body là quan trọng.
+
+**47. TypeScript Set spread với target < ES2015 (Tuần 14+)**
+`new Set([...prevSet, newItem])` trong TypeScript với `target < ES2015` hoặc không có `lib: ["ES2015"]` gây compile error TS2802 "Type 'Set<number>' can only be iterated when using the '--downlevelIteration' flag". **Fix:** `new Set(Array.from(prev).concat(i))` — `Array.from()` tương thích mọi target, không cần flag. Áp dụng cho `applyChange` và `rejectChange` trong `page.tsx`.
+
 **42. Server-side pagination vs client-side — trade-offs (Tuần 14+)**
 `documents` ban đầu dùng client-side: fetch 200 records, filter/sort/paginate trong browser. Vấn đề khi có >200 docs: không load được. Migration sang server-side: backend thêm `q` (ILIKE), `loai_vb`, `sort_by`, `sort_order` params + count query, trả `{items, total}`. Response format đổi từ `list[DocumentResponse]` → `{"items": list, "total": int}` — không có response_model strict để tránh thêm Pydantic schema. `documentApi.list` trả `{items: DocumentDto[], total: number}`. Query key thêm filter params để TanStack Query cache per-filter-combination. `useEffect([q, loaiFilter, sourceFilter], setPage(1))` reset pagination khi filter thay đổi.
 
@@ -1417,6 +1438,10 @@ Code hardcode `REF_DOCS_BUCKET = "reference-docs"` nhưng R2 chỉ có bucket `v
 **Issue 19: Groq API không chấp nhận `repetition_penalty`**
 Status: ✅ Fixed
 `repetition_penalty` là field của vLLM/HuggingFace, không phải OpenAI standard. Groq trả 400 Bad Request khi nhận field này. **Fix:** Chỉ gửi `repetition_penalty` khi `"groq.com" not in self._base_url` — payload chỉ gồm `model, messages, temperature, max_tokens, stream` khi dùng Groq.
+
+**Issue 24: Gemini API không chấp nhận `repetition_penalty` và `response_format`**
+Status: ✅ Fixed
+Gemini (`generativelanguage.googleapis.com`) không hỗ trợ `repetition_penalty` (vLLM-specific) và `response_format: {"type": "json_object"}` (OpenAI-specific) — cả hai đều trả 400 Bad Request. **Fix:** Thêm `is_gemini` check trong `llm_service.py chat()` — skip cả 2 params khi `is_gemini=True`. Áp dụng độc lập với `is_groq` check để logic provider detection rõ ràng.
 
 **Issue 20: Groq model name thay đổi**
 Status: ✅ Fixed

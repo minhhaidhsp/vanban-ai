@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { MessageCircle, X, Send, Bot } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Citation {
   document_title: string | null;
@@ -193,13 +195,19 @@ export default function ChatWidget() {
               <div className="max-w-[85%]">
                 <div
                   className={[
-                    "rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed",
+                    "rounded-2xl px-3 py-2 text-sm leading-relaxed",
                     msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-br-sm"
+                      ? "bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap"
                       : "bg-gray-100 text-gray-800 rounded-bl-sm",
                   ].join(" ")}
                 >
-                  {msg.content}
+                  {msg.role === "user" ? (
+                    msg.content
+                  ) : (
+                    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-1">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                   {/* Typing indicator */}
                   {msg.role === "assistant" &&
                     isLoading &&
