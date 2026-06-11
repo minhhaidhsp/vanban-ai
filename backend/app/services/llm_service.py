@@ -71,6 +71,7 @@ class LLMService:
                         json=payload,
                         headers=headers,
                     )
+                    logger.error("[llm] status=%d body=%s", resp.status_code, resp.text[:500])
                     resp.raise_for_status()
                     data = resp.json()
                     return data["choices"][0]["message"]["content"]
