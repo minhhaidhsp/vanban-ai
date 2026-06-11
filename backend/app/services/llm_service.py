@@ -71,6 +71,7 @@ class LLMService:
                         json=payload,
                         headers=headers,
                     )
+                    logger.error("[llm] payload messages: %s", str(payload.get("messages", []))[:500])
                     logger.error("[llm] status=%d body=%s", resp.status_code, resp.text[:500])
                     resp.raise_for_status()
                     data = resp.json()
@@ -104,7 +105,9 @@ class LLMService:
             "max_tokens": 512,
             "stream": True,
         }
-        if "groq.com" not in self._base_url:
+        is_groq = "groq.com" in self._base_url
+        is_gemini = "generativelanguage.googleapis.com" in self._base_url
+        if not is_groq and not is_gemini:
             payload["repetition_penalty"] = 1.15
 
         stream_headers = {"Content-Type": "application/json"}

@@ -373,10 +373,11 @@ async def generate_document(
                 {"role": "user", "content": body.yeu_cau},
             ],
             temperature=0.2,
-            max_tokens=1500,
+            max_tokens=4000,
             json_mode=True,
         )
-        generated = json.loads(raw)
+        raw_clean = sanitize_json_string(raw)
+        generated = json.loads(raw_clean)
     except Exception as exc:
         logger.error("[generate] LLM call failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -738,33 +739,37 @@ async def upload_document_file(
     }
 
 
-_REVIEW_SYSTEM_PROMPT = """\
-Bạn là chuyên gia rà soát văn bản hành chính Việt Nam.
-Nhiệm vụ: Phân tích và chỉnh sửa văn bản theo các tiêu chí:
-1. Chính tả và typo (sửa lỗi viết sai)
-2. Thể thức văn bản theo Nghị định 30/2020/NĐ-CP
-3. Văn phong hành chính (trang trọng, rõ ràng, súc tích)
-4. Dấu câu và cách trình bày
-5. Thuật ngữ pháp lý đúng chuẩn
+_REVIEW_SYSTEM_PROMPT = """Bạn là chuyên gia rà soát văn bản hành chính Việt Nam \
+theo Nghị định 30/2020/NĐ-CP về công tác văn thư.
 
-Trả về JSON (KHÔNG markdown, KHÔNG ```json):
+NHIỆM VỤ: Phân tích văn bản và đề xuất chỉnh sửa theo 5 tiêu chí:
+1. Chính tả và lỗi đánh máy (typo)
+2. Thể thức văn bản theo NĐ30/2020 (quốc hiệu, tiêu ngữ, số ký hiệu, địa danh, ngày tháng, nơi nhận)
+3. Văn phong hành chính (trang trọng, không dùng từ thông tục, câu rõ ràng)
+4. Dấu câu và cách trình bày
+5. Thuật ngữ pháp lý đúng chuẩn (viết tắt, tên cơ quan, chức danh)
+
+NGUYÊN TẮC QUAN TRỌNG:
+- CHỈ đề xuất sửa khi THỰC SỰ sai — không sửa nếu đã đúng
+- KHÔNG thay đổi nội dung pháp lý, chỉ sửa hình thức và ngôn ngữ
+- original và revised PHẢI KHÁC NHAU — bỏ qua nếu giống hệt
+- Mỗi reason ngắn gọn, tối đa 15 từ
+- Nếu văn bản đã chuẩn → trả về "changes": [] và summary tích cực
+
+ĐỊNH DẠNG TRẢ VỀ (JSON thuần, KHÔNG markdown, KHÔNG dùng dấu ```):
 {
-  "reviewed_text": "toàn bộ văn bản đã chỉnh sửa",
+  "reviewed_text": "toàn bộ văn bản đã sửa tất cả lỗi",
   "changes": [
     {
-      "section": "trichYeu|canCu|noiDung|noiNhan|general",
+      "section": "trichYeu|canCu|noiDung|general",
       "type": "chinh_ta|the_thuc|van_phong|dau_cau|thuat_ngu",
-      "original": "đoạn gốc trích nguyên văn từ văn bản",
-      "revised": "đoạn đã sửa",
-      "reason": "lý do chỉnh sửa ngắn gọn"
+      "original": "đoạn văn gốc (plain text, không HTML)",
+      "revised": "đoạn văn đã sửa (plain text, không HTML)",
+      "reason": "lý do ngắn gọn"
     }
   ],
-  "summary": "tóm tắt ngắn gọn các điểm đã chỉnh sửa"
-}
-Quy tắc field "section": "trichYeu" = phần Trích yếu, "canCu" = phần Căn cứ,
-"noiDung" = phần Nội dung, "noiNhan" = phần Nơi nhận, "general" = không xác định.
-Chỉ trả về JSON, không thêm gì khác.\
-"""
+  "summary": "tóm tắt 1-2 câu về chất lượng văn bản"
+}"""
 
 
 def sanitize_json_string(s: str) -> str:
