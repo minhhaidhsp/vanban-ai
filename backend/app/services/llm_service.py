@@ -47,9 +47,15 @@ class LLMService:
             "max_tokens": max_tokens if max_tokens is not None else 512,
             "stream": False,
         }
-        if "groq.com" not in self._base_url:
+        # Chỉ thêm repetition_penalty cho vLLM/local models
+        # Groq và Gemini không hỗ trợ
+        is_groq = "groq.com" in self._base_url
+        is_gemini = "generativelanguage.googleapis.com" in self._base_url
+        if not is_groq and not is_gemini:
             payload["repetition_penalty"] = 1.15
-        if json_mode:
+
+        # json_mode chỉ dùng cho model hỗ trợ
+        if json_mode and not is_gemini:
             payload["response_format"] = {"type": "json_object"}
 
         headers = {"Content-Type": "application/json"}
