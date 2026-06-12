@@ -87,15 +87,15 @@ interface Tool {
 }
 
 const TOOLS: Tool[] = [
-  { id: "review",   label: "Rà soát",  Icon: ShieldCheck },
-  { id: "summarize",label: "Tóm tắt",  Icon: AlignLeft   },
-  { id: "qa",       label: "Hỏi đáp",  Icon: Bot         },
-  { id: "table",    label: "Bảng",     Icon: LayoutGrid  },
-  { id: "draft",    label: "Soạn",     Icon: Sparkles    },
-  { id: "nd30",     label: "NĐ30",     Icon: CheckSquare },
-  { id: "citation", label: "Căn cứ",   Icon: FileSearch  },
-  { id: "template", label: "Mẫu câu",  Icon: AlignLeft   },
-  { id: "compare",  label: "So sánh",  Icon: Wrench      },
+  { id: "review",   label: "Rà soát văn bản",    Icon: ShieldCheck },
+  { id: "summarize",label: "Tóm tắt nội dung",    Icon: AlignLeft   },
+  { id: "qa",       label: "Hỏi đáp nội dung",    Icon: Bot         },
+  { id: "table",    label: "Bảng số liệu",         Icon: LayoutGrid  },
+  { id: "draft",    label: "Soạn thảo nhanh",      Icon: Sparkles    },
+  { id: "nd30",     label: "Kiểm tra định dạng",   Icon: CheckSquare },
+  { id: "citation", label: "Trích dẫn điều khoản", Icon: FileSearch  },
+  { id: "template", label: "Tạo mẫu văn bản",      Icon: AlignLeft   },
+  { id: "compare",  label: "So sánh văn bản",       Icon: Wrench      },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -274,6 +274,157 @@ function ReviewPanelContent({
   );
 }
 
+// ── TemplatePanelContent ──────────────────────────────────────────────────────
+
+const TEMPLATE_TYPES = [
+  "Công văn", "Tờ trình", "Báo cáo", "Thông báo",
+  "Quyết định", "Kế hoạch", "Biên bản", "Giấy mời",
+];
+
+function TemplatePanelContent({
+  onGenerate,
+  isStreaming,
+}: {
+  onGenerate: (loai: string) => void;
+  isStreaming: boolean;
+}) {
+  return (
+    <div className="flex flex-col p-3 gap-3">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Chọn loại văn bản để tạo mẫu theo thể thức NĐ30. Kết quả hiển thị trong tab Chat AI.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {TEMPLATE_TYPES.map((loai) => (
+          <button
+            key={loai}
+            type="button"
+            onClick={() => onGenerate(loai)}
+            disabled={isStreaming}
+            className="flex items-center justify-center px-2 py-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 text-xs font-medium text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loai}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── TablePanelContent ─────────────────────────────────────────────────────────
+
+function TablePanelContent({
+  onGenerate,
+  isStreaming,
+}: {
+  onGenerate: () => void;
+  isStreaming: boolean;
+}) {
+  return (
+    <div className="flex flex-col p-3 gap-3">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Trích xuất và tổng hợp số liệu từ văn bản hiện tại thành bảng markdown.
+      </p>
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={isStreaming}
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+        Lập bảng số liệu
+      </button>
+    </div>
+  );
+}
+
+// ── DraftPanelContent ─────────────────────────────────────────────────────────
+
+function DraftPanelContent({
+  onGenerate,
+  isStreaming,
+}: {
+  onGenerate: () => void;
+  isStreaming: boolean;
+}) {
+  return (
+    <div className="flex flex-col p-3 gap-3">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Gợi ý đoạn văn tiếp theo phù hợp thể thức và văn phong hành chính.
+      </p>
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={isStreaming}
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        Gợi ý nội dung tiếp theo
+      </button>
+    </div>
+  );
+}
+
+// ── ComparePanelContent ───────────────────────────────────────────────────────
+
+function ComparePanelContent({
+  sourceIds,
+  onGenerate,
+  isStreaming,
+}: {
+  sourceIds: string[];
+  onGenerate: (sourceId: string) => void;
+  isStreaming: boolean;
+}) {
+  const [selectedId, setSelectedId] = useState<string>("");
+
+  if (sourceIds.length === 0) {
+    return (
+      <div className="flex flex-col p-3 gap-3">
+        <p className="text-xs text-gray-500 leading-relaxed">
+          So sánh văn bản hiện tại với một tài liệu tham chiếu đã ghim.
+        </p>
+        <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2 border border-amber-100">
+          Chưa ghim tài liệu tham chiếu nào. Hãy ghim tài liệu trong tab Nguồn.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col p-3 gap-3">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        So sánh văn bản hiện tại với một tài liệu tham chiếu đã ghim.
+      </p>
+      <div className="flex flex-col gap-1.5">
+        {sourceIds.map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSelectedId(id)}
+            className={cn(
+              "text-left px-2 py-2 rounded-lg border text-xs transition-colors",
+              selectedId === id
+                ? "border-blue-400 bg-blue-50 text-blue-700 font-medium"
+                : "border-gray-100 hover:border-blue-200 hover:bg-gray-50 text-gray-600"
+            )}
+          >
+            {id.length > 30 ? `${id.slice(0, 30)}…` : id}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => selectedId && onGenerate(selectedId)}
+        disabled={!selectedId || isStreaming}
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Wrench className="h-3.5 w-3.5" />
+        So sánh
+      </button>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function RightPanel({
@@ -409,6 +560,62 @@ export function RightPanel({
     [docId, getDocContext, isStreaming, sourceIds, toast]
   );
 
+  const handleGenerateTemplate = useCallback(
+    (loai: string) => {
+      if (isStreaming) {
+        toast({ title: "Đang xử lý, vui lòng đợi" });
+        return;
+      }
+      sendMessage(
+        `Tạo mẫu ${loai} theo đúng thể thức quy định tại NĐ30/2020/NĐ-CP. ` +
+        `Trình bày đầy đủ các phần: quốc hiệu, tiêu ngữ, tên cơ quan, số/ký hiệu, ` +
+        `địa danh ngày tháng, tên loại và trích yếu, nội dung chính, nơi nhận, ký tên.`
+      );
+      addTask("template");
+    },
+    [isStreaming, sendMessage, addTask, toast]
+  );
+
+  const handleGenerateTable = useCallback(() => {
+    if (isStreaming) {
+      toast({ title: "Đang xử lý, vui lòng đợi" });
+      return;
+    }
+    const content = getDocContext();
+    sendMessage(
+      `Đọc nội dung sau và trích xuất toàn bộ số liệu, thống kê, dữ liệu định lượng có trong văn bản. ` +
+      `Tổng hợp thành bảng markdown với cột Nội dung và Số liệu. ` +
+      `Nếu không có số liệu thì nêu rõ. Văn bản: ${content}`
+    );
+    addTask("table");
+  }, [isStreaming, getDocContext, sendMessage, addTask, toast]);
+
+  const handleGenerateDraft = useCallback(() => {
+    if (isStreaming) {
+      toast({ title: "Đang xử lý, vui lòng đợi" });
+      return;
+    }
+    const content = getDocContext();
+    sendMessage(
+      `Dựa trên nội dung văn bản hành chính sau, hãy gợi ý đoạn nội dung tiếp theo phù hợp thể thức và văn phong hành chính. ` +
+      `Gợi ý khoảng 3 đến 5 câu, súc tích, đúng văn phong công vụ. Văn bản hiện tại: ${content}`
+    );
+    addTask("draft");
+  }, [isStreaming, getDocContext, sendMessage, addTask, toast]);
+
+  const handleGenerateCompare = useCallback((_sourceId: string) => {
+    if (isStreaming) {
+      toast({ title: "Đang xử lý, vui lòng đợi" });
+      return;
+    }
+    sendMessage(
+      `So sánh văn bản hiện tại với tài liệu tham chiếu đã chọn. ` +
+      `Nêu rõ những điểm khác nhau về nội dung, thời hạn, yêu cầu hoặc quy định. ` +
+      `Trình bày dạng danh sách rõ ràng.`
+    );
+    addTask("compare");
+  }, [isStreaming, sendMessage, addTask, toast]);
+
   const handleClearHistory = async () => {
     try {
       await chatApi.clearHistory(docId);
@@ -443,8 +650,17 @@ export function RightPanel({
       case "qa":
         setActiveTab("chat");
         break;
-      default:
-        setActiveTool(toolId);
+      case "template":
+        setActiveTool("template");
+        break;
+      case "table":
+        setActiveTool("table");
+        break;
+      case "draft":
+        setActiveTool("draft");
+        break;
+      case "compare":
+        setActiveTool("compare");
         break;
     }
   };
@@ -480,13 +696,27 @@ export function RightPanel({
             </button>
           </div>
         );
-      default:
+      case "template":
         return (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm">
-            <Wrench className="h-8 w-8 text-gray-200" />
-            <p>Tính năng đang phát triển</p>
-          </div>
+          <TemplatePanelContent
+            onGenerate={handleGenerateTemplate}
+            isStreaming={isStreaming}
+          />
         );
+      case "table":
+        return <TablePanelContent onGenerate={handleGenerateTable} isStreaming={isStreaming} />;
+      case "draft":
+        return <DraftPanelContent onGenerate={handleGenerateDraft} isStreaming={isStreaming} />;
+      case "compare":
+        return (
+          <ComparePanelContent
+            sourceIds={sourceIds}
+            onGenerate={handleGenerateCompare}
+            isStreaming={isStreaming}
+          />
+        );
+      default:
+        return null;
     }
   };
 
