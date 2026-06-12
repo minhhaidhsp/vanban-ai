@@ -8,7 +8,9 @@ import remarkGfm from "remark-gfm";
 interface Citation {
   document_title: string | null;
   so_ki_hieu: string | null;
+  dieu_khoan?: string | null;
   score: number;
+  content_preview?: string | null;
 }
 
 interface Message {
@@ -36,6 +38,12 @@ export default function ChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [sessionId] = useState(genSessionId);
+  const [citationModal, setCitationModal] = useState<null | {
+    title: string;
+    content: string;
+    score?: number;
+    dieu_khoan?: string;
+  }>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -222,18 +230,38 @@ export default function ChatWidget() {
                 </div>
 
                 {/* Citations */}
-                {msg.citations && msg.citations.length > 0 && (
-                  <div className="mt-1 space-y-0.5">
-                    {msg.citations.map((c, ci) => (
-                      <div
-                        key={ci}
-                        className="text-[10px] text-gray-500 bg-gray-50 rounded px-2 py-1 border border-gray-100 truncate"
-                      >
-                        📄 {c.so_ki_hieu || c.document_title || "Tài liệu tham chiếu"}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const raw = msg.citations ?? [];
+                  const unique = raw.filter((c, idx, arr) =>
+                    arr.findIndex(x =>
+                      (x.so_ki_hieu && x.so_ki_hieu === c.so_ki_hieu) ||
+                      (x.document_title && x.document_title === c.document_title)
+                    ) === idx
+                  );
+                  if (unique.length === 0) return null;
+                  return (
+                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] text-slate-400">Nguồn:</span>
+                      {unique.map((c, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCitationModal({
+                            title: c.so_ki_hieu || c.document_title || `Nguồn ${i + 1}`,
+                            content: c.content_preview || "",
+                            score: c.score,
+                            dieu_khoan: c.dieu_khoan ?? undefined,
+                          })}
+                          className="text-[11px] text-teal-600 hover:text-teal-800 hover:underline underline-offset-2 font-medium transition-colors"
+                        >
+                          {c.so_ki_hieu || c.document_title || `Nguồn ${i + 1}`}
+                          {i < unique.length - 1 && (
+                            <span className="text-slate-300 ml-1">,</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
@@ -262,6 +290,69 @@ export default function ChatWidget() {
           </button>
         </div>
       </div>
+
+      {/* Citation modal */}
+      {citationModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          onClick={() => setCitationModal(null)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between p-4 border-b shrink-0">
+              <div className="flex-1 min-w-0 pr-3">
+                <p className="text-sm font-semibold text-slate-800 leading-tight">
+                  {citationModal.title}
+                </p>
+                {citationModal.dieu_khoan && (
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {citationModal.dieu_khoan}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {citationModal.score !== undefined && (
+                  <span className="text-[10px] bg-teal-50 text-teal-600 border border-teal-200 rounded-full px-2 py-0.5">
+                    {Math.round(citationModal.score * 100)}% khớp
+                  </span>
+                )}
+                <button
+                  onClick={() => setCitationModal(null)}
+                  className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="bg-teal-50/40 border border-teal-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-3">
+                  Nội dung trích dẫn
+                </p>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {citationModal.content || "Không có nội dung xem trước."}
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t shrink-0">
+              <button
+                onClick={() => setCitationModal(null)}
+                className="w-full py-2 text-sm text-teal-600 hover:text-teal-700 rounded-lg border border-teal-200 hover:bg-teal-50 transition-colors font-medium"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating toggle button */}
       <button

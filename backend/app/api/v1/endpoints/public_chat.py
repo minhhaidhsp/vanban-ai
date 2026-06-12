@@ -37,6 +37,21 @@ _RATE_LIMIT = 20
 _RATE_WINDOW = 3600  # 1 hour
 
 
+def _friendly_error(raw: str) -> str:
+    r = raw.lower()
+    if "429" in raw or "too many requests" in r or "rate limit" in r:
+        return "Hệ thống đang xử lý quá nhiều yêu cầu. Vui lòng chờ vài giây rồi thử lại."
+    if "401" in raw or "unauthorized" in r or "api key" in r:
+        return "Dịch vụ AI tạm thời không khả dụng. Vui lòng thử lại sau."
+    if "503" in raw or "502" in raw or "service unavailable" in r:
+        return "Dịch vụ AI đang bảo trì. Vui lòng thử lại sau ít phút."
+    if "timeout" in r or "timed out" in r or "524" in raw:
+        return "Yêu cầu mất quá nhiều thời gian xử lý. Vui lòng thử lại."
+    if "connection" in r or "network" in r:
+        return "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối và thử lại."
+    return "Có lỗi xảy ra. Vui lòng thử lại sau."
+
+
 class PublicChatRequest(BaseModel):
     query: str
     session_id: str = "anonymous"
@@ -101,22 +116,58 @@ async def public_chat_stream(
             messages.extend(history)
             messages.append({"role": "user", "content": body.query})
 
-            # 4. Stream tokens
-            if not llm_service._base_url:
-                yield 'data: {"type":"error","content":"Hệ thống AI tạm thời không khả dụng"}\n\n'
-                return
+            # 4. Stream tokens (with fallback when LLM unavailable)
+            llm_error: str | None = None
 
-            async for token in llm_service.chat_stream(messages, temperature=0.05):
-                if token.startswith("[ERROR") or token == "[LLM_OFFLINE]":
+            if not llm_service._base_url:
+                llm_error = "LLM chưa được cấu hình"
+            else:
+                async for token in llm_service.chat_stream(messages, temperature=0.05):
+                    if token.startswith("[ERROR") or token == "[LLM_OFFLINE]":
+                        llm_error = token
+                        break
+                    full_answer += token
+                    payload = json.dumps({"type": "token", "content": token}, ensure_ascii=False)
+                    yield f"data: {payload}\n\n"
+
+            # Fallback: khi LLM lỗi và chưa có câu trả lời → dùng chunks
+            if llm_error and not full_answer.strip():
+                if chunks_used:
+                    fallback_parts = []
+                    for i, chunk in enumerate(chunks_used[:3]):
+                        title = (
+                            chunk.get("so_ki_hieu")
+                            or chunk.get("document_title")
+                            or f"Nguồn {i + 1}"
+                        )
+                        content = chunk.get("content", "").strip()
+                        if content:
+                            fallback_parts.append(f"Theo {title}:\n{content[:400]}")
+
+                    if fallback_parts:
+                        fallback_text = (
+                            "*(Chế độ tra cứu nhanh — AI đang bận, "
+                            "hiển thị thông tin từ kho văn bản)*\n\n"
+                            + "\n\n---\n\n".join(fallback_parts)
+                        )
+                    else:
+                        fallback_text = "Không tìm thấy thông tin liên quan trong kho văn bản."
+
+                    full_answer = fallback_text
+                    chunk_size = 50
+                    for i in range(0, len(fallback_text), chunk_size):
+                        piece = fallback_text[i : i + chunk_size]
+                        payload = json.dumps(
+                            {"type": "token", "content": piece}, ensure_ascii=False
+                        )
+                        yield f"data: {payload}\n\n"
+                else:
                     payload = json.dumps(
-                        {"type": "error", "content": "Lỗi hệ thống, vui lòng thử lại"},
+                        {"type": "error", "content": _friendly_error(llm_error)},
                         ensure_ascii=False,
                     )
                     yield f"data: {payload}\n\n"
                     return
-                full_answer += token
-                payload = json.dumps({"type": "token", "content": token}, ensure_ascii=False)
-                yield f"data: {payload}\n\n"
 
             # 5. Send citations (compact — only title + so_ki_hieu)
             citations_payload = [
@@ -137,7 +188,10 @@ async def public_chat_stream(
 
         except Exception as exc:
             logger.error("[public_chat] error: %s", exc, exc_info=True)
-            payload = json.dumps({"type": "error", "content": "Lỗi hệ thống"}, ensure_ascii=False)
+            payload = json.dumps(
+                {"type": "error", "content": _friendly_error(str(exc))},
+                ensure_ascii=False,
+            )
             yield f"data: {payload}\n\n"
 
     return StreamingResponse(

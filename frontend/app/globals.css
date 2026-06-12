@@ -55,6 +55,19 @@
 .prose mark { background-color: #fef08a; border-radius: 2px; padding: 0 2px; }
 .dark .prose mark { background-color: #854d0e; }
 
+/* Chat markdown styles */
+.chat-markdown p { margin-bottom: 0.5rem; line-height: 1.6; }
+.chat-markdown p:last-child { margin-bottom: 0; }
+.chat-markdown ul { list-style-type: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
+.chat-markdown ol { list-style-type: decimal; padding-left: 1.25rem; margin: 0.4rem 0; }
+.chat-markdown li { margin: 0.2rem 0; }
+.chat-markdown strong { font-weight: 600; color: #1e293b; }
+.chat-markdown code { background: #f0fdfa; color: #0f766e; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+.chat-markdown blockquote { border-left: 3px solid #0d9488; padding-left: 0.75rem; color: #475569; margin: 0.5rem 0; }
+.chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { font-weight: 600; margin: 0.5rem 0 0.25rem; }
+.chat-markdown a { color: #0d9488; }
+.chat-markdown br { display: block; margin: 0.2rem 0; }
+
 @layer base {
   :root {
     --background: 0 0% 100%;
