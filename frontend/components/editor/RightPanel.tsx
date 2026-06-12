@@ -776,7 +776,7 @@ export function RightPanel({
         ) : (
           /* Tool grid + history */
           <div className="flex-1 overflow-y-auto p-3">
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-2">
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2 px-0.5">
               Công cụ AI
             </p>
 
@@ -786,12 +786,34 @@ export function RightPanel({
                   key={tool.id}
                   type="button"
                   onClick={() => handleToolClick(tool.id)}
-                  className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-teal-300 hover:bg-teal-50/50 transition-colors text-center group"
+                  className={cn(
+                    "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-white cursor-pointer transition-all duration-150 text-center group",
+                    activeTool === tool.id
+                      ? "border-teal-500 bg-teal-50 shadow-sm"
+                      : "border-gray-100 hover:border-teal-300 hover:bg-teal-50/50 hover:shadow-sm"
+                  )}
                 >
-                  <div className="p-2 rounded-lg bg-gray-100 text-gray-500 group-hover:bg-teal-100 group-hover:text-teal-600 transition-colors">
-                    <tool.Icon className="h-4 w-4" />
-                  </div>
-                  <span className="text-[11px] font-medium text-gray-700 leading-tight">
+                  {tool.id === "review" && (
+                    <span className="absolute -top-1 -right-1 text-[9px] bg-teal-500 text-white rounded-full px-1">
+                      AI
+                    </span>
+                  )}
+                  <tool.Icon
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      activeTool === tool.id
+                        ? "text-teal-600"
+                        : "text-slate-400 group-hover:text-teal-500"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[11px] leading-tight text-center",
+                      activeTool === tool.id
+                        ? "text-teal-700 font-medium"
+                        : "text-slate-600"
+                    )}
+                  >
                     {tool.label}
                   </span>
                 </button>
@@ -801,21 +823,21 @@ export function RightPanel({
             {/* Task history */}
             {tasks.length > 0 && (
               <div>
-                <div className="flex items-center gap-1.5 mb-2">
+                <div className="flex items-center gap-1.5 mb-1 px-0.5">
                   <Clock className="h-3 w-3 text-teal-400" />
-                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
                     Gần đây
                   </p>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {tasks.map((task) => (
                     <button
                       key={task.id}
                       onClick={() => setActiveTool(task.toolId as ToolId)}
-                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left cursor-pointer"
                     >
-                      <span className="text-xs text-gray-600">{task.label}</span>
-                      <span className="text-[10px] text-gray-400">
+                      <span className="text-xs text-slate-600 flex-1">{task.label}</span>
+                      <span className="text-[10px] text-gray-400 shrink-0">
                         {formatRelativeTime(task.timestamp)}
                       </span>
                     </button>

@@ -67,7 +67,7 @@ function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalPr
           <div
             className={cn(
               "border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors",
-              dragOver ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"
+              dragOver ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-teal-300"
             )}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -86,7 +86,7 @@ function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalPr
             <div className="space-y-1 max-h-44 overflow-y-auto">
               {files.map((f, i) => (
                 <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border bg-white">
-                  <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                  <FileText className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   <span className="text-sm truncate max-w-[200px] block" title={f.name}>
                     {f.name}
                   </span>
@@ -104,7 +104,7 @@ function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalPr
               className="text-gray-500 border-gray-200">
               Huỷ
             </Button>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white"
+            <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white"
               onClick={handleUpload} disabled={files.length === 0}>
               <Upload className="h-3.5 w-3.5 mr-1.5" />Upload
             </Button>
@@ -239,20 +239,20 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b bg-white shrink-0">
         <div className="flex items-center gap-1.5">
-          <BookOpen className="h-4 w-4 text-blue-600" />
+          <BookOpen className="h-4 w-4 text-teal-600" />
           <span className="text-sm font-semibold text-gray-800">Tài liệu tham chiếu</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => guardNewDoc() && setUploadOpen(true)}
-            className="p-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            className="p-1 rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors"
             title="Upload file"
           >
             <Upload className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => guardNewDoc() && setPickerOpen(true)}
-            className="p-1 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+            className="p-1 rounded-md bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
             title="Chọn từ kho"
           >
             <Search className="h-3.5 w-3.5" />
@@ -275,7 +275,7 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
             <span className="truncate flex-1 text-gray-500 text-xs" title={p.filename}>
               {p.filename}
             </span>
-            {p.status === "uploading" && <Loader2 className="w-3 h-3 animate-spin text-blue-500 shrink-0" />}
+            {p.status === "uploading" && <Loader2 className="w-3 h-3 animate-spin text-teal-500 shrink-0" />}
             {p.status === "done"      && <Check className="w-3 h-3 text-green-500 shrink-0" />}
             {p.status === "failed"    && <X className="w-3 h-3 text-red-500 shrink-0" />}
           </div>
@@ -291,14 +291,14 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
             <div className="flex gap-2">
               <button
                 onClick={() => guardNewDoc() && setUploadOpen(true)}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="text-xs text-teal-600 hover:text-teal-700 font-medium"
               >
                 ↑ Upload file
               </button>
               <span className="text-xs text-gray-300">|</span>
               <button
                 onClick={() => guardNewDoc() && setPickerOpen(true)}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="text-xs text-teal-600 hover:text-teal-700 font-medium"
               >
                 🔍 Từ kho
               </button>
@@ -310,16 +310,16 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
         {sources.map((src) => (
           <div
             key={src.id}
-            className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-blue-200 group transition-colors"
+            className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-teal-200 group transition-colors"
           >
-            <FileText className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+            <FileText className="h-3.5 w-3.5 text-teal-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-800 truncate leading-tight"
                  title={src.title}>
                 {src.so_ki_hieu || src.title}
               </p>
               {src.loai_van_ban && (
-                <span className="inline-block text-[10px] bg-blue-100 text-blue-700 rounded px-1 mt-0.5">
+                <span className="inline-block text-[10px] bg-teal-50 text-teal-700 rounded px-1 mt-0.5">
                   {src.loai_van_ban}
                 </span>
               )}
