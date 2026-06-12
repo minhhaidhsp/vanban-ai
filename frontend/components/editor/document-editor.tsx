@@ -423,13 +423,38 @@ export function DocumentEditor({
 
   const handleInsertText = useCallback(
     (text: string) => {
+      if (editorMapRef?.current && editorMapRef.current.size > 0) {
+        let targetEditor: Editor | null = null;
+
+        editorMapRef.current.forEach((editor) => {
+          if (editor.isFocused) targetEditor = editor;
+        });
+
+        if (!targetEditor) {
+          targetEditor = editorMapRef.current.get("noiDung") ?? null;
+        }
+
+        if (!targetEditor) {
+          targetEditor = editorMapRef.current.values().next().value ?? null;
+        }
+
+        if (targetEditor) {
+          (targetEditor as Editor).chain().focus().insertContent(text).run();
+          toast({ title: "Đã chèn vào văn bản" });
+          return;
+        }
+      }
+
       navigator.clipboard.writeText(text).then(() => {
-        toast({ title: "Đã copy", description: "Ctrl+V để dán vào văn bản" });
+        toast({
+          title: "Đã copy vào clipboard",
+          description: "Ctrl+V để dán vào vị trí cần chèn",
+        });
       }).catch(() => {
         toast({ title: "Không thể copy", variant: "destructive" });
       });
     },
-    [toast]
+    [editorMapRef, toast]
   );
 
   // ── Preview mode ───────────────────────────────────────────────────────────

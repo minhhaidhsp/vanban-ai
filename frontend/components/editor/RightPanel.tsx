@@ -4,8 +4,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot, Trash2, SendHorizonal, Loader2, Wrench,
   CheckSquare, Sparkles, FileSearch, AlignLeft, ShieldCheck,
-  ChevronLeft, Clock, Check, X, LayoutGrid,
+  ChevronLeft, Clock, Check, X, LayoutGrid, AlertCircle,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { chatApi, type ChatCitation, type ReviewChange } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  displayLabel?: string;
   citations?: ChatCitation[];
   isStreaming?: boolean;
 }
@@ -440,6 +443,7 @@ export function RightPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [viewingCitation, setViewingCitation] = useState<ChatCitation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
@@ -497,7 +501,7 @@ export function RightPanel({
   }, [reviewChanges, isReviewing, addTask]);
 
   const sendMessage = useCallback(
-    async (query: string) => {
+    async (query: string, displayLabel?: string) => {
       if (!query.trim() || isStreaming) return;
       const now = Date.now();
       const userMsgId = `u-${now}`;
@@ -505,7 +509,7 @@ export function RightPanel({
 
       setMessages((prev) => [
         ...prev,
-        { id: userMsgId, role: "user", content: query },
+        { id: userMsgId, role: "user", content: query, displayLabel },
         { id: asstMsgId, role: "assistant", content: "", isStreaming: true },
       ]);
       setInput("");
@@ -544,7 +548,6 @@ export function RightPanel({
               )
             );
             setIsStreaming(false);
-            toast({ title: "Lỗi chat", description: error, variant: "destructive" });
           },
           sourceIds
         );
@@ -557,7 +560,7 @@ export function RightPanel({
         setIsStreaming(false);
       }
     },
-    [docId, getDocContext, isStreaming, sourceIds, toast]
+    [docId, getDocContext, isStreaming, sourceIds]
   );
 
   const handleGenerateTemplate = useCallback(
@@ -569,7 +572,8 @@ export function RightPanel({
       sendMessage(
         `Tạo mẫu ${loai} theo đúng thể thức quy định tại NĐ30/2020/NĐ-CP. ` +
         `Trình bày đầy đủ các phần: quốc hiệu, tiêu ngữ, tên cơ quan, số/ký hiệu, ` +
-        `địa danh ngày tháng, tên loại và trích yếu, nội dung chính, nơi nhận, ký tên.`
+        `địa danh ngày tháng, tên loại và trích yếu, nội dung chính, nơi nhận, ký tên.`,
+        `Tạo mẫu ${loai}`
       );
       addTask("template");
     },
@@ -585,7 +589,8 @@ export function RightPanel({
     sendMessage(
       `Đọc nội dung sau và trích xuất toàn bộ số liệu, thống kê, dữ liệu định lượng có trong văn bản. ` +
       `Tổng hợp thành bảng markdown với cột Nội dung và Số liệu. ` +
-      `Nếu không có số liệu thì nêu rõ. Văn bản: ${content}`
+      `Nếu không có số liệu thì nêu rõ. Văn bản: ${content}`,
+      "Lập bảng số liệu"
     );
     addTask("table");
   }, [isStreaming, getDocContext, sendMessage, addTask, toast]);
@@ -598,7 +603,8 @@ export function RightPanel({
     const content = getDocContext();
     sendMessage(
       `Dựa trên nội dung văn bản hành chính sau, hãy gợi ý đoạn nội dung tiếp theo phù hợp thể thức và văn phong hành chính. ` +
-      `Gợi ý khoảng 3 đến 5 câu, súc tích, đúng văn phong công vụ. Văn bản hiện tại: ${content}`
+      `Gợi ý khoảng 3 đến 5 câu, súc tích, đúng văn phong công vụ. Văn bản hiện tại: ${content}`,
+      "Soạn thảo nhanh"
     );
     addTask("draft");
   }, [isStreaming, getDocContext, sendMessage, addTask, toast]);
@@ -611,7 +617,8 @@ export function RightPanel({
     sendMessage(
       `So sánh văn bản hiện tại với tài liệu tham chiếu đã chọn. ` +
       `Nêu rõ những điểm khác nhau về nội dung, thời hạn, yêu cầu hoặc quy định. ` +
-      `Trình bày dạng danh sách rõ ràng.`
+      `Trình bày dạng danh sách rõ ràng.`,
+      "So sánh văn bản"
     );
     addTask("compare");
   }, [isStreaming, sendMessage, addTask, toast]);
@@ -632,18 +639,20 @@ export function RightPanel({
         onAiReview();
         break;
       case "summarize":
-        sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.");
+        sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.", "Tóm tắt nội dung");
         addTask("summarize");
         break;
       case "nd30":
         sendMessage(
-          "Kiểm tra thể thức văn bản này theo NĐ30/2020/NĐ-CP. Liệt kê những điểm chưa đúng (nếu có)."
+          "Kiểm tra thể thức văn bản này theo NĐ30/2020/NĐ-CP. Liệt kê những điểm chưa đúng (nếu có).",
+          "Kiểm tra định dạng"
         );
         addTask("nd30");
         break;
       case "citation":
         sendMessage(
-          "Gợi ý các căn cứ pháp lý phù hợp cho văn bản đang soạn thảo. Liệt kê số/ký hiệu, tên văn bản cụ thể."
+          "Gợi ý các căn cứ pháp lý phù hợp cho văn bản đang soạn thảo. Liệt kê số/ký hiệu, tên văn bản cụ thể.",
+          "Trích dẫn điều khoản"
         );
         addTask("citation");
         break;
@@ -755,8 +764,53 @@ export function RightPanel({
         ))}
       </div>
 
+      {/* Citation viewer */}
+      {viewingCitation && (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b bg-white shrink-0">
+            <button
+              onClick={() => setViewingCitation(null)}
+              className="p-1 rounded-md hover:bg-teal-50 text-slate-500 hover:text-teal-600 transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 truncate">
+                {viewingCitation.so_ki_hieu ||
+                 viewingCitation.document_title ||
+                 "Tài liệu tham chiếu"}
+              </p>
+              {viewingCitation.dieu_khoan && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {viewingCitation.dieu_khoan}
+                </p>
+              )}
+            </div>
+            <span className="text-[10px] bg-teal-50 text-teal-600 border border-teal-200 rounded-full px-2 py-0.5 shrink-0">
+              {Math.round(viewingCitation.score * 100)}% khớp
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="bg-teal-50/40 border border-teal-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-3">
+                Nội dung trích dẫn
+              </p>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {viewingCitation.content_preview || "Không có nội dung xem trước."}
+              </p>
+            </div>
+            <button
+              onClick={() => setViewingCitation(null)}
+              className="mt-4 w-full text-sm text-teal-600 hover:text-teal-700 py-2 rounded-lg border border-teal-200 hover:bg-teal-50 transition-colors"
+            >
+              ← Quay lại chat
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tab: Tools */}
-      {activeTab === "tools" &&
+      {!viewingCitation && activeTab === "tools" &&
         (activeTool ? (
           /* Per-tool panel */
           <div className="flex flex-col h-full min-h-0">
@@ -857,7 +911,7 @@ export function RightPanel({
         ))}
 
       {/* Tab: Chat */}
-      {activeTab === "chat" && (
+      {!viewingCitation && activeTab === "chat" && (
         <>
           <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0 space-y-3">
             {messages.length === 0 && (
@@ -884,9 +938,13 @@ export function RightPanel({
                       : "bg-teal-50 border border-teal-100 text-slate-800 rounded-tl-sm"
                   )}
                 >
-                  {msg.isStreaming ? (
+                  {msg.role === "user" ? (
+                    <span className="whitespace-pre-wrap text-sm">
+                      {msg.displayLabel ?? msg.content}
+                    </span>
+                  ) : msg.isStreaming ? (
                     <>
-                      <span className="whitespace-pre-wrap">{msg.content}</span>
+                      <span className="whitespace-pre-wrap text-sm">{msg.content}</span>
                       <span className="inline-flex gap-1 ml-1">
                         {[0, 150, 300].map((d) => (
                           <span
@@ -897,27 +955,64 @@ export function RightPanel({
                         ))}
                       </span>
                     </>
+                  ) : msg.content.startsWith("Lỗi:") ? (
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-700">{msg.content.replace("Lỗi: ", "")}</p>
+                    </div>
                   ) : (
-                    <span className="whitespace-pre-wrap">{msg.content}</span>
-                  )}
-
-                  {msg.citations && msg.citations.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {msg.citations.map((c, i) => (
-                        <div
-                          key={i}
-                          className="text-xs bg-white rounded px-2 py-1 border border-gray-200"
-                        >
-                          <span className="font-medium text-teal-600">[{i + 1}]</span>{" "}
-                          {c.so_ki_hieu || c.document_title || "—"}
-                        </div>
-                      ))}
+                    <div className="chat-markdown text-sm text-slate-800">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => (
+                            <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
+                          ),
+                          br: () => <br />,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
                     </div>
                   )}
 
-                  {!msg.isStreaming && msg.role === "assistant" && msg.content && (
+                  {msg.citations && msg.citations.length > 0 && (() => {
+                    const uniqueCitations = msg.citations.filter(
+                      (c, idx, arr) =>
+                        arr.findIndex(
+                          (x) =>
+                            (x.so_ki_hieu && x.so_ki_hieu === c.so_ki_hieu) ||
+                            (x.document_title && x.document_title === c.document_title)
+                        ) === idx
+                    );
+                    return (
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400">Nguồn:</span>
+                        {uniqueCitations.map((c, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setViewingCitation(c)}
+                            className="text-[11px] text-teal-600 hover:text-teal-800 hover:underline underline-offset-2 font-medium transition-colors"
+                          >
+                            {c.so_ki_hieu || c.document_title || `Nguồn ${i + 1}`}
+                            {i < uniqueCitations.length - 1 && (
+                              <span className="text-slate-300 ml-1 no-underline">,</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {!msg.isStreaming && msg.role === "assistant" && msg.content && !msg.content.startsWith("Lỗi:") && (
                     <button
-                      onClick={() => onInsertText(msg.content)}
+                      onClick={() => {
+                        const cleanText = msg.content
+                          .replace(/\[\d+\]/g, "")
+                          .replace(/\s+\n/g, "\n")
+                          .trim();
+                        onInsertText(cleanText);
+                      }}
                       className="mt-1.5 text-xs text-teal-400 hover:text-teal-600 flex items-center gap-1"
                     >
                       ↩ Chèn vào văn bản
@@ -949,12 +1044,12 @@ export function RightPanel({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.ctrlKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage(input);
                   }
                 }}
-                placeholder="Hỏi về văn bản... (Ctrl+Enter)"
+                placeholder="Nhập câu hỏi... (Shift+Enter để xuống hàng)"
                 disabled={isStreaming}
                 rows={2}
                 className="w-full resize-none text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
