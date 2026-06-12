@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Building2, PenLine, ShieldCheck, Search, Users, BookOpen,
   BarChart3, ClipboardList, XCircle, CheckCircle2,
-  Server, Brain, Wallet,
+  Server, Brain, Wallet, ChevronDown,
 } from "lucide-react";
 import ChatWidget from "@/components/public/ChatWidget";
 
@@ -140,13 +140,13 @@ export default function HomePage() {
                 Dùng thử ngay
               </Button>
             </Link>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/30 text-white bg-transparent hover:bg-white/10"
+            <a
+              href="#features"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-white/30 text-white hover:bg-white/10 transition-colors text-sm font-medium"
             >
+              <ChevronDown className="h-4 w-4" />
               Xem tính năng
-            </Button>
+            </a>
           </div>
         </div>
       </section>
@@ -200,7 +200,7 @@ export default function HomePage() {
       </section>
 
       {/* E. 7 TÁC TỬ AI */}
-      <section className="bg-slate-50 py-20">
+      <section id="features" className="bg-slate-50 py-20">
         <div className="container">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">Hệ đa tác tử AI chuyên biệt</h2>

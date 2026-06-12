@@ -49,7 +49,7 @@ export interface RightPanelProps {
 const BADGE_COLOR: Record<string, string> = {
   chinh_ta: "bg-red-100 text-red-700",
   the_thuc: "bg-purple-100 text-purple-700",
-  van_phong: "bg-blue-100 text-blue-700",
+  van_phong: "bg-teal-100 text-teal-700",
   dau_cau: "bg-yellow-100 text-yellow-700",
   thuat_ngu: "bg-green-100 text-green-700",
 };
@@ -242,7 +242,7 @@ function ReviewPanelContent({
                 <div className="flex gap-1.5 pt-0.5">
                   <button
                     onClick={() => onApplyChange?.(i)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-green-50 text-green-700 hover:bg-green-100 text-[11px] font-medium transition-colors border border-green-200"
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-teal-50 text-teal-600 hover:bg-teal-100 text-[11px] font-medium transition-colors border border-teal-200"
                   >
                     <Check className="h-3 w-3" /> Áp dụng
                   </button>
@@ -263,7 +263,7 @@ function ReviewPanelContent({
         <div className="px-3 py-2 border-t shrink-0">
           <button
             onClick={onApplyAll}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors"
           >
             <Check className="h-3.5 w-3.5" />
             Áp dụng tất cả ({pendingCount})
@@ -300,7 +300,7 @@ function TemplatePanelContent({
             type="button"
             onClick={() => onGenerate(loai)}
             disabled={isStreaming}
-            className="flex items-center justify-center px-2 py-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 text-xs font-medium text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center px-2 py-3 rounded-xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50 text-xs font-medium text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loai}
           </button>
@@ -328,7 +328,7 @@ function TablePanelContent({
         type="button"
         onClick={onGenerate}
         disabled={isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <LayoutGrid className="h-3.5 w-3.5" />
         Lập bảng số liệu
@@ -355,7 +355,7 @@ function DraftPanelContent({
         type="button"
         onClick={onGenerate}
         disabled={isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Sparkles className="h-3.5 w-3.5" />
         Gợi ý nội dung tiếp theo
@@ -404,8 +404,8 @@ function ComparePanelContent({
             className={cn(
               "text-left px-2 py-2 rounded-lg border text-xs transition-colors",
               selectedId === id
-                ? "border-blue-400 bg-blue-50 text-blue-700 font-medium"
-                : "border-gray-100 hover:border-blue-200 hover:bg-gray-50 text-gray-600"
+                ? "border-teal-400 bg-teal-50 text-teal-700 font-medium"
+                : "border-gray-100 hover:border-teal-200 hover:bg-gray-50 text-gray-600"
             )}
           >
             {id.length > 30 ? `${id.slice(0, 30)}…` : id}
@@ -416,7 +416,7 @@ function ComparePanelContent({
         type="button"
         onClick={() => selectedId && onGenerate(selectedId)}
         disabled={!selectedId || isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Wrench className="h-3.5 w-3.5" />
         So sánh
@@ -690,7 +690,7 @@ export function RightPanel({
             <p>Kết quả đã gửi vào tab Chat AI</p>
             <button
               onClick={() => setActiveTab("chat")}
-              className="text-xs text-blue-600 hover:underline mt-1"
+              className="text-xs text-teal-600 hover:underline mt-1"
             >
               Xem Chat →
             </button>
@@ -731,8 +731,8 @@ export function RightPanel({
             className={cn(
               "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors",
               activeTab === tab
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-teal-500 text-teal-600"
+                : "border-transparent text-slate-500 hover:text-teal-500 hover:border-teal-200"
             )}
           >
             {tab === "tools" ? (
@@ -745,7 +745,7 @@ export function RightPanel({
                 <Bot className="h-3.5 w-3.5" />
                 Chat AI
                 {messages.length > 0 && (
-                  <span className="ml-1 bg-blue-600 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
+                  <span className="ml-1 bg-teal-600 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
                     {Math.ceil(messages.length / 2)}
                   </span>
                 )}
@@ -786,9 +786,9 @@ export function RightPanel({
                   key={tool.id}
                   type="button"
                   onClick={() => handleToolClick(tool.id)}
-                  className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors text-center group"
+                  className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border border-gray-100 hover:border-teal-300 hover:bg-teal-50/50 transition-colors text-center group"
                 >
-                  <div className="p-2 rounded-lg bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                  <div className="p-2 rounded-lg bg-gray-100 text-gray-500 group-hover:bg-teal-100 group-hover:text-teal-600 transition-colors">
                     <tool.Icon className="h-4 w-4" />
                   </div>
                   <span className="text-[11px] font-medium text-gray-700 leading-tight">
@@ -802,7 +802,7 @@ export function RightPanel({
             {tasks.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Clock className="h-3 w-3 text-gray-400" />
+                  <Clock className="h-3 w-3 text-teal-400" />
                   <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
                     Gần đây
                   </p>
@@ -812,7 +812,7 @@ export function RightPanel({
                     <button
                       key={task.id}
                       onClick={() => setActiveTool(task.toolId as ToolId)}
-                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left"
                     >
                       <span className="text-xs text-gray-600">{task.label}</span>
                       <span className="text-[10px] text-gray-400">
@@ -826,7 +826,7 @@ export function RightPanel({
 
             {sourceIds.length > 0 && (
               <div className="mt-4 pt-3 border-t">
-                <p className="text-[10px] text-blue-600 font-medium">
+                <p className="text-[10px] text-teal-600 font-medium">
                   ✓ Chat đang tìm trong {sourceIds.length} tài liệu đã ghim
                 </p>
               </div>
@@ -858,8 +858,8 @@ export function RightPanel({
                   className={cn(
                     "max-w-[88%] rounded-2xl px-3 py-2 text-sm",
                     msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-tr-sm"
-                      : "bg-gray-100 text-gray-900 rounded-tl-sm"
+                      ? "bg-slate-100 text-slate-800 rounded-tr-sm"
+                      : "bg-teal-50 border border-teal-100 text-slate-800 rounded-tl-sm"
                   )}
                 >
                   {msg.isStreaming ? (
@@ -886,7 +886,7 @@ export function RightPanel({
                           key={i}
                           className="text-xs bg-white rounded px-2 py-1 border border-gray-200"
                         >
-                          <span className="font-medium text-blue-600">[{i + 1}]</span>{" "}
+                          <span className="font-medium text-teal-600">[{i + 1}]</span>{" "}
                           {c.so_ki_hieu || c.document_title || "—"}
                         </div>
                       ))}
@@ -896,7 +896,7 @@ export function RightPanel({
                   {!msg.isStreaming && msg.role === "assistant" && msg.content && (
                     <button
                       onClick={() => onInsertText(msg.content)}
-                      className="mt-1.5 text-xs text-blue-400 hover:text-blue-600 flex items-center gap-1"
+                      className="mt-1.5 text-xs text-teal-400 hover:text-teal-600 flex items-center gap-1"
                     >
                       ↩ Chèn vào văn bản
                     </button>
@@ -935,7 +935,7 @@ export function RightPanel({
                 placeholder="Hỏi về văn bản... (Ctrl+Enter)"
                 disabled={isStreaming}
                 rows={2}
-                className="w-full resize-none text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                className="w-full resize-none text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
               />
             </div>
             <div className="flex flex-col gap-1 justify-end">
@@ -949,7 +949,7 @@ export function RightPanel({
               <button
                 onClick={() => sendMessage(input)}
                 disabled={isStreaming || !input.trim()}
-                className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                className="p-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-40 transition-colors"
               >
                 {isStreaming ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -72,8 +72,8 @@ function ConfidenceMeter({
 }) {
   const pct = Math.round(confidence * 100);
   const barColor =
-    confidence >= 0.7 ? "bg-green-500" :
-    confidence >= 0.4 ? "bg-yellow-500" :
+    confidence >= 0.7 ? "bg-teal-500" :
+    confidence >= 0.4 ? "bg-amber-500" :
     "bg-red-500";
   const label =
     confidence >= 0.7 ? "Cao" :
@@ -164,11 +164,11 @@ function CitationCard({ chunk, index, isFallback }: { chunk: ChunkUsed; index: n
   return (
     <Card
       id={`citation-${index}`}
-      className={`scroll-mt-4 border-l-4 ${isFallback ? "border-l-orange-400" : "border-l-blue-400"}`}
+      className={`scroll-mt-4 border-l-4 ${isFallback ? "border-l-orange-400" : "border-l-teal-400 bg-teal-50/30"}`}
     >
       <CardHeader className="pb-2 pt-3 px-4">
         <CardTitle className="text-sm flex items-center gap-2">
-          <span className={`flex-shrink-0 inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold w-5 h-5 ${isFallback ? "bg-orange-500" : "bg-blue-600"}`}>
+          <span className={`flex-shrink-0 inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold w-5 h-5 ${isFallback ? "bg-orange-500" : "bg-teal-600"}`}>
             {index}
           </span>
           <span className="truncate">{chunk.so_ki_hieu || chunk.document_title || "Không rõ nguồn"}</span>
@@ -269,12 +269,21 @@ export default function RAGSearchPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h1 className="font-semibold text-lg">Tra cứu AI</h1>
+      <div className="border-b px-6 py-4 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-teal-50 p-2.5">
+              <Sparkles className="h-6 w-6 text-teal-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Tra cứu AI</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Tra cứu văn bản pháp lý và thủ tục hành chính bằng ngôn ngữ tự nhiên
+              </p>
+            </div>
+          </div>
+          <LLMStatusBadge />
         </div>
-        <LLMStatusBadge />
       </div>
 
       {/* Body */}
@@ -308,7 +317,7 @@ export default function RAGSearchPage() {
           {/* Progress */}
           {isSearching && (
             <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin flex-shrink-0" />
+              <div className="h-4 w-4 rounded-full border-2 border-teal-600 border-t-transparent animate-spin flex-shrink-0" />
               <div className="flex flex-col gap-0.5">
                 {PROGRESS_STEPS.slice(0, progressStep + 1).map((step, i) => (
                   <span
@@ -409,7 +418,7 @@ export default function RAGSearchPage() {
                   <button
                     key={q}
                     onClick={() => setQuery(q)}
-                    className="text-left text-xs px-3 py-2 rounded-md border hover:bg-accent hover:text-accent-foreground transition-colors"
+                    className="text-left text-xs px-3 py-2 rounded-md border border-teal-200 text-teal-700 bg-teal-50/50 hover:bg-teal-50 transition-colors"
                   >
                     {q}
                   </button>
