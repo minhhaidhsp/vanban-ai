@@ -415,6 +415,18 @@ export const chatApi = {
   },
 };
 
+export const formApi = {
+  detect: async (
+    query: string,
+  ): Promise<{ form_name: string | null; form_file: string | null }> => {
+    const { data } = await api.post("/forms/detect-form", { query });
+    return data as { form_name: string | null; form_file: string | null };
+  },
+
+  downloadUrl: (formFile: string): string =>
+    `${BASE_URL}/api/v1/forms/download?file=${encodeURIComponent(formFile)}`,
+};
+
 export const suggestApi = {
   getCanCu: async (loai_vb: string, trich_yeu: string, top_k: number = 5) => {
     const res = await api.post("/suggest/can-cu", { loai_vb, trich_yeu, top_k });

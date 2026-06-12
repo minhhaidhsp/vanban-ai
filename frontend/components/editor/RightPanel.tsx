@@ -4,11 +4,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot, Trash2, SendHorizonal, Loader2, Wrench,
   CheckSquare, Sparkles, FileSearch, AlignLeft, ShieldCheck,
-  ChevronLeft, Clock, Check, X, LayoutGrid, AlertCircle,
+  ChevronLeft, Clock, Check, X, LayoutGrid, AlertCircle, Download,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chatApi, type ChatCitation, type ReviewChange } from "@/lib/api";
+import { chatApi, formApi, type ChatCitation, type ReviewChange } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,8 @@ interface Message {
   displayLabel?: string;
   citations?: ChatCitation[];
   isStreaming?: boolean;
+  formName?: string;
+  formFile?: string;
 }
 
 interface ToolTask {
@@ -538,6 +540,17 @@ export function RightPanel({
               )
             );
             setIsStreaming(false);
+            formApi.detect(query).then((result) => {
+              if (result.form_name && result.form_file) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === asstMsgId
+                      ? { ...m, formName: result.form_name!, formFile: result.form_file! }
+                      : m
+                  )
+                );
+              }
+            }).catch(() => {});
           },
           (error) => {
             setMessages((prev) =>
@@ -925,7 +938,7 @@ export function RightPanel({
               </div>
             )}
 
-            {messages.map((msg) => (
+            {messages.map((msg, msgIdx) => (
               <div
                 key={msg.id}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
@@ -1016,6 +1029,24 @@ export function RightPanel({
                       className="mt-1.5 text-xs text-teal-400 hover:text-teal-600 flex items-center gap-1"
                     >
                       ↩ Chèn vào văn bản
+                    </button>
+                  )}
+
+                  {!msg.isStreaming && msg.role === "assistant" && msg.formName && msg.formFile && (
+                    <button
+                      onClick={() => {
+                        const a = document.createElement("a");
+                        a.href = formApi.downloadUrl(msg.formFile!);
+                        const safe = msg.formName!.replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
+                        a.download = `Mau_${safe}.docx`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      }}
+                      className="mt-1.5 flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-3 py-1.5 transition-colors font-medium w-fit"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Tải {msg.formName}
                     </button>
                   )}
                 </div>

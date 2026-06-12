@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, X, Send, Bot } from "lucide-react";
+import { MessageCircle, X, Send, Bot, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -17,6 +17,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
+  formName?: string;
+  formFile?: string;
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -143,6 +145,30 @@ export default function ChatWidget() {
       }
 
       if (!isOpenRef.current) setUnreadCount((c) => c + 1);
+
+      // Detect form sau khi stream xong
+      try {
+        const detectRes = await fetch(`${BASE_URL}/api/v1/forms/detect-form`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const detectData = await detectRes.json() as {
+          form_name: string | null;
+          form_file: string | null;
+        };
+        if (detectData.form_name && detectData.form_file) {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              formName: detectData.form_name!,
+              formFile: detectData.form_file!,
+            };
+            return next;
+          });
+        }
+      } catch {}
     } catch {
       setMessages((prev) => {
         const next = [...prev];
@@ -155,6 +181,17 @@ export default function ChatWidget() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const downloadForm = (formFile: string, formName: string) => {
+    const url = `${BASE_URL}/api/v1/forms/download?file=${encodeURIComponent(formFile)}`;
+    const a = document.createElement("a");
+    a.href = url;
+    const safe = formName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
+    a.download = `Mau_${safe}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -262,6 +299,17 @@ export default function ChatWidget() {
                     </div>
                   );
                 })()}
+
+                {/* Download form button */}
+                {msg.role === "assistant" && !isLoading && msg.formName && msg.formFile && (
+                  <button
+                    onClick={() => downloadForm(msg.formFile!, msg.formName!)}
+                    className="mt-2 flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-3 py-1.5 transition-colors font-medium"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Tải {msg.formName}
+                  </button>
+                )}
               </div>
             </div>
           ))}
