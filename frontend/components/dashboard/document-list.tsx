@@ -124,11 +124,10 @@ export function DocumentList() {
           </Button>
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
             onClick={() => setNewDocModalOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Soạn thảo mới
+            Soạn văn bản mới
           </Button>
         </div>
       </div>
@@ -168,8 +167,8 @@ export function DocumentList() {
               className={cn(
                 "px-3 py-1 text-xs font-medium transition-colors",
                 sourceFilter === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-white hover:bg-gray-50 text-gray-600"
+                  ? "bg-teal-600 text-white"
+                  : "bg-white hover:bg-teal-50/50 text-gray-600"
               )}
             >
               {s === "all" ? "Tất cả" : s === "editor" ? "Soạn thảo" : "Upload"}
@@ -219,7 +218,7 @@ export function DocumentList() {
             ) : items.map((doc) => (
               <tr
                 key={doc.id}
-                className="hover:bg-muted/30 transition-colors group"
+                className="hover:bg-teal-50/30 transition-colors group"
               >
                 {/* Tên */}
                 <td className="px-4 py-3">
@@ -240,7 +239,7 @@ export function DocumentList() {
                 {/* Loại */}
                 <td className="px-4 py-3 hidden sm:table-cell">
                   {doc.loai_vb ? (
-                    <Badge variant="outline" className="text-xs whitespace-nowrap">
+                    <Badge variant="outline" className="text-xs whitespace-nowrap bg-teal-50 text-teal-700 border-teal-200">
                       {loaiFullName(doc.loai_vb)}
                     </Badge>
                   ) : (

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Save, Check, AlertCircle, Loader2, Eye, Download, ChevronDown,
-  PanelLeft, PanelRight, ArrowLeft, ArrowRight, X,
+  PanelLeft, PanelRight, ArrowLeft, ArrowRight, X, Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -61,19 +61,32 @@ function WelcomePanel({
       >
         {generating ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+            <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
             <p className="text-lg font-medium text-gray-700">AI đang soạn thảo...</p>
             <p className="text-sm text-gray-400">Thường mất 15–30 giây</p>
           </div>
         ) : (
           <div className="space-y-6 max-w-md mx-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="rounded-lg bg-teal-50 p-1.5">
+                <Sparkles className="h-4 w-4 text-teal-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">
+                  Tạo văn bản bằng AI
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Mô tả yêu cầu, AI sẽ soạn thảo theo thể thức NĐ30
+                </p>
+              </div>
+            </div>
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
               <textarea
                 value={yeuCau}
                 onChange={(e) => onYeuCauChange(e.target.value)}
                 placeholder={"Mô tả văn bản bạn muốn tạo...\nVí dụ: Quyết định phê duyệt danh sách học sinh xuất sắc năm học 2025-2026"}
-                className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 autoFocus
               />
             </div>
@@ -89,8 +102,8 @@ function WelcomePanel({
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
                       loaiSelected === o.abbr
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
-                        : "border-gray-200 hover:border-blue-300 text-gray-700"
+                        ? "border-teal-600 bg-teal-50 text-teal-700"
+                        : "border-gray-200 hover:border-teal-300 text-gray-700"
                     )}
                   >
                     <span>{o.emoji}</span> {o.label}
@@ -101,7 +114,7 @@ function WelcomePanel({
 
             <div className="flex flex-col gap-2 pt-2">
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+                className="bg-teal-600 hover:bg-teal-700 text-white w-full"
                 disabled={!canGenerate}
                 onClick={onGenerate}
               >
@@ -441,7 +454,7 @@ export function DocumentEditor({
           {/* Back button */}
           <button
             onClick={() => router.push("/dashboard/documents")}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            className="p-2 rounded-lg hover:bg-teal-50 text-slate-500 hover:text-teal-600 transition-colors"
             title="Quay lại danh sách"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -449,7 +462,7 @@ export function DocumentEditor({
           {/* Mobile toggle: sources */}
           <button
             onClick={() => { setShowLeft((v) => !v); setShowRight(false); }}
-            className="lg:hidden p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+            className="lg:hidden p-1.5 rounded-md hover:bg-teal-50 text-slate-500 hover:text-teal-600"
             title="Tài liệu tham chiếu"
           >
             <PanelLeft className="h-4 w-4" />
@@ -457,7 +470,7 @@ export function DocumentEditor({
           {!editingTitle ? (
             <button
               onClick={() => setEditingTitle(true)}
-              className="text-sm font-medium text-gray-700 hover:text-gray-900
+              className="text-sm font-medium text-slate-700 hover:text-teal-700
                          truncate max-w-[250px] text-left hover:underline
                          decoration-dashed underline-offset-2"
               title={documentTitle}
@@ -479,15 +492,22 @@ export function DocumentEditor({
                   if (docId) documentApi.update(docId, { title: documentTitle });
                 }
               }}
-              className="text-sm font-medium border-b border-gray-400
+              className="text-sm font-medium border-b border-teal-400
                          outline-none bg-transparent w-[250px]"
             />
+          )}
+          {dataRef.current?.loaiVanBan && (
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5
+                             rounded-full text-[11px] font-medium
+                             bg-teal-50 text-teal-700 border border-teal-200">
+              {dataRef.current.loaiVanBan}
+            </span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
           <SaveIndicator status={status} label={statusLabel} />
-          <Button variant="outline" size="sm" onClick={enterPreview} title="Xem trước (Ctrl+Shift+P)">
+          <Button variant="outline" size="sm" onClick={enterPreview} title="Xem trước (Ctrl+Shift+P)" className="hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50">
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Xem trước
           </Button>
@@ -497,6 +517,7 @@ export function DocumentEditor({
                 variant="outline" size="sm"
                 disabled={exporting || !docId}
                 title={!docId ? "Lưu trước" : "Tải xuống"}
+                className="hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50"
               >
                 {exporting
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -516,7 +537,7 @@ export function DocumentEditor({
           </DropdownMenu>
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-teal-600 hover:bg-teal-700 text-white"
             onClick={() => saveNow()}
             disabled={saveMutation.isPending}
           >
@@ -527,7 +548,7 @@ export function DocumentEditor({
           </Button>
           <button
             onClick={() => { setShowRight((v) => !v); setShowLeft(false); }}
-            className="lg:hidden p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+            className="lg:hidden p-1.5 rounded-md hover:bg-teal-50 text-slate-500 hover:text-teal-600"
             title="Công cụ AI"
           >
             <PanelRight className="h-4 w-4" />

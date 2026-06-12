@@ -22,7 +22,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WELCOME: Message = {
   role: "assistant",
   content:
-    "Xin chào! Tôi là trợ lý AI của VănBản.AI.\nTôi có thể giúp bạn tra cứu thủ tục hành chính, tìm hiểu các quy định pháp luật.\nBạn muốn hỏi gì?",
+    "Xin chào! Tôi là trợ lý AI của CivicAI.\nTôi có thể giúp bạn tra cứu thủ tục hành chính, tìm hiểu các quy định pháp luật.\nBạn muốn hỏi gì?",
 };
 
 function genSessionId() {
@@ -171,10 +171,10 @@ export default function ChatWidget() {
         style={{ height: "500px" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-blue-600 rounded-t-2xl shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 bg-teal-600 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-2 text-white">
             <Bot className="h-5 w-5 shrink-0" />
-            <span className="font-semibold text-sm">Trợ lý VănBản.AI</span>
+            <span className="font-semibold text-sm">Trợ lý CivicAI</span>
           </div>
           <button
             onClick={() => setIsOpen(false)}
@@ -197,8 +197,8 @@ export default function ChatWidget() {
                   className={[
                     "rounded-2xl px-3 py-2 text-sm leading-relaxed",
                     msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap"
-                      : "bg-gray-100 text-gray-800 rounded-bl-sm",
+                      ? "bg-teal-600 text-white rounded-br-sm whitespace-pre-wrap"
+                      : "bg-teal-50 border border-teal-100 text-gray-800 rounded-bl-sm",
                   ].join(" ")}
                 >
                   {msg.role === "user" ? (
@@ -250,12 +250,12 @@ export default function ChatWidget() {
             placeholder="Nhập câu hỏi... (Enter để gửi)"
             disabled={isLoading}
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 max-h-24 leading-snug"
+            className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:opacity-50 max-h-24 leading-snug"
           />
           <button
             onClick={sendMessage}
             disabled={isLoading || !input.trim()}
-            className="shrink-0 w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Gửi"
           >
             <Send className="h-4 w-4" />
@@ -266,7 +266,7 @@ export default function ChatWidget() {
       {/* Floating toggle button */}
       <button
         onClick={() => setIsOpen((o) => !o)}
-        className="fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-all duration-200 flex items-center justify-center hover:scale-105 active:scale-95"
+        className="fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full bg-teal-600 text-white shadow-lg hover:bg-teal-700 transition-all duration-200 flex items-center justify-center hover:scale-105 active:scale-95"
         aria-label="Mở trợ lý AI"
       >
         {isOpen ? (

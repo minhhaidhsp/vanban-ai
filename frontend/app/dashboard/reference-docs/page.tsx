@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, FolderOpen, Loader2, Upload } from "lucide-react";
+import { Plus, Search, Loader2, Upload } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 
@@ -114,12 +114,11 @@ export default function ReferenceDocsPage() {
     <div className="flex flex-col h-full gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Kho văn bản</h1>
-          {data && (
-            <span className="text-sm text-muted-foreground">({data.total})</span>
-          )}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Kho tri thức</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            272 văn bản · 7.525 đoạn nội dung · Nền tảng cho tác tử Tra cứu AI
+          </p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -132,7 +131,6 @@ export default function ReferenceDocsPage() {
           </Button>
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
             onClick={() => { setEditingDoc(null); setSingleModalOpen(true); }}
           >
             <Plus className="h-4 w-4" />
