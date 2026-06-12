@@ -600,7 +600,12 @@ export function DocumentEditor({
               loaiSelected={loaiSelected}
               onLoaiSelect={(abbr, label) => {
                 setLoaiSelected(abbr);
-                if (!yeuCau.trim()) setYeuCau(`Tạo ${label}: `);
+                setYeuCau((prev) => {
+                  if (!prev.trim()) return `Tạo ${label}: `;
+                  const prefixMatch = prev.match(/^Tạo [^:]+:\s*/);
+                  if (prefixMatch) return `Tạo ${label}: ${prev.slice(prefixMatch[0].length)}`;
+                  return prev;
+                });
               }}
               onGenerate={handleGenerate}
               onSkip={() => setShowWelcome(false)}

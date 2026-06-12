@@ -130,9 +130,9 @@ export default function HomePage() {
             <br />
             hành chính cấp cơ sở
           </h1>
-          <p className="text-slate-300 max-w-2xl text-lg leading-relaxed">
-            CivicAI ứng dụng kiến trúc đa tác tử AI và mô hình ngôn ngữ tinh chỉnh tự chủ,
-            hỗ trợ cán bộ xã/phường soạn thảo, rà soát, tra cứu và giải đáp thủ tục hành chính.
+          <p className="text-slate-300 max-w-xl text-lg leading-relaxed">
+            Hệ đa tác tử AI với mô hình ngôn ngữ tinh chỉnh tự chủ —
+            hỗ trợ cán bộ soạn thảo, tra cứu và giải đáp thủ tục hành chính.
           </p>
           <div className="flex gap-4 mt-2">
             <Link href="/register">
