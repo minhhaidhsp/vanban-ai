@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   FileText, Upload, CalendarDays, LayoutDashboard,
-  TrendingUp, File,
+  TrendingUp, File, Database,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -128,9 +128,24 @@ export function DashboardOverview() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Tổng quan</h1>
-        <p className="text-muted-foreground text-sm">Thống kê tài liệu của bạn</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Tổng quan</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Thống kê và hoạt động của hệ thống CivicAI
+          </p>
+        </div>
+        <div className="text-right hidden sm:block">
+          <p className="text-sm font-medium">
+            {new Date().toLocaleDateString("vi-VN", {
+              weekday: "long", day: "2-digit",
+              month: "2-digit", year: "numeric",
+            })}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            UBND Phường Nhiêu Lộc · TP.HCM
+          </p>
+        </div>
       </div>
 
       {/* ── Row 1: Metric cards ─────────────────────────────── */}
@@ -142,16 +157,16 @@ export function DashboardOverview() {
             <MetricCard
               label="Tổng tài liệu"
               value={stats?.total ?? 0}
-              icon={<LayoutDashboard className="h-5 w-5 text-primary" />}
+              icon={<LayoutDashboard className="h-5 w-5 text-teal-600" />}
               sublabel="Tất cả loại"
-              iconBg="bg-primary/10"
+              iconBg="bg-teal-50"
             />
             <MetricCard
               label="Văn bản soạn thảo"
               value={stats?.editor_count ?? 0}
-              icon={<FileText className="h-5 w-5 text-teal-600" />}
+              icon={<FileText className="h-5 w-5 text-blue-600" />}
               sublabel="Soạn trên hệ thống"
-              iconBg="bg-teal-50"
+              iconBg="bg-blue-50"
             />
             <MetricCard
               label="File đã upload"
@@ -163,13 +178,45 @@ export function DashboardOverview() {
             <MetricCard
               label="7 ngày qua"
               value={stats?.recent_7_days ?? 0}
-              icon={<CalendarDays className="h-5 w-5 text-violet-600" />}
+              icon={<CalendarDays className="h-5 w-5 text-amber-600" />}
               sublabel="Văn bản mới"
-              iconBg="bg-violet-50"
+              iconBg="bg-amber-50"
             />
           </>
         )}
       </div>
+
+      {/* ── Kho tri thức ────────────────────────────────────── */}
+      <Card className="border-teal-100 bg-teal-50/30">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="rounded-lg bg-teal-100 p-2">
+              <Database className="h-5 w-5 text-teal-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Kho tri thức AI</p>
+              <p className="text-xs text-muted-foreground">
+                Nền tảng cho tác tử Tra cứu và Trợ giúp công dân
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Văn bản tham chiếu", value: "272" },
+              { label: "Đoạn nội dung", value: "7.525" },
+              { label: "Độ tin cậy", value: "93%" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg bg-white border border-teal-100 p-3 text-center"
+              >
+                <p className="text-2xl font-bold text-teal-600">{item.value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ── Row 2: Charts ───────────────────────────────────── */}
       {!statsLoading && !hasData ? (

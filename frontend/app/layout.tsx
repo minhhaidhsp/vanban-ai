@@ -7,8 +7,8 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin", "vietnamese"] });
 
 export const metadata: Metadata = {
-  title: "VănBản.AI",
-  description: "Ứng dụng xử lý và phân tích văn bản thông minh với AI",
+  title: "CivicAI",
+  description: "Hệ đa tác tử AI hỗ trợ hành chính công",
 };
 
 export default function RootLayout({
