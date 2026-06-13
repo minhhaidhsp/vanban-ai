@@ -168,11 +168,17 @@ interface EditorToolbarProps {
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   if (!editor) return null;
 
-  const hasTextStyle = !!editor.schema.marks["textStyle"];
+  const hasTextStyle = !!(
+    editor?.schema?.marks?.["textStyle"]
+  );
 
   // Current font family (strip quotes added by browser CSS parser)
   const currentFont = hasTextStyle
-    ? (editor.getAttributes("textStyle").fontFamily || "").replace(/['"]/g, "")
+    ? (editor.getAttributes("textStyle")?.fontFamily || "").replace(/['"]/g, "")
+    : "";
+
+  const fontSize = hasTextStyle
+    ? editor.getAttributes("textStyle")?.fontSize ?? ""
     : "";
 
   return (
@@ -223,10 +229,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {/* Font size */}
       {hasTextStyle && (
         <select
-          value={(() => {
-            const style = editor.getAttributes("textStyle").fontSize;
-            return style ? parseInt(style) : 13;
-          })()}
+          value={fontSize ? parseInt(fontSize) : 13}
           onChange={(e) => {
             editor.chain().focus()
               .setMark("textStyle", { fontSize: `${e.target.value}pt` })

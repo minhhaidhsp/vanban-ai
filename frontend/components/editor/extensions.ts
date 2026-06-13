@@ -59,6 +59,12 @@ export const ParagraphFormatExtension = Extension.create({
             renderHTML: (attrs) =>
               attrs.marginRight ? { style: `margin-right: ${attrs.marginRight}` } : {},
           },
+          textIndent: {
+            default: null,
+            parseHTML: (el) => (el as HTMLElement).style.textIndent || null,
+            renderHTML: (attrs) =>
+              attrs.textIndent ? { style: `text-indent: ${attrs.textIndent}` } : {},
+          },
         },
       },
     ];

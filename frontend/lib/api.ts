@@ -49,16 +49,29 @@ export const authApi = {
   },
 };
 
+export interface OrganizationDto {
+  ten_chu_quan: string;
+  ten_co_quan: string;
+  viet_tat: string;
+  dia_danh: string;
+  chu_ky_mac_dinh: { quyen_han?: string; ten_tap_the?: string; chuc_vu?: string };
+}
+
 export const organizationApi = {
   getCurrent: async () => {
     const { data } = await api.get("/organizations/current");
-    return data as {
-      ten_chu_quan: string;
-      ten_co_quan: string;
-      viet_tat: string;
-      dia_danh: string;
-      chu_ky_mac_dinh: { quyen_han?: string; ten_tap_the?: string; chuc_vu?: string };
-    };
+    return data as OrganizationDto;
+  },
+
+  updateCurrent: async (payload: {
+    ten_chu_quan?: string;
+    ten_co_quan?: string;
+    viet_tat?: string;
+    dia_danh?: string;
+    chu_ky_mac_dinh?: Record<string, string>;
+  }) => {
+    const { data } = await api.put("/organizations/current", payload);
+    return data as OrganizationDto;
   },
 };
 
@@ -414,6 +427,33 @@ export const chatApi = {
 
   clearHistory: async (docId: string): Promise<void> => {
     await api.delete("/rag/chat/history", { params: { doc_id: docId } });
+  },
+};
+
+export interface UserDto {
+  id: string;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const userApi = {
+  getMe: async () => {
+    const { data } = await api.get("/users/me");
+    return data as UserDto;
+  },
+
+  updateProfile: async (payload: { full_name: string }) => {
+    const { data } = await api.patch("/users/me", payload);
+    return data as UserDto;
+  },
+
+  changePassword: async (payload: {
+    current_password: string;
+    new_password: string;
+  }) => {
+    await api.post("/users/me/change-password", payload);
   },
 };
 

@@ -236,6 +236,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
   const [activeFieldId, setActiveFieldId] = useState<string>("");
   const [leftIndentMm, setLeftIndentMm] = useState(0);
   const [rightIndentMm, setRightIndentMm] = useState(0);
+  const [firstLineIndentMm, setFirstLineIndentMm] = useState(0);
 
   const handleEditorFocused = useCallback((fieldId: string, editor: Editor) => {
     setActiveEditor(editor);
@@ -256,6 +257,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
       const attrs = activeEditor.getAttributes("paragraph");
       setLeftIndentMm(parseFloat((attrs.marginLeft  || "0").replace("mm", "")) || 0);
       setRightIndentMm(parseFloat((attrs.marginRight || "0").replace("mm", "")) || 0);
+      setFirstLineIndentMm(parseFloat((attrs.textIndent || "0").replace("mm", "")) || 0);
     };
     activeEditor.on("selectionUpdate", sync);
     activeEditor.on("transaction",     sync);
@@ -485,21 +487,6 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         )}
       </div>
 
-      {/* ── Banner AI điền thông minh (chỉ hiện khi tạo mới) ─── */}
-      {isNew && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border-b border-purple-100 text-sm text-purple-700 print:hidden">
-          <span>✨</span>
-          <span>Văn bản mới — dùng AI để điền nhanh:</span>
-          <button
-            type="button"
-            onClick={handleAIFillAll}
-            className="font-medium underline hover:text-purple-900 transition-colors"
-          >
-            Điền thông minh
-          </button>
-        </div>
-      )}
-
       {/* ── Shared TipTap toolbar — sticks below top toolbar (49px) ── */}
       <div className={`sticky top-[49px] z-30 shrink-0 border-b bg-white shadow-sm print:hidden transition-all duration-150 ${
         activeEditor ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden"
@@ -514,11 +501,25 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
           rightMarginMm={20}
           leftIndentMm={leftIndentMm}
           rightIndentMm={rightIndentMm}
+          firstLineIndentMm={firstLineIndentMm}
           onLeftIndentChange={setLeftIndentMm}
           onRightIndentChange={setRightIndentMm}
+          onFirstLineIndentChange={setFirstLineIndentMm}
           activeEditor={activeEditor}
           className="sticky top-[89px] z-29"
         />
+      )}
+
+      {/* ── Banner AI điền thông minh (chỉ hiện khi tạo mới, sau vùng sticky) ─── */}
+      {isNew && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border-b border-purple-100 text-sm text-purple-700 print:hidden">
+          <span>✨</span>
+          <span>Văn bản mới — dùng AI để điền nhanh:</span>
+          <button type="button" onClick={handleAIFillAll}
+            className="font-medium underline hover:text-purple-900 transition-colors">
+            Điền thông minh
+          </button>
+        </div>
       )}
 
       {/* ── A4 area — middle column scrolls, no inner scroll ─── */}
