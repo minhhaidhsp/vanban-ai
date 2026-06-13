@@ -7,10 +7,12 @@ interface EditorRulerProps {
   pageWidthPx?: number;
   leftIndentMm?: number;
   rightIndentMm?: number;
+  firstLineIndentMm?: number;
   leftMarginMm?: number;
   rightMarginMm?: number;
   onLeftIndentChange?: (mm: number) => void;
   onRightIndentChange?: (mm: number) => void;
+  onFirstLineIndentChange?: (mm: number) => void;
   activeEditor?: Editor | null;
   className?: string;
 }
@@ -22,18 +24,20 @@ export function EditorRuler({
   pageWidthPx = 794,
   leftIndentMm = 0,
   rightIndentMm = 0,
+  firstLineIndentMm = 0,
   leftMarginMm = 30,
   rightMarginMm = 20,
   onLeftIndentChange,
   onRightIndentChange,
+  onFirstLineIndentChange,
   activeEditor,
   className,
 }: EditorRulerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(pageWidthPx);
-  const [dragging, setDragging] = useState<"left" | "right" | null>(null);
-  const [hovering, setHovering] = useState<"left" | "right" | null>(null);
+  const [dragging, setDragging] = useState<"left" | "right" | "firstLine" | null>(null);
+  const [hovering, setHovering] = useState<"left" | "right" | "firstLine" | null>(null);
 
   // Draw ruler on canvas
   useEffect(() => {
@@ -65,18 +69,25 @@ export function EditorRuler({
     ctx.fillStyle = "rgba(203, 213, 225, 0.45)";
     ctx.fillRect(rightEdgePx, 0, width - rightEdgePx, RULER_HEIGHT - 1);
 
-    // Left indent shade (teal, between margin and indent marker)
+    // Left indent shade (teal)
     const leftIndentPx = (leftMarginMm + leftIndentMm) * pxPerMm;
     if (leftIndentMm > 0) {
       ctx.fillStyle = "rgba(13, 148, 136, 0.12)";
       ctx.fillRect(leftMarginPx, 0, leftIndentPx - leftMarginPx, RULER_HEIGHT - 1);
     }
 
-    // Right indent shade
+    // Right indent shade (teal)
     const rightIndentPx = (PAGE_WIDTH_MM - rightMarginMm - rightIndentMm) * pxPerMm;
     if (rightIndentMm > 0) {
       ctx.fillStyle = "rgba(13, 148, 136, 0.12)";
       ctx.fillRect(rightIndentPx, 0, rightEdgePx - rightIndentPx, RULER_HEIGHT - 1);
+    }
+
+    // First-line indent shade (amber)
+    const firstLinePx = (leftMarginMm + leftIndentMm + firstLineIndentMm) * pxPerMm;
+    if (firstLineIndentMm > 0) {
+      ctx.fillStyle = "rgba(217, 119, 6, 0.08)";
+      ctx.fillRect(leftIndentPx, 0, firstLinePx - leftIndentPx, RULER_HEIGHT - 1);
     }
 
     // Border bottom
@@ -112,8 +123,8 @@ export function EditorRuler({
       ctx.stroke();
     }
 
-    // Marker triangles — left indent (at leftIndentPx) and right indent (at rightIndentPx)
-    const drawMarker = (x: number, isHovered: boolean) => {
+    // Upward triangle (teal) — left/right indent markers, pointing up from bottom
+    const drawUpMarker = (x: number, isHovered: boolean) => {
       ctx.fillStyle = isHovered ? "#0f766e" : "#0d9488";
       ctx.beginPath();
       ctx.moveTo(x - 5, RULER_HEIGHT - 2);
@@ -123,9 +134,21 @@ export function EditorRuler({
       ctx.fill();
     };
 
-    drawMarker(leftIndentPx,  hovering === "left"  || dragging === "left");
-    drawMarker(rightIndentPx, hovering === "right" || dragging === "right");
-  }, [width, leftMarginMm, rightMarginMm, leftIndentMm, rightIndentMm, hovering, dragging]);
+    // Downward triangle (amber) — first-line indent marker, pointing down from top
+    const drawDownMarker = (x: number, isHovered: boolean) => {
+      ctx.fillStyle = isHovered ? "#b45309" : "#d97706";
+      ctx.beginPath();
+      ctx.moveTo(x - 5, 1);
+      ctx.lineTo(x + 5, 1);
+      ctx.lineTo(x, 8);
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    drawUpMarker(leftIndentPx,  hovering === "left"      || dragging === "left");
+    drawUpMarker(rightIndentPx, hovering === "right"     || dragging === "right");
+    drawDownMarker(firstLinePx, hovering === "firstLine" || dragging === "firstLine");
+  }, [width, leftMarginMm, rightMarginMm, leftIndentMm, rightIndentMm, firstLineIndentMm, hovering, dragging]);
 
   // Resize observer
   useEffect(() => {
@@ -150,17 +173,22 @@ export function EditorRuler({
         const indent = Math.max(0, xMm - leftMarginMm);
         onLeftIndentChange?.(Math.round(indent));
         activeEditor?.chain().focus()
-          .updateAttributes("paragraph", {
-            marginLeft: indent > 0 ? `${indent}mm` : null,
-          })
+          .updateAttributes("paragraph", { marginLeft: indent > 0 ? `${indent}mm` : null })
           .run();
-      } else {
+      } else if (dragging === "right") {
         const indent = Math.max(0, PAGE_WIDTH_MM - rightMarginMm - xMm);
         onRightIndentChange?.(Math.round(indent));
         activeEditor?.chain().focus()
-          .updateAttributes("paragraph", {
-            marginRight: indent > 0 ? `${indent}mm` : null,
-          })
+          .updateAttributes("paragraph", { marginRight: indent > 0 ? `${indent}mm` : null })
+          .run();
+      } else if (dragging === "firstLine") {
+        const minMm = leftMarginMm + leftIndentMm;
+        const maxMm = PAGE_WIDTH_MM - rightMarginMm - 10;
+        const clampedMm = Math.max(minMm, Math.min(maxMm, xMm));
+        const indent = Math.max(0, clampedMm - minMm);
+        onFirstLineIndentChange?.(Math.round(indent));
+        activeEditor?.chain().focus()
+          .updateAttributes("paragraph", { textIndent: indent > 0 ? `${indent}mm` : null })
           .run();
       }
     };
@@ -172,14 +200,18 @@ export function EditorRuler({
       window.removeEventListener("mouseup", onUp);
     };
   }, [dragging, leftMarginMm, rightMarginMm, leftIndentMm, rightIndentMm,
-      onLeftIndentChange, onRightIndentChange, activeEditor]);
+      onLeftIndentChange, onRightIndentChange, onFirstLineIndentChange, activeEditor]);
 
-  const getNearMarker = (e: React.MouseEvent<HTMLDivElement>): "left" | "right" | null => {
+  const getNearMarker = (e: React.MouseEvent<HTMLDivElement>): "left" | "right" | "firstLine" | null => {
     if (!containerRef.current) return null;
     const rect = containerRef.current.getBoundingClientRect();
     const xMm = ((e.clientX - rect.left) / rect.width) * PAGE_WIDTH_MM;
-    const leftMarkerMm  = leftMarginMm + leftIndentMm;
-    const rightMarkerMm = PAGE_WIDTH_MM - rightMarginMm - rightIndentMm;
+    const yRel = e.clientY - rect.top;
+    const leftMarkerMm      = leftMarginMm + leftIndentMm;
+    const rightMarkerMm     = PAGE_WIDTH_MM - rightMarginMm - rightIndentMm;
+    const firstLineMarkerMm = leftMarginMm + leftIndentMm + firstLineIndentMm;
+    // firstLine marker lives in the top half of the ruler (downward triangle)
+    if (yRel < RULER_HEIGHT / 2 && Math.abs(xMm - firstLineMarkerMm) < 5) return "firstLine";
     if (Math.abs(xMm - leftMarkerMm)  < 5) return "left";
     if (Math.abs(xMm - rightMarkerMm) < 5) return "right";
     return null;

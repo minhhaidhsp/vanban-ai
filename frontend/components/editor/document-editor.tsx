@@ -418,6 +418,28 @@ async function getUniqueTitle(baseTitle: string, docId?: string): Promise<string
   }
 }
 
+function markdownToHtml(md: string): string {
+  return md
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/^\s*[-*+] (.+)$/gm, "<li>$1</li>")
+    .replace(/^\s*\d+\. (.+)$/gm, "<li>$1</li>")
+    .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
+    .split(/\n\n+/)
+    .map(block => {
+      block = block.trim();
+      if (!block) return "";
+      if (block.startsWith("<")) return block;
+      return `<p>${block.replace(/\n/g, "<br>")}</p>`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function DocumentEditor({
   documentId, initialContent, initialTitle, onAiReview, editorMapRef,
   reviewChanges, reviewSummary, acceptedIds, rejectedIds, isReviewing,
@@ -766,7 +788,8 @@ export function DocumentEditor({
         }
 
         if (targetEditor) {
-          (targetEditor as Editor).chain().focus().insertContent(text).run();
+          const html = markdownToHtml(text);
+          (targetEditor as Editor).chain().focus().insertContent(html).run();
           toast({ title: "Đã chèn vào văn bản" });
           return;
         }
