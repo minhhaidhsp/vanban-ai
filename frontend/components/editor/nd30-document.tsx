@@ -101,15 +101,18 @@ function TypeSelector({ value, onChange }: { value: string; onChange: (v: string
           onChange={(e) => onChange(e.target.value)}
           className="h-7 pl-2 pr-7 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
         >
+          <option value="">— Trang trắng —</option>
           {Object.entries(VAN_BAN_TYPES).map(([key, vb]) => (
             <option key={key} value={key}>{vb.abbreviation} — {vb.full_name}</option>
           ))}
         </select>
         <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
       </div>
-      <span className="text-xs text-muted-foreground">
-        Mẫu {getTemplateForType(value).code}: {getTemplateForType(value).name}
-      </span>
+      {value && (
+        <span className="text-xs text-muted-foreground">
+          Mẫu {getTemplateForType(value).code}: {getTemplateForType(value).name}
+        </span>
+      )}
     </div>
   );
 }
@@ -190,7 +193,7 @@ function DiaDanhSelect({ value, onChange, style }: {
 
 // Map abbreviation key → full display name cho suggest API
 const getLoaiVbDisplay = (loaiVb: string) =>
-  VAN_BAN_TYPES[loaiVb]?.full_name || loaiVb || "Quyết định";
+  VAN_BAN_TYPES[loaiVb]?.full_name || loaiVb || "";
 
 // ── Main component ────────────────────────────────────────────────────────
 
@@ -357,11 +360,12 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
     });
   };
 
-  const template    = getTemplateForType(data.loaiVanBan);
-  const showTenLoai = hasTenLoai(template);
-  const showKinhGui = hasKinhGui(template);
-  const vbInfo      = VAN_BAN_TYPES[data.loaiVanBan];
-  const soKHHint    = getSoKHFormat(data.loaiVanBan)
+  const isBlank     = !data.loaiVanBan;
+  const template    = isBlank ? null : getTemplateForType(data.loaiVanBan);
+  const showTenLoai = isBlank ? false : hasTenLoai(template!);
+  const showKinhGui = isBlank ? false : hasKinhGui(template!);
+  const vbInfo      = isBlank ? null : VAN_BAN_TYPES[data.loaiVanBan];
+  const soKHHint    = isBlank ? "" : getSoKHFormat(data.loaiVanBan)
     .replace("{so}", "15").replace("{nam}", "2025")
     .replace("{loai}", data.loaiVanBan).replace("{cq}", "CQ");
 
@@ -497,6 +501,28 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
             fontSize: "14pt", color: "#000", boxSizing: "border-box",
           }}
         >
+          {isBlank ? (
+            <SectionEditor
+              content=""
+              onChange={(html) => {
+                setData((prev) => {
+                  const next = { ...prev, noiDung: html };
+                  onChange?.(next);
+                  return next;
+                });
+              }}
+              placeholder="Bắt đầu soạn thảo... Chọn loại văn bản trên thanh menu để áp dụng template."
+              minHeight="240mm"
+              onEditorReady={(editor) => {
+                editorMapRef?.current.set("noiDung", editor);
+                editor.commands.focus("start");
+              }}
+              onEditorFocused={(editor) => {
+                editorMapRef?.current.set("noiDung", editor);
+              }}
+            />
+          ) : (
+            <>
           {/* Page break indicator — shows ranh giới trang 1 */}
           {numPages > 1 && Array.from({ length: numPages - 1 }, (_, i) => (
             <div
@@ -644,6 +670,8 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
                 style={getFontStyle("ho_ten_ky")} placeholder="Họ và tên người ký" />
             </div>
           </div>
+            </>
+          )}
 
         </div>
       </div>
