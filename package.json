@@ -1,0 +1,31 @@
+{
+  "name": "vanban-ai",
+  "version": "1.0.0",
+  "description": "Ứng dụng xử lý và phân tích văn bản thông minh với AI.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:report": "playwright show-report",
+    "test:video": "playwright test e2e/09_video_demo.spec.ts",
+    "test:headed": "playwright test e2e/09_video_demo.spec.ts --project=headed-video",
+    "test:headed:all": "playwright test --project=headed-video"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/minhhaidhsp/vanban-ai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/minhhaidhsp/vanban-ai/issues"
+  },
+  "homepage": "https://github.com/minhhaidhsp/vanban-ai#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}
