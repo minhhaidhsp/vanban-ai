@@ -419,25 +419,46 @@ async function getUniqueTitle(baseTitle: string, docId?: string): Promise<string
 }
 
 function markdownToHtml(md: string): string {
-  return md
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^\s*[-*+] (.+)$/gm, "<li>$1</li>")
-    .replace(/^\s*\d+\. (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
-    .split(/\n\n+/)
-    .map(block => {
-      block = block.trim();
-      if (!block) return "";
-      if (block.startsWith("<")) return block;
-      return `<p>${block.replace(/\n/g, "<br>")}</p>`;
-    })
-    .filter(Boolean)
-    .join("\n");
+  const processInline = (text: string) =>
+    text
+      .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  const blocks = md.split(/\n\n+/);
+
+  const htmlBlocks = blocks.map(block => {
+    block = block.trim();
+    if (!block) return "";
+
+    if (/^### /.test(block)) return `<h3>${processInline(block.slice(4))}</h3>`;
+    if (/^## /.test(block))  return `<h2>${processInline(block.slice(3))}</h2>`;
+    if (/^# /.test(block))   return `<h1>${processInline(block.slice(2))}</h1>`;
+
+    const lines = block.split("\n");
+    const isListBlock = lines.every(l =>
+      /^\s*[-*+] /.test(l) || /^\s*\d+\. /.test(l) || !l.trim()
+    );
+    if (isListBlock) {
+      const items = lines
+        .filter(l => l.trim())
+        .map(l => {
+          const text = l.replace(/^\s*[-*+] /, "").replace(/^\s*\d+\. /, "");
+          return `<li>${processInline(text)}</li>`;
+        })
+        .join("");
+      return `<ul>${items}</ul>`;
+    }
+
+    if (block.startsWith("<")) return block;
+
+    return lines
+      .filter(l => l.trim())
+      .map(l => `<p>${processInline(l)}</p>`)
+      .join("");
+  });
+
+  return htmlBlocks.filter(Boolean).join("");
 }
 
 export function DocumentEditor({

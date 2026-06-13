@@ -31,6 +31,7 @@ interface ToolTask {
   toolId: string;
   label: string;
   timestamp: Date;
+  messageId?: string;
 }
 
 export interface RightPanelProps {
@@ -467,6 +468,7 @@ export function RightPanel({
   const [isStreaming, setIsStreaming] = useState(false);
   const [viewingCitation, setViewingCitation] = useState<ChatCitation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Tracks which review-type tool triggered the current review session
   const pendingReviewToolRef = useRef<"review" | "nd30">("review");
@@ -506,11 +508,11 @@ export function RightPanel({
   }, [activeTab]);
 
   const addTask = useCallback(
-    (toolId: ToolId) => {
+    (toolId: ToolId, messageId?: string) => {
       const tool = TOOLS.find((t) => t.id === toolId);
       if (!tool) return;
       setTasks((prev) => [
-        { id: `${toolId}-${Date.now()}`, toolId, label: tool.label, timestamp: new Date() },
+        { id: `${toolId}-${Date.now()}`, toolId, label: tool.label, timestamp: new Date(), messageId },
         ...prev.slice(0, 9),
       ]);
     },
@@ -525,11 +527,11 @@ export function RightPanel({
   }, [reviewChanges, isReviewing, addTask]);
 
   const sendMessage = useCallback(
-    async (query: string, displayLabel?: string) => {
+    async (query: string, displayLabel?: string, targetMsgId?: string) => {
       if (!query.trim() || isStreaming) return;
       const now = Date.now();
       const userMsgId = `u-${now}`;
-      const asstMsgId = `a-${now + 1}`;
+      const asstMsgId = targetMsgId ?? `a-${now + 1}`;
 
       setMessages((prev) => [
         ...prev,
@@ -603,14 +605,17 @@ export function RightPanel({
       toast({ title: "Đang xử lý, vui lòng đợi" });
       return;
     }
+    const now = Date.now();
+    const asstMsgId = `a-${now + 1}`;
+    addTask("table", asstMsgId);
     const content = getDocContext();
     sendMessage(
       `Đọc nội dung sau và trích xuất toàn bộ số liệu, thống kê, dữ liệu định lượng có trong văn bản. ` +
       `Tổng hợp thành bảng markdown với cột Nội dung và Số liệu. ` +
       `Nếu không có số liệu thì nêu rõ. Văn bản: ${content}`,
-      "Lập bảng số liệu"
+      "Lập bảng số liệu",
+      asstMsgId
     );
-    addTask("table");
   }, [isStreaming, getDocContext, sendMessage, addTask, toast]);
 
   const handleGenerateDraft = useCallback(() => {
@@ -618,13 +623,16 @@ export function RightPanel({
       toast({ title: "Đang xử lý, vui lòng đợi" });
       return;
     }
+    const now = Date.now();
+    const asstMsgId = `a-${now + 1}`;
+    addTask("draft", asstMsgId);
     const content = getDocContext();
     sendMessage(
       `Dựa trên nội dung văn bản hành chính sau, hãy gợi ý đoạn nội dung tiếp theo phù hợp thể thức và văn phong hành chính. ` +
       `Gợi ý khoảng 3 đến 5 câu, súc tích, đúng văn phong công vụ. Văn bản hiện tại: ${content}`,
-      "Soạn thảo nhanh"
+      "Soạn thảo nhanh",
+      asstMsgId
     );
-    addTask("draft");
   }, [isStreaming, getDocContext, sendMessage, addTask, toast]);
 
   const handleGenerateCompare = useCallback((_sourceId: string) => {
@@ -632,13 +640,16 @@ export function RightPanel({
       toast({ title: "Đang xử lý, vui lòng đợi" });
       return;
     }
+    const now = Date.now();
+    const asstMsgId = `a-${now + 1}`;
+    addTask("compare", asstMsgId);
     sendMessage(
       `So sánh văn bản hiện tại với tài liệu tham chiếu đã chọn. ` +
       `Nêu rõ những điểm khác nhau về nội dung, thời hạn, yêu cầu hoặc quy định. ` +
       `Trình bày dạng danh sách rõ ràng.`,
-      "So sánh văn bản"
+      "So sánh văn bản",
+      asstMsgId
     );
-    addTask("compare");
   }, [isStreaming, sendMessage, addTask, toast]);
 
   const handleClearHistory = async () => {
@@ -662,8 +673,11 @@ export function RightPanel({
         setActiveTool("nd30");
         onAiReview();
         break;
-      case "style":
+      case "style": {
         if (isStreaming) { toast({ title: "Đang xử lý, vui lòng đợi" }); return; }
+        const styleNow = Date.now();
+        const styleAsstId = `a-${styleNow + 1}`;
+        addTask("style", styleAsstId);
         sendMessage(
           "Đọc toàn bộ văn bản sau và chuẩn hóa văn phong " +
           "thành văn phong hành chính công vụ chuẩn mực: " +
@@ -671,21 +685,29 @@ export function RightPanel({
           "đúng cấu trúc câu văn hành chính, " +
           "thống nhất xưng hô và cách dùng từ. " +
           "Trả về toàn bộ văn bản đã chuẩn hóa.",
-          "Chuẩn văn phong"
+          "Chuẩn văn phong",
+          styleAsstId
         );
-        addTask("style");
         break;
-      case "summarize":
-        sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.", "Tóm tắt nội dung");
-        addTask("summarize");
+      }
+      case "summarize": {
+        const sumNow = Date.now();
+        const sumAsstId = `a-${sumNow + 1}`;
+        addTask("summarize", sumAsstId);
+        sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.", "Tóm tắt nội dung", sumAsstId);
         break;
-      case "citation":
+      }
+      case "citation": {
+        const citNow = Date.now();
+        const citAsstId = `a-${citNow + 1}`;
+        addTask("citation", citAsstId);
         sendMessage(
           "Gợi ý các căn cứ pháp lý phù hợp cho văn bản đang soạn thảo. Liệt kê số/ký hiệu, tên văn bản cụ thể.",
-          "Trích dẫn điều khoản"
+          "Trích dẫn điều khoản",
+          citAsstId
         );
-        addTask("citation");
         break;
+      }
       case "qa": {
         const lastAssistantMsg = [...messages]
           .reverse()
@@ -940,7 +962,21 @@ export function RightPanel({
                     return (
                       <button
                         key={task.id}
-                        onClick={() => setActiveTool(task.toolId as ToolId)}
+                        onClick={() => {
+                          const chatTools = ["summarize", "nd30", "citation", "table", "draft", "style", "compare", "qa"];
+                          if (chatTools.includes(task.toolId)) {
+                            setActiveTab("chat");
+                            setActiveTool(null);
+                            if (task.messageId) {
+                              setTimeout(() => {
+                                const el = messageRefs.current.get(task.messageId!);
+                                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }, 100);
+                            }
+                          } else {
+                            setActiveTool(task.toolId as ToolId);
+                          }
+                        }}
                         className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left cursor-pointer"
                       >
                         <div
@@ -1001,6 +1037,10 @@ export function RightPanel({
             {messages.map((msg) => (
               <div
                 key={msg.id}
+                ref={(el) => {
+                  if (el) messageRefs.current.set(msg.id, el);
+                  else messageRefs.current.delete(msg.id);
+                }}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div

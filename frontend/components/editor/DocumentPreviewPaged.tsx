@@ -106,38 +106,42 @@ export function DocumentPreviewPaged({ data, onClose, onExportPdf, onExportDocx,
         </div>
 
         {/* Rendered A4 pages ─────────────────────────────────── */}
-        <div className="flex flex-col items-center gap-[8mm]">
+        <div className="flex flex-col items-center" style={{ gap: "8mm" }}>
           {Array.from({ length: numPages }, (_, pageIdx) => (
             <div
               key={pageIdx}
-              className="bg-white shadow-lg"
               style={{
-                width: `${210}mm`,
-                height: `${PAGE_H}mm`,
+                width: "210mm",
+                height: "297mm",
+                background: "white",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                 position: "relative",
-                flexShrink: 0,
                 overflow: "hidden",
+                flexShrink: 0,
               }}
             >
-              {/*
-               * Inner clip zone: sits at exactly the content area
-               *   top:    MARGIN_T  (25mm) — creates top margin
-               *   height: CONTENT_H (247mm) — clips at bottom of content area
-               * The remaining (PAGE_H - MARGIN_T - CONTENT_H) = 25mm below stays
-               * empty, creating the bottom margin.
-               */}
+              {/* Content wrapper với padding lề trang */}
               <div
                 style={{
                   position: "absolute",
                   top: `${MARGIN_T}mm`,
                   left: `${MARGIN_L}mm`,
                   right: `${MARGIN_R}mm`,
-                  height: `${CONTENT_H}mm`,
+                  bottom: `${MARGIN_B}mm`,
                   overflow: "hidden",
                 }}
               >
-                {/* Shift content up to show the Nth page slice */}
-                <div style={{ transform: `translateY(${-pageIdx * CONTENT_H}mm)`, ...CONTENT_STYLE }}>
+                {/* Dịch chuyển lên để hiện đúng trang */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    transform: `translateY(${-pageIdx * CONTENT_H}mm)`,
+                    ...CONTENT_STYLE,
+                  }}
+                >
                   <Nd30StaticContent data={data} />
                 </div>
               </div>
