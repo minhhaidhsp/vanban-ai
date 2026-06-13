@@ -34,3 +34,25 @@ async def get_current_user(
         raise credentials_exception
 
     return user
+
+
+async def get_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role != "admin" and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ Admin mới có quyền thực hiện thao tác này",
+        )
+    return current_user
+
+
+async def get_leader_or_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role not in ("admin", "leader") and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập",
+        )
+    return current_user

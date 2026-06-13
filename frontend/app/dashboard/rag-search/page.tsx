@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { AlertCircle, BookOpen, Search, Sparkles, Wifi, WifiOff } from "lucide-react";
+import { AlertCircle, BookOpen, Search, Sparkles, Wifi, WifiOff, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { ragApi, ChunkUsed, RAGQueryResponse } from "@/lib/api";
 
 // ── Suggested questions ───────────────────────────────────────────────────────
@@ -22,9 +21,9 @@ const SUGGESTED_QUESTIONS = [
 // ── Progress steps ────────────────────────────────────────────────────────────
 
 const PROGRESS_STEPS = [
-  { at: 0,    label: "Đang tìm kiếm trong kho văn bản..." },
-  { at: 2000, label: "Đang xếp hạng kết quả liên quan..." },
-  { at: 5000, label: "Đang tổng hợp câu trả lời..." },
+  { at: 0,     label: "Đang tìm kiếm trong kho văn bản..." },
+  { at: 2000,  label: "Đang xếp hạng kết quả liên quan..." },
+  { at: 5000,  label: "Đang tổng hợp câu trả lời..." },
   { at: 15000, label: "LLM đang xử lý (có thể mất thêm vài giây)..." },
 ];
 
@@ -45,7 +44,7 @@ function parseAnswerWithCitations(answer: string, onCitationClick: (n: number) =
       <button
         key={match.index}
         onClick={() => onCitationClick(num)}
-        className="inline-flex items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold w-5 h-5 mx-0.5 hover:bg-blue-700 transition-colors cursor-pointer leading-none"
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 hover:bg-teal-200 cursor-pointer mx-0.5 transition-colors"
         title={`Xem nguồn [${num}]`}
       >
         {num}
@@ -158,7 +157,7 @@ function LLMStatusBadge() {
   );
 }
 
-// ── Citation Card ─────────────────────────────────────────────────────────────
+// ── Citation Card (kept for future use) ──────────────────────────────────────
 
 function CitationCard({ chunk, index, isFallback }: { chunk: ChunkUsed; index: number; isFallback?: boolean }) {
   return (
@@ -204,7 +203,13 @@ export default function RAGSearchPage() {
   const [result, setResult] = useState<RAGQueryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progressStep, setProgressStep] = useState(0);
+  const [activeCitation, setActiveCitation] = useState<number | null>(null);
   const progressTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Đóng sidebar khi có kết quả mới
+  useEffect(() => {
+    setActiveCitation(null);
+  }, [result]);
 
   const clearProgressTimers = () => {
     progressTimers.current.forEach(clearTimeout);
@@ -220,15 +225,6 @@ export default function RAGSearchPage() {
       progressTimers.current.push(t);
     });
   };
-
-  const scrollToCitation = useCallback((n: number) => {
-    const el = document.getElementById(`citation-${n}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      el.classList.add("ring-2", "ring-blue-400");
-      setTimeout(() => el.classList.remove("ring-2", "ring-blue-400"), 1500);
-    }
-  }, []);
 
   const handleSearch = useCallback(async () => {
     const q = query.trim();
@@ -286,10 +282,14 @@ export default function RAGSearchPage() {
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body: 1 cột chính + sidebar overlay */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel */}
-        <div className="flex flex-col flex-1 overflow-y-auto p-6 gap-5 min-w-0">
+
+        {/* Cột chính — co lại khi sidebar mở */}
+        <div className={cn(
+          "flex-1 overflow-y-auto p-6 gap-5 flex flex-col min-w-0 transition-all duration-200",
+          activeCitation !== null ? "mr-[400px]" : ""
+        )}>
           {/* Search bar */}
           <div className="flex flex-col gap-2">
             <Textarea
@@ -394,10 +394,39 @@ export default function RAGSearchPage() {
                 </div>
               )}
 
-              {/* Answer text */}
+              {/* Answer text — inline citations */}
               {hasChunks && (
-                <div className="rounded-lg border bg-card p-4 text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-2">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.answer}</ReactMarkdown>
+                <div className="rounded-lg border bg-card p-4 text-sm leading-relaxed">
+                  <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
+                    {parseAnswerWithCitations(
+                      result.answer,
+                      (n) => setActiveCitation(n - 1)
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Citation summary pills */}
+              {hasChunks && (
+                <div className="mt-4 pt-3 border-t flex flex-wrap gap-2">
+                  <span className="text-xs text-slate-400">Nguồn trích dẫn:</span>
+                  {result.chunks_used.map((chunk, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveCitation(i)}
+                      className={cn(
+                        "text-xs px-2 py-1 rounded-full border transition-colors",
+                        activeCitation === i
+                          ? "bg-teal-100 border-teal-400 text-teal-700"
+                          : "bg-white border-slate-200 text-slate-500",
+                        "hover:border-teal-300 hover:text-teal-600"
+                      )}
+                    >
+                      [{i + 1}]{" "}
+                      {(chunk.so_ki_hieu || chunk.document_title || "Nguồn").slice(0, 30)}
+                      {(chunk.so_ki_hieu || chunk.document_title || "").length > 30 ? "..." : ""}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -428,22 +457,90 @@ export default function RAGSearchPage() {
           )}
         </div>
 
-        {/* Right panel — citation / fallback cards */}
-        {hasChunks && (
-          <div className="w-[40%] flex-shrink-0 overflow-y-auto border-l p-4 flex flex-col gap-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
-              {result.fallback_mode
-                ? `Văn bản liên quan (${result.chunks_used.length})`
-                : `Nguồn trích dẫn (${result.chunks_used.length})`}
-            </p>
-            {result.chunks_used.map((chunk, i) => (
-              <CitationCard
-                key={i}
-                chunk={chunk}
-                index={i + 1}
-                isFallback={result.fallback_mode}
-              />
-            ))}
+        {/* Sidebar citation panel — trượt vào từ phải */}
+        {activeCitation !== null && result?.chunks_used?.[activeCitation] && (
+          <div className="fixed right-0 top-0 h-full w-[400px] border-l bg-white shadow-2xl z-40 flex flex-col">
+            {/* Sidebar header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-teal-600" />
+                <span className="text-sm font-semibold text-slate-700">
+                  Nguồn trích dẫn [{activeCitation + 1}]
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveCitation(null)}
+                className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex items-center justify-between px-4 py-2 border-b text-xs text-slate-500">
+              <span>
+                {activeCitation + 1} / {result.chunks_used.length} nguồn
+              </span>
+              <div className="flex gap-1">
+                <button
+                  disabled={activeCitation === 0}
+                  onClick={() => setActiveCitation(activeCitation - 1)}
+                  className="px-2 py-1 rounded hover:bg-slate-100 disabled:opacity-40"
+                >
+                  ← Trước
+                </button>
+                <button
+                  disabled={activeCitation === result.chunks_used.length - 1}
+                  onClick={() => setActiveCitation(activeCitation + 1)}
+                  className="px-2 py-1 rounded hover:bg-slate-100 disabled:opacity-40"
+                >
+                  Tiếp →
+                </button>
+              </div>
+            </div>
+
+            {/* Nội dung citation */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {(() => {
+                const chunk = result.chunks_used[activeCitation];
+                return (
+                  <div className="space-y-3">
+                    {/* Tên tài liệu */}
+                    <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                      <p className="text-xs text-teal-600 font-medium mb-0.5">Tài liệu</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {chunk.so_ki_hieu || chunk.document_title}
+                      </p>
+                      {chunk.dieu_khoan && (
+                        <p className="text-xs text-slate-500 mt-1">{chunk.dieu_khoan}</p>
+                      )}
+                    </div>
+
+                    {/* Độ khớp */}
+                    <div className="flex gap-2">
+                      <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                        Độ khớp: {Math.round((chunk.score ?? 0) * 100)}%
+                      </span>
+                      {chunk.rerank_score && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600">
+                          Rerank: {chunk.rerank_score.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Nội dung đoạn trích */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">
+                        Nội dung đoạn trích
+                      </p>
+                      <div className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border whitespace-pre-wrap">
+                        {chunk.content_preview}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
       </div>

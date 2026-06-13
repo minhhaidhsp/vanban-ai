@@ -19,9 +19,17 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: str
     is_active: bool
+    is_superuser: bool
+    role: str
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AdminUpdateUser(BaseModel):
+    full_name: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
 
 
 class Token(BaseModel):

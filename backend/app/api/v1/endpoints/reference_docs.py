@@ -10,7 +10,7 @@ from app.core.storage import (
     ensure_bucket_exists, get_file_url, get_bucket_name,
     upload_file_data, download_file_data, delete_file_data,
 )
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_admin_user
 from app.models.user import User
 from app.models.reference_document import ReferenceDocument
 from app.models.reference_doc_chunk import ReferenceDocChunk
@@ -356,7 +356,7 @@ async def upload_ref_batch(
     files: List[UploadFile] = File(...),
     visibility: str = Form(default="private"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """Upload nhiều file cùng lúc. AI tự trích xuất metadata. Trả 202 ngay."""
     settings = get_settings()
@@ -556,7 +556,7 @@ async def update_hieu_luc(
 async def delete_ref_doc(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     result = await db.execute(
         select(ReferenceDocument).where(

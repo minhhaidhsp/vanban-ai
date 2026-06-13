@@ -30,7 +30,7 @@ async def main():
         print(f"Created doc_id: {doc_id}")
 
         # Check DB immediately after create
-        conn = await asyncpg.connect("postgresql://postgres:postgres123@localhost:5432/vanban_ai")
+        conn = await asyncpg.connect("postgresql://postgres:postgres123@localhost:5433/vanban_ai")
         row = await conn.fetchrow("SELECT id, file_path FROM reference_documents WHERE id=$1", doc_id)
         print(f"DB after create: {'FOUND' if row else 'NOT FOUND'} — file_path={row['file_path'] if row else 'N/A'}")
 

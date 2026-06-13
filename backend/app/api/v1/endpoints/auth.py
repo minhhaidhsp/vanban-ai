@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
+from app.core.config import get_settings
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, Token
 
@@ -59,6 +60,13 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
     )
+
+    # Tự động set admin nếu email khớp config
+    settings = get_settings()
+    if settings.admin_email and user_in.email.lower() == settings.admin_email.lower():
+        user.role = "admin"
+        user.is_superuser = True
+
     try:
         db.add(user)
         await db.flush()

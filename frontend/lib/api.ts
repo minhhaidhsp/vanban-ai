@@ -435,6 +435,8 @@ export interface UserDto {
   email: string;
   full_name: string;
   is_active: boolean;
+  is_superuser: boolean;
+  role: string;
   created_at: string;
 }
 
@@ -454,6 +456,20 @@ export const userApi = {
     new_password: string;
   }) => {
     await api.post("/users/me/change-password", payload);
+  },
+
+  listUsers: async () => {
+    const { data } = await api.get("/users/");
+    return data as UserDto[];
+  },
+
+  updateUser: async (id: string, payload: { role?: string; is_active?: boolean; full_name?: string }) => {
+    const { data } = await api.patch(`/users/${id}`, payload);
+    return data as UserDto;
+  },
+
+  deleteUser: async (id: string) => {
+    await api.delete(`/users/${id}`);
   },
 };
 

@@ -163,7 +163,10 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    base = select(Document).where(Document.owner_id == current_user.id)
+    if current_user.role == "staff" and not current_user.is_superuser:
+        base = select(Document).where(Document.owner_id == current_user.id)
+    else:
+        base = select(Document)
     if source in ("editor", "upload"):
         base = base.where(Document.source == source)
     if q:

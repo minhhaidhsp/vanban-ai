@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
     # Database
-    database_url: str = "postgresql://postgres:password@localhost:5432/vanban_ai"
+    database_url: str = "postgresql://postgres:password@localhost:5433/vanban_ai"
 
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     upload_max_files: int = 20
     upload_timeout_seconds: int = 300
     doc_job_ttl_seconds: int = 86400  # 24h
+
+    # Admin bootstrap — email này tự động nhận role admin khi đăng ký
+    admin_email: str = ""
 
 
 @lru_cache
