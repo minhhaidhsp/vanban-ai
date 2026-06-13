@@ -16,6 +16,11 @@ import {
   FileText, Plus, Trash2, Pencil, Upload, Search, File,
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { BatchUploadModal } from "./BatchUploadModal";
@@ -23,6 +28,13 @@ import { NewDocumentModal } from "./NewDocumentModal";
 import { cn } from "@/lib/utils";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDateTime(d: string) {
+  const dt = new Date(d);
+  const date = dt.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const time = dt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return `${date} ${time}`;
+}
 
 const loaiFullName = (abbr: string | null | undefined): string =>
   abbr ? (VAN_BAN_TYPES[abbr]?.full_name ?? abbr) : "—";
@@ -54,6 +66,7 @@ export function DocumentList() {
 
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const [newDocModalOpen, setNewDocModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [qInput, setQInput] = useState("");
   const [loaiFilter, setLoaiFilter] = useState<string>("all");
@@ -262,9 +275,7 @@ export function DocumentList() {
 
                 {/* Ngày tạo */}
                 <td className="px-4 py-3 text-muted-foreground whitespace-nowrap hidden md:table-cell">
-                  {new Date(doc.created_at).toLocaleDateString("vi-VN", {
-                    day: "2-digit", month: "2-digit", year: "numeric",
-                  })}
+                  {formatDateTime(doc.created_at)}
                 </td>
 
                 {/* Thao tác */}
@@ -279,8 +290,7 @@ export function DocumentList() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(doc.id)}
-                      disabled={deleteMutation.isPending}
+                      onClick={() => setDeletingId(doc.id)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -319,6 +329,29 @@ export function DocumentList() {
           queryClient.invalidateQueries({ queryKey: ["documents"] });
         }}
       />
+
+      <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa tài liệu?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hành động này sẽ xóa vĩnh viễn tài liệu. Không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deletingId) deleteMutation.mutate(deletingId);
+                setDeletingId(null);
+              }}
+            >
+              Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

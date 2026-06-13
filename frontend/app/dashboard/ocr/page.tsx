@@ -2,15 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ocrApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Loader2, ScanText } from "lucide-react";
+import { Download, Loader2, ScanText, Trash2 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Pagination } from "@/components/ui/Pagination";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,12 +91,14 @@ function SortIcon({ col, sortBy, sortOrder }: { col: string; sortBy: string; sor
 
 export default function OcrPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterType, setFilterType] = useState("");
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [exportingJobId, setExportingJobId] = useState<string | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const skip = (page - 1) * LIMIT;
 
   // Reset to page 1 when filters change
@@ -161,6 +168,17 @@ export default function OcrPage() {
       setExportingJobId(null);
     }
   };
+
+  const deleteJobMutation = useMutation({
+    mutationFn: (id: string) => ocrApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-jobs"] });
+      toast({ title: "Đã xóa" });
+    },
+    onError: () => {
+      toast({ title: "Xóa thất bại", variant: "destructive" });
+    },
+  });
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -270,7 +288,7 @@ export default function OcrPage() {
                     Ngày tạo <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px] whitespace-nowrap">Trạng thái</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[170px] whitespace-nowrap">Hành động</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[170px] whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,6 +371,15 @@ export default function OcrPage() {
                             Chi tiết lỗi
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          title="Xóa"
+                          onClick={() => setDeletingJobId(job.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -374,6 +401,29 @@ export default function OcrPage() {
         </>
       )}
 
+      <AlertDialog open={!!deletingJobId} onOpenChange={(o) => !o && setDeletingJobId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa job OCR?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hành động này sẽ xóa vĩnh viễn kết quả OCR và file liên quan.
+              Không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deletingJobId) deleteJobMutation.mutate(deletingJobId);
+                setDeletingJobId(null);
+              }}
+            >
+              Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

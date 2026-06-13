@@ -5,6 +5,7 @@ import {
   Bot, Trash2, SendHorizonal, Loader2, Wrench,
   CheckSquare, Sparkles, FileSearch, AlignLeft, ShieldCheck,
   ChevronLeft, Clock, Check, X, LayoutGrid, AlertCircle, Download,
+  PenLine, GitCompare,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -83,25 +84,80 @@ const QUICK_PROMPTS = [
 
 type ToolId =
   | "review" | "summarize" | "qa" | "table" | "draft"
-  | "nd30" | "citation" | "template" | "compare";
+  | "nd30" | "citation" | "style" | "compare";
 
 interface Tool {
   id: ToolId;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
+  color: "teal" | "blue" | "amber" | "slate";
+  description: string;
 }
 
 const TOOLS: Tool[] = [
-  { id: "review",   label: "Rà soát văn bản",    Icon: ShieldCheck },
-  { id: "summarize",label: "Tóm tắt nội dung",    Icon: AlignLeft   },
-  { id: "qa",       label: "Hỏi đáp nội dung",    Icon: Bot         },
-  { id: "table",    label: "Bảng số liệu",         Icon: LayoutGrid  },
-  { id: "draft",    label: "Soạn thảo nhanh",      Icon: Sparkles    },
-  { id: "nd30",     label: "Kiểm tra định dạng",   Icon: CheckSquare },
-  { id: "citation", label: "Trích dẫn điều khoản", Icon: FileSearch  },
-  { id: "template", label: "Tạo mẫu văn bản",      Icon: AlignLeft   },
-  { id: "compare",  label: "So sánh văn bản",       Icon: Wrench      },
+  { id: "review",   label: "Rà soát",        Icon: ShieldCheck, color: "teal",  description: "Phát hiện lỗi và đề xuất sửa trực tiếp" },
+  { id: "nd30",     label: "Chuẩn thể thức",  Icon: CheckSquare, color: "teal",  description: "Kiểm tra và sửa theo chuẩn Nghị định 30" },
+  { id: "style",    label: "Chuẩn văn phong", Icon: PenLine,     color: "teal",  description: "Đồng bộ văn phong hành chính toàn văn bản" },
+  { id: "summarize",label: "Tóm tắt",         Icon: AlignLeft,   color: "blue",  description: "Tóm tắt nội dung chính 3-5 câu" },
+  { id: "table",    label: "Bảng số liệu",    Icon: LayoutGrid,  color: "blue",  description: "Trích xuất số liệu thành bảng" },
+  { id: "draft",    label: "Gợi ý tiếp",      Icon: Sparkles,    color: "blue",  description: "Gợi ý đoạn nội dung tiếp theo" },
+  { id: "citation", label: "Căn cứ pháp lý",  Icon: FileSearch,  color: "blue",  description: "Tìm căn cứ pháp lý phù hợp" },
+  { id: "compare",  label: "So sánh",          Icon: GitCompare,  color: "amber", description: "So sánh với tài liệu tham chiếu" },
+  { id: "qa",       label: "Hỏi đáp",          Icon: Bot,         color: "slate", description: "Hỏi AI về nội dung văn bản" },
 ];
+
+type ToolColor = "teal" | "blue" | "amber" | "slate";
+
+const TOOL_COLORS: Record<ToolColor, {
+  active: string; hover: string; icon: string; iconDefault: string; iconHover: string; label: string;
+}> = {
+  teal: {
+    active:      "border-teal-500 bg-teal-50",
+    hover:       "hover:border-teal-300 hover:bg-teal-50/50",
+    icon:        "text-teal-600",
+    iconDefault: "text-teal-400",
+    iconHover:   "group-hover:text-teal-500",
+    label:       "text-teal-700",
+  },
+  blue: {
+    active:      "border-blue-500 bg-blue-50",
+    hover:       "hover:border-blue-300 hover:bg-blue-50/50",
+    icon:        "text-blue-600",
+    iconDefault: "text-blue-400",
+    iconHover:   "group-hover:text-blue-500",
+    label:       "text-blue-700",
+  },
+  amber: {
+    active:      "border-amber-500 bg-amber-50",
+    hover:       "hover:border-amber-300 hover:bg-amber-50/50",
+    icon:        "text-amber-600",
+    iconDefault: "text-amber-400",
+    iconHover:   "group-hover:text-amber-500",
+    label:       "text-amber-700",
+  },
+  slate: {
+    active:      "border-slate-500 bg-slate-50",
+    hover:       "hover:border-slate-300 hover:bg-slate-50/50",
+    icon:        "text-slate-600",
+    iconDefault: "text-slate-400",
+    iconHover:   "group-hover:text-slate-500",
+    label:       "text-slate-700",
+  },
+};
+
+const LABEL_DEFAULT: Record<ToolColor, string> = {
+  teal:  "text-teal-500",
+  blue:  "text-blue-500",
+  amber: "text-amber-500",
+  slate: "text-slate-500",
+};
+
+const BORDER_DEFAULT: Record<ToolColor, string> = {
+  teal:  "border-teal-100",
+  blue:  "border-blue-100",
+  amber: "border-amber-100",
+  slate: "border-slate-100",
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -279,42 +335,6 @@ function ReviewPanelContent({
   );
 }
 
-// ── TemplatePanelContent ──────────────────────────────────────────────────────
-
-const TEMPLATE_TYPES = [
-  "Công văn", "Tờ trình", "Báo cáo", "Thông báo",
-  "Quyết định", "Kế hoạch", "Biên bản", "Giấy mời",
-];
-
-function TemplatePanelContent({
-  onGenerate,
-  isStreaming,
-}: {
-  onGenerate: (loai: string) => void;
-  isStreaming: boolean;
-}) {
-  return (
-    <div className="flex flex-col p-3 gap-3">
-      <p className="text-xs text-gray-500 leading-relaxed">
-        Chọn loại văn bản để tạo mẫu theo thể thức NĐ30. Kết quả hiển thị trong tab Chat AI.
-      </p>
-      <div className="grid grid-cols-2 gap-2">
-        {TEMPLATE_TYPES.map((loai) => (
-          <button
-            key={loai}
-            type="button"
-            onClick={() => onGenerate(loai)}
-            disabled={isStreaming}
-            className="flex items-center justify-center px-2 py-3 rounded-xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50 text-xs font-medium text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loai}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── TablePanelContent ─────────────────────────────────────────────────────────
 
 function TablePanelContent({
@@ -448,12 +468,14 @@ export function RightPanel({
   const [viewingCitation, setViewingCitation] = useState<ChatCitation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Tracks which review-type tool triggered the current review session
+  const pendingReviewToolRef = useRef<"review" | "nd30">("review");
   const { toast } = useToast();
 
-  // Auto-switch to review panel when results arrive
+  // Auto-switch to the correct review panel when results arrive
   useEffect(() => {
     if (reviewChanges.length > 0 || isReviewing) {
-      setActiveTool("review");
+      setActiveTool(pendingReviewToolRef.current);
       setActiveTab("tools");
     }
   }, [reviewChanges.length, isReviewing]);
@@ -498,7 +520,7 @@ export function RightPanel({
   // Add task history entry after review completes
   useEffect(() => {
     if (reviewChanges.length > 0 && !isReviewing) {
-      addTask("review");
+      addTask(pendingReviewToolRef.current);
     }
   }, [reviewChanges, isReviewing, addTask]);
 
@@ -576,23 +598,6 @@ export function RightPanel({
     [docId, getDocContext, isStreaming, sourceIds]
   );
 
-  const handleGenerateTemplate = useCallback(
-    (loai: string) => {
-      if (isStreaming) {
-        toast({ title: "Đang xử lý, vui lòng đợi" });
-        return;
-      }
-      sendMessage(
-        `Tạo mẫu ${loai} theo đúng thể thức quy định tại NĐ30/2020/NĐ-CP. ` +
-        `Trình bày đầy đủ các phần: quốc hiệu, tiêu ngữ, tên cơ quan, số/ký hiệu, ` +
-        `địa danh ngày tháng, tên loại và trích yếu, nội dung chính, nơi nhận, ký tên.`,
-        `Tạo mẫu ${loai}`
-      );
-      addTask("template");
-    },
-    [isStreaming, sendMessage, addTask, toast]
-  );
-
   const handleGenerateTable = useCallback(() => {
     if (isStreaming) {
       toast({ title: "Đang xử lý, vui lòng đợi" });
@@ -648,19 +653,31 @@ export function RightPanel({
   const handleToolClick = (toolId: ToolId) => {
     switch (toolId) {
       case "review":
+        pendingReviewToolRef.current = "review";
         setActiveTool("review");
         onAiReview();
+        break;
+      case "nd30":
+        pendingReviewToolRef.current = "nd30";
+        setActiveTool("nd30");
+        onAiReview();
+        break;
+      case "style":
+        if (isStreaming) { toast({ title: "Đang xử lý, vui lòng đợi" }); return; }
+        sendMessage(
+          "Đọc toàn bộ văn bản sau và chuẩn hóa văn phong " +
+          "thành văn phong hành chính công vụ chuẩn mực: " +
+          "câu văn súc tích, không dùng từ thông tục, " +
+          "đúng cấu trúc câu văn hành chính, " +
+          "thống nhất xưng hô và cách dùng từ. " +
+          "Trả về toàn bộ văn bản đã chuẩn hóa.",
+          "Chuẩn văn phong"
+        );
+        addTask("style");
         break;
       case "summarize":
         sendMessage("Tóm tắt nội dung chính của văn bản đang soạn thảo trong 3-5 câu.", "Tóm tắt nội dung");
         addTask("summarize");
-        break;
-      case "nd30":
-        sendMessage(
-          "Kiểm tra thể thức văn bản này theo NĐ30/2020/NĐ-CP. Liệt kê những điểm chưa đúng (nếu có).",
-          "Kiểm tra định dạng"
-        );
-        addTask("nd30");
         break;
       case "citation":
         sendMessage(
@@ -669,12 +686,18 @@ export function RightPanel({
         );
         addTask("citation");
         break;
-      case "qa":
+      case "qa": {
+        const lastAssistantMsg = [...messages]
+          .reverse()
+          .find((m) => m.role === "assistant" && !m.isStreaming);
+        if (lastAssistantMsg && activeTool) {
+          addTask(activeTool as ToolId);
+        }
+        setMessages([]);
+        setActiveTool(null);
         setActiveTab("chat");
         break;
-      case "template":
-        setActiveTool("template");
-        break;
+      }
       case "table":
         setActiveTool("table");
         break;
@@ -690,6 +713,7 @@ export function RightPanel({
   const renderToolPanel = () => {
     switch (activeTool) {
       case "review":
+      case "nd30":
         return (
           <ReviewPanelContent
             reviewChanges={reviewChanges}
@@ -703,8 +727,26 @@ export function RightPanel({
             onScrollToChange={onScrollToChange}
           />
         );
+      case "style":
+        return (
+          <div className="flex flex-col p-3 gap-3">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Chuẩn hóa văn phong toàn bộ văn bản về văn phong hành chính công vụ chuẩn mực.
+              Kết quả hiển thị trong tab Chat AI,
+              dùng nút Chèn vào văn bản để áp dụng.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleToolClick("style")}
+              disabled={isStreaming}
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Chuẩn hóa văn phong
+            </button>
+          </div>
+        );
       case "summarize":
-      case "nd30":
       case "citation":
         return (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm p-4 text-center">
@@ -717,13 +759,6 @@ export function RightPanel({
               Xem Chat →
             </button>
           </div>
-        );
-      case "template":
-        return (
-          <TemplatePanelContent
-            onGenerate={handleGenerateTemplate}
-            isStreaming={isStreaming}
-          />
         );
       case "table":
         return <TablePanelContent onGenerate={handleGenerateTable} isStreaming={isStreaming} />;
@@ -759,7 +794,7 @@ export function RightPanel({
           >
             {tab === "tools" ? (
               <>
-                <Wrench className="h-3.5 w-3.5" />
+                <CheckSquare className="h-3.5 w-3.5" />
                 Công cụ
               </>
             ) : (
@@ -848,43 +883,44 @@ export function RightPanel({
             </p>
 
             <div className="grid grid-cols-3 gap-2 mb-4">
-              {TOOLS.map((tool) => (
-                <button
-                  key={tool.id}
-                  type="button"
-                  onClick={() => handleToolClick(tool.id)}
-                  className={cn(
-                    "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-white cursor-pointer transition-all duration-150 text-center group",
-                    activeTool === tool.id
-                      ? "border-teal-500 bg-teal-50 shadow-sm"
-                      : "border-gray-100 hover:border-teal-300 hover:bg-teal-50/50 hover:shadow-sm"
-                  )}
-                >
-                  {tool.id === "review" && (
-                    <span className="absolute -top-1 -right-1 text-[9px] bg-teal-500 text-white rounded-full px-1">
-                      AI
-                    </span>
-                  )}
-                  <tool.Icon
+              {TOOLS.map((tool) => {
+                const colors = TOOL_COLORS[tool.color];
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => handleToolClick(tool.id)}
+                    title={tool.description}
                     className={cn(
-                      "h-5 w-5 transition-colors",
+                      "relative flex flex-col items-center gap-1.5 p-3",
+                      "rounded-xl border bg-white cursor-pointer",
+                      "transition-all duration-150 text-center group",
                       activeTool === tool.id
-                        ? "text-teal-600"
-                        : "text-slate-400 group-hover:text-teal-500"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "text-[11px] leading-tight text-center",
-                      activeTool === tool.id
-                        ? "text-teal-700 font-medium"
-                        : "text-slate-600"
+                        ? `${colors.active} shadow-sm`
+                        : `${BORDER_DEFAULT[tool.color]} ${colors.hover} hover:shadow-sm`
                     )}
                   >
-                    {tool.label}
-                  </span>
-                </button>
-              ))}
+                    <tool.Icon
+                      className={cn(
+                        "h-5 w-5 transition-colors",
+                        activeTool === tool.id
+                          ? colors.icon
+                          : colors.iconDefault
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[11px] leading-tight text-center",
+                        activeTool === tool.id
+                          ? `${colors.label} font-medium`
+                          : LABEL_DEFAULT[tool.color]
+                      )}
+                    >
+                      {tool.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Task history */}
@@ -897,18 +933,42 @@ export function RightPanel({
                   </p>
                 </div>
                 <div className="space-y-0.5">
-                  {tasks.map((task) => (
-                    <button
-                      key={task.id}
-                      onClick={() => setActiveTool(task.toolId as ToolId)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left cursor-pointer"
-                    >
-                      <span className="text-xs text-slate-600 flex-1">{task.label}</span>
-                      <span className="text-[10px] text-gray-400 shrink-0">
-                        {formatRelativeTime(task.timestamp)}
-                      </span>
-                    </button>
-                  ))}
+                  {tasks.map((task) => {
+                    const tool = TOOLS.find((t) => t.id === task.toolId);
+                    const ToolIcon = tool?.Icon ?? Clock;
+                    const color: ToolColor = (tool?.color as ToolColor) ?? "slate";
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => setActiveTool(task.toolId as ToolId)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left cursor-pointer"
+                      >
+                        <div
+                          className={cn(
+                            "rounded-md p-1 shrink-0",
+                            color === "teal"  && "bg-teal-50",
+                            color === "blue"  && "bg-blue-50",
+                            color === "amber" && "bg-amber-50",
+                            color === "slate" && "bg-slate-100",
+                          )}
+                        >
+                          <ToolIcon
+                            className={cn(
+                              "h-3 w-3",
+                              color === "teal"  && "text-teal-500",
+                              color === "blue"  && "text-blue-500",
+                              color === "amber" && "text-amber-500",
+                              color === "slate" && "text-slate-500",
+                            )}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-600 flex-1 truncate">{task.label}</span>
+                        <span className="text-[10px] text-gray-400 shrink-0">
+                          {formatRelativeTime(task.timestamp)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -938,7 +998,7 @@ export function RightPanel({
               </div>
             )}
 
-            {messages.map((msg, msgIdx) => (
+            {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}

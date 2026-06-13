@@ -4,7 +4,7 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { documentApi } from "@/lib/api";
+import { documentApi, ocrApi } from "@/lib/api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { Nd30Document } from "./nd30-document";
 import { DocumentPreviewPaged } from "./DocumentPreviewPaged";
@@ -15,123 +15,341 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Save, Check, AlertCircle, Loader2, Eye, Download, ChevronDown,
-  PanelLeft, PanelRight, ArrowLeft, ArrowRight, X, Sparkles,
+  PanelLeft, PanelRight, ArrowLeft, X, Sparkles, FileText,
+  Mail, BarChart3, Bell, CheckSquare, CalendarDays,
+  ClipboardList, UserPlus, BookOpen, FilePlus2, LayoutGrid, Upload,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { LucideIcon } from "lucide-react";
 import type { Nd30Data } from "@/lib/nd30";
-import { defaultNd30Data } from "@/lib/nd30";
+import { defaultNd30Data, VAN_BAN_TYPES } from "@/lib/nd30";
 import type { Editor } from "@tiptap/react";
 import type { ReviewChange } from "@/lib/api";
-
-// ── Welcome panel constants ────────────────────────────────────────────────────
-
-const LOAI_OPTIONS = [
-  { abbr: "QĐ",  label: "Quyết định", emoji: "📋" },
-  { abbr: "CV",  label: "Công văn",   emoji: "📨" },
-  { abbr: "BC",  label: "Báo cáo",    emoji: "📊" },
-  { abbr: "HD",  label: "Hướng dẫn",  emoji: "📝" },
-  { abbr: "TTr", label: "Tờ trình",   emoji: "📑" },
-  { abbr: "TB",  label: "Thông báo",  emoji: "📃" },
-];
 
 // ── WelcomePanel ──────────────────────────────────────────────────────────────
 
 interface WelcomePanelProps {
-  yeuCau: string;
-  onYeuCauChange: (v: string) => void;
-  loaiSelected: string;
-  onLoaiSelect: (abbr: string, label: string) => void;
-  onGenerate: () => void;
-  onSkip: () => void;
+  onSelectTemplate: (abbr: string) => void;
+  onSelectBlank: () => void;
+  onSelectBlankWithContent: (text: string, filename: string) => void;
+  onGenerate: (yeuCau: string, loai: string) => void;
   generating: boolean;
-  canGenerate: boolean;
 }
 
-function WelcomePanel({
-  yeuCau, onYeuCauChange, loaiSelected, onLoaiSelect,
-  onGenerate, onSkip, generating, canGenerate,
-}: WelcomePanelProps) {
+const TEMPLATE_OPTIONS: Array<{ abbr: string; label: string; Icon: LucideIcon }> = [
+  { abbr: "CV",  label: "Công văn",   Icon: Mail },
+  { abbr: "TTr", label: "Tờ trình",   Icon: FileText },
+  { abbr: "BC",  label: "Báo cáo",    Icon: BarChart3 },
+  { abbr: "TB",  label: "Thông báo",  Icon: Bell },
+  { abbr: "QĐ",  label: "Quyết định", Icon: CheckSquare },
+  { abbr: "KH",  label: "Kế hoạch",   Icon: CalendarDays },
+  { abbr: "BB",  label: "Biên bản",   Icon: ClipboardList },
+  { abbr: "GM",  label: "Giấy mời",   Icon: UserPlus },
+  { abbr: "HD",  label: "Hướng dẫn",  Icon: BookOpen },
+];
+
+function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithContent, onGenerate, generating }: WelcomePanelProps) {
+  const [activeTab, setActiveTab] = useState<"template" | "ai" | "blank">("template");
+  const [yeuCau, setYeuCau] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (file: File) => {
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert("File quá lớn. Vui lòng chọn file nhỏ hơn 20MB.");
+      return;
+    }
+    setUploadedFile(file);
+  };
+
+  const handleEnterBlank = async () => {
+    if (!uploadedFile) {
+      onSelectBlank();
+      return;
+    }
+
+    setOcrProgress(0);
+    setExtracting(true);
+    try {
+      // Bước 1: submit job
+      const { data: job } = await ocrApi.extract(uploadedFile);
+
+      // Bước 2: nếu đã done ngay thì dùng luôn
+      if (job.status === "done") {
+        setOcrProgress(100);
+        const text = job.formatted_text || job.text || "";
+        onSelectBlankWithContent(text, uploadedFile.name);
+        ocrApi.remove(job.id).catch(() => {});
+        return;
+      }
+
+      // Bước 3: poll đến khi done hoặc failed
+      const MAX_WAIT_MS = 120_000; // 2 phút
+      const INTERVAL_MS = 2_000;   // poll mỗi 2 giây
+      const started = Date.now();
+
+      await new Promise<void>((resolve, reject) => {
+        const tick = async () => {
+          if (Date.now() - started > MAX_WAIT_MS) {
+            reject(new Error("Timeout"));
+            return;
+          }
+          try {
+            const [{ data: detail }, progressRes] = await Promise.all([
+              ocrApi.getJob(job.id),
+              ocrApi.getProgress(job.id).catch(() => null),
+            ]);
+
+            // Cập nhật progress bar
+            if (progressRes?.data?.percent != null) {
+              setOcrProgress(Math.round(progressRes.data.percent));
+            } else if (detail.status === "processing") {
+              setOcrProgress((prev) => Math.min(prev + 10, 90));
+            }
+
+            if (detail.status === "done") {
+              setOcrProgress(100);
+              const text = detail.formatted_text || detail.text || "";
+              onSelectBlankWithContent(text, uploadedFile.name);
+              ocrApi.remove(job.id).catch(() => {});
+              resolve();
+            } else if (detail.status === "failed") {
+              reject(new Error(detail.error_msg || "OCR failed"));
+            } else {
+              setTimeout(tick, INTERVAL_MS);
+            }
+          } catch (e) {
+            reject(e);
+          }
+        };
+        setTimeout(tick, INTERVAL_MS);
+      });
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi xử lý file";
+      if (msg === "Timeout") {
+        alert("Xử lý file quá lâu. Vui lòng thử lại với file nhỏ hơn.");
+      } else {
+        alert(`Không thể xử lý file: ${msg}`);
+      }
+    } finally {
+      setOcrProgress(0);
+      setExtracting(false);
+    }
+  };
+
+  const TABS: Array<{ id: "template" | "ai" | "blank"; Icon: LucideIcon; title: string; sub: string }> = [
+    { id: "template", Icon: LayoutGrid, title: "Chọn template", sub: "Cấu trúc sẵn" },
+    { id: "ai",       Icon: Sparkles,   title: "Tạo bằng AI",   sub: "AI soạn thảo" },
+    { id: "blank",    Icon: FileText,   title: "Trang trắng",   sub: "Soạn tự do"   },
+  ];
+
   return (
-    <div className="h-full overflow-y-auto bg-[#e5e7eb] py-6">
-      <div
-        className="mx-auto bg-white shadow-lg"
-        style={{ width: "210mm", minHeight: "297mm", padding: "25mm 20mm 25mm 30mm", boxSizing: "border-box" }}
-      >
-        {generating ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
-            <p className="text-lg font-medium text-gray-700">AI đang soạn thảo...</p>
-            <p className="text-sm text-gray-400">Thường mất 15–30 giây</p>
+    <div className="h-full overflow-y-auto bg-[#e5e7eb] flex items-center justify-center py-8 px-4">
+      <div className="bg-white rounded-2xl shadow-lg max-w-xl w-full mx-auto p-8">
+
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-teal-50 mb-3">
+            <FileText className="h-6 w-6 text-teal-600" />
           </div>
-        ) : (
-          <div className="space-y-6 max-w-md mx-auto">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="rounded-lg bg-teal-50 p-1.5">
-                <Sparkles className="h-4 w-4 text-teal-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">
-                  Tạo văn bản bằng AI
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Mô tả yêu cầu, AI sẽ soạn thảo theo thể thức NĐ30
-                </p>
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
-              <textarea
-                value={yeuCau}
-                onChange={(e) => onYeuCauChange(e.target.value)}
-                placeholder={"Mô tả văn bản bạn muốn tạo...\nVí dụ: Quyết định phê duyệt danh sách học sinh xuất sắc năm học 2025-2026"}
-                className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                autoFocus
-              />
-            </div>
+          <h2 className="text-xl font-semibold text-slate-800">Bạn muốn bắt đầu như thế nào?</h2>
+          <p className="text-sm text-muted-foreground mt-1">Chọn cách tạo văn bản phù hợp</p>
+        </div>
 
-            <div>
-              <p className="text-xs text-gray-500 mb-2 font-medium">Loại văn bản</p>
-              <div className="grid grid-cols-3 gap-2">
-                {LOAI_OPTIONS.map((o) => (
-                  <button
-                    key={o.abbr}
-                    type="button"
-                    onClick={() => onLoaiSelect(o.abbr, o.label)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
-                      loaiSelected === o.abbr
-                        ? "border-teal-600 bg-teal-50 text-teal-700"
-                        : "border-gray-200 hover:border-teal-300 text-gray-700"
-                    )}
-                  >
-                    <span>{o.emoji}</span> {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Tab toggle buttons */}
+        <div className="flex bg-slate-100 rounded-xl p-1 mb-4 gap-1">
+          {TABS.map(({ id, Icon: TabIcon, title, sub }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                "flex-1 flex flex-col items-center gap-1 py-2.5 px-2",
+                "rounded-lg text-center transition-all duration-150",
+                activeTab === id ? "bg-white shadow-sm" : "hover:bg-white/50"
+              )}
+            >
+              <TabIcon className={cn("h-4 w-4", activeTab === id ? "text-teal-600" : "text-slate-400")} />
+              <span className={cn("text-xs font-semibold", activeTab === id ? "text-teal-700" : "text-slate-500")}>{title}</span>
+              <span className={cn("text-[10px]", activeTab === id ? "text-teal-500" : "text-muted-foreground")}>{sub}</span>
+            </button>
+          ))}
+        </div>
 
-            <div className="flex flex-col gap-2 pt-2">
-              <Button
-                className="bg-teal-600 hover:bg-teal-700 text-white w-full"
-                disabled={!canGenerate}
-                onClick={onGenerate}
+        {/* Content: template */}
+        {activeTab === "template" && (
+          <div className="grid grid-cols-3 gap-2">
+            {TEMPLATE_OPTIONS.map(({ abbr, label, Icon: CardIcon }) => (
+              <button
+                key={abbr}
+                type="button"
+                onClick={() => onSelectTemplate(abbr)}
+                className="group flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-200
+                           hover:border-teal-400 hover:bg-teal-50 transition-all w-full"
               >
-                Tạo văn bản <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full text-gray-500 border-gray-200"
-                onClick={onSkip}
-              >
-                Bỏ qua → vào editor trống
-              </Button>
-            </div>
+                <CardIcon className="h-5 w-5 text-slate-400 group-hover:text-teal-500" />
+                <span className="text-[12px] font-medium text-slate-700 group-hover:text-teal-700">{label}</span>
+              </button>
+            ))}
           </div>
         )}
+
+        {/* Content: ai */}
+        {activeTab === "ai" && (
+          generating ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-4">
+              <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
+              <p className="text-lg font-medium text-gray-700">AI đang soạn thảo...</p>
+              <p className="text-sm text-gray-400">Thường mất 15–30 giây</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
+                <textarea
+                  value={yeuCau}
+                  onChange={(e) => setYeuCau(e.target.value)}
+                  placeholder={"Mô tả văn bản bạn muốn tạo...\nVí dụ: Quyết định phê duyệt danh sách học sinh xuất sắc năm học 2025-2026"}
+                  className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  autoFocus
+                />
+              </div>
+              <Button
+                className="bg-teal-600 hover:bg-teal-700 text-white w-full"
+                disabled={!yeuCau.trim()}
+                onClick={() => onGenerate(yeuCau, "")}
+              >
+                Tạo văn bản
+              </Button>
+            </div>
+          )
+        )}
+
+        {/* Content: blank */}
+        {activeTab === "blank" && (
+          <div className="space-y-4">
+
+            {/* Vùng upload file — optional */}
+            <div
+              className={cn(
+                "border-2 border-dashed rounded-xl p-5 text-center",
+                "cursor-pointer transition-colors",
+                uploadedFile
+                  ? "border-teal-400 bg-teal-50"
+                  : "border-gray-200 hover:border-teal-300"
+              )}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files[0];
+                if (f) handleFileSelect(f);
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileSelect(f);
+                  e.target.value = "";
+                }}
+              />
+              {uploadedFile ? (
+                <div className="flex items-center justify-center gap-2">
+                  <FileText className="h-5 w-5 text-teal-600" />
+                  <span className="text-sm font-medium text-teal-700 truncate max-w-[200px]">
+                    {uploadedFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setUploadedFile(null); }}
+                    className="p-0.5 rounded hover:bg-teal-100 text-teal-400 hover:text-teal-600"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-7 w-7 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 font-medium">
+                    Kéo thả hoặc click để upload văn bản có sẵn
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    PDF, Word, JPG, PNG — tối đa 20MB
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Không bắt buộc — có thể bỏ qua để vào trang trắng
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Nút vào editor / progress bar */}
+            {extracting ? (
+              <div className="space-y-3">
+                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-teal-500 h-2.5 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${ocrProgress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin text-teal-500" />
+                    Đang xử lý văn bản...
+                  </span>
+                  <span className="font-medium text-teal-600">{ocrProgress}%</span>
+                </div>
+                <p className="text-[11px] text-center text-muted-foreground">
+                  Có thể mất 15–30 giây tùy kích thước file
+                </p>
+              </div>
+            ) : (
+              <Button
+                onClick={handleEnterBlank}
+                className="bg-teal-600 hover:bg-teal-700 text-white w-full"
+              >
+                {uploadedFile ? (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Mở văn bản để chỉnh sửa
+                  </>
+                ) : (
+                  <>
+                    <FilePlus2 className="h-4 w-4 mr-2" />
+                    Vào editor trống
+                  </>
+                )}
+              </Button>
+            )}
+
+          </div>
+        )}
+
       </div>
     </div>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hasContent(data: Nd30Data): boolean {
+  return !!(
+    data.noiDung.replace(/<[^>]*>/g, "").trim() ||
+    data.trichYeu.trim() ||
+    data.canCu.replace(/<[^>]*>/g, "").trim()
   );
 }
 
@@ -183,6 +401,23 @@ function isAiGenerated(content?: string): boolean {
   try { return JSON.parse(content)?.ai_generated === true; } catch { return false; }
 }
 
+async function getUniqueTitle(baseTitle: string, docId?: string): Promise<string> {
+  try {
+    const res = await documentApi.list({ limit: 100 });
+    const existing = res.items
+      .filter((d) => d.id !== docId)
+      .map((d) => d.title);
+
+    if (!existing.includes(baseTitle)) return baseTitle;
+
+    let n = 1;
+    while (existing.includes(`${baseTitle} (${n})`)) n++;
+    return `${baseTitle} (${n})`;
+  } catch {
+    return `${baseTitle} (${Date.now().toString().slice(-4)})`;
+  }
+}
+
 export function DocumentEditor({
   documentId, initialContent, initialTitle, onAiReview, editorMapRef,
   reviewChanges, reviewSummary, acceptedIds, rejectedIds, isReviewing,
@@ -202,8 +437,8 @@ export function DocumentEditor({
   const [showWelcome, setShowWelcome] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<Partial<Nd30Data> | null>(null);
-  const [yeuCau, setYeuCau] = useState("");
-  const [loaiSelected, setLoaiSelected] = useState("");
+  const [isBlankMode, setIsBlankMode] = useState(false);
+  const [blankInitialData, setBlankInitialData] = useState<Partial<Nd30Data> | null>(null);
   const searchParams = useSearchParams();
   const dataRef = useRef<Nd30Data>(
     { ...defaultNd30Data(), ...parseContent(initialContent) }
@@ -349,19 +584,111 @@ export function DocumentEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const handleGenerate = useCallback(async () => {
+  const onSelectTemplate = useCallback(async (abbr: string) => {
+    const vbType = VAN_BAN_TYPES[abbr];
+    const loaiLabel = vbType?.full_name ?? abbr;
+    const newData = defaultNd30Data(abbr);
+    dataRef.current = newData;
+    const title = await getUniqueTitle(`${loaiLabel} không tiêu đề`, docId);
+    setDocumentTitle(title);
+    setIsBlankMode(false);
+    setBlankInitialData(null);
+    setGeneratedContent(newData);
+    if (docId) {
+      documentApi.update(docId, {
+        title,
+        loai_vb: abbr,
+        content: JSON.stringify({ version: "nd30", ...newData }),
+      }).catch(() => {});
+    }
+    setShowWelcome(false);
+  }, [docId]);
+
+  const onSelectBlank = useCallback(async () => {
+    if (hasContent(dataRef.current)) {
+      const ok = window.confirm(
+        "Văn bản hiện tại có nội dung. Xóa trắng sẽ mất toàn bộ nội dung. Bạn có chắc không?"
+      );
+      if (!ok) return;
+    }
+    dataRef.current = { ...defaultNd30Data(""), loaiVanBan: "" };
+    const title = await getUniqueTitle("Văn bản không tiêu đề", docId);
+    setDocumentTitle(title);
+    setIsBlankMode(true);
+    setBlankInitialData(null);
+    setGeneratedContent(null);
+    setShowAiBanner(false);
+    if (docId) {
+      documentApi.update(docId, {
+        title,
+        content: JSON.stringify({ version: "nd30", loaiVanBan: "" }),
+      }).catch(() => {});
+    }
+    setShowWelcome(false);
+  }, [docId]);
+
+  const onSelectBlankWithContent = useCallback(
+    async (text: string, filename: string) => {
+      if (hasContent(dataRef.current)) {
+        const ok = window.confirm(
+          "Văn bản hiện tại có nội dung. Tải lên sẽ thay thế toàn bộ. Bạn có chắc không?"
+        );
+        if (!ok) return;
+      }
+
+      const newData: Nd30Data = {
+        ...defaultNd30Data(""),
+        loaiVanBan: "",
+        noiDung: `<p>${text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .split("\n")
+          .filter((l) => l.trim())
+          .join("</p><p>")
+        }</p>`,
+      };
+      dataRef.current = newData;
+      setBlankInitialData(newData);
+      const baseName = filename.replace(/\.[^/.]+$/, "").trim()
+        || "Văn bản không tiêu đề";
+      const title = await getUniqueTitle(baseName, docId);
+      setDocumentTitle(title);
+      setIsBlankMode(true);
+      setGeneratedContent(null);
+      setShowAiBanner(false);
+
+      if (docId) {
+        documentApi.update(docId, {
+          title,
+          content: JSON.stringify({ version: "nd30", ...newData }),
+        }).catch(() => {});
+      }
+      setShowWelcome(false);
+    },
+    [docId]
+  );
+
+  const handleGenerate = useCallback(async (yeuCau: string, loai: string) => {
     if (!docId || !yeuCau.trim()) return;
     setGeneratingAi(true);
     try {
       await documentApi.generate({
         document_id: docId,
-        loai_van_ban: loaiSelected || "Quyết định",
+        loai_van_ban: loai || "CV",
         yeu_cau: yeuCau,
         source_ids: sourceIds,
       });
       const updated = await documentApi.get(docId);
       const parsedContent = parseContent(updated.content);
       dataRef.current = { ...defaultNd30Data(), ...parsedContent };
+      const baseName = parsedContent.trichYeu
+        ? parsedContent.trichYeu.slice(0, 50)
+        : "Văn bản AI";
+      const title = await getUniqueTitle(baseName, docId);
+      setDocumentTitle(title);
+      setIsBlankMode(false);
+      setBlankInitialData(null);
       setGeneratedContent(parsedContent);
       setShowAiBanner(true);
       setShowWelcome(false);
@@ -370,7 +697,7 @@ export function DocumentEditor({
     } finally {
       setGeneratingAi(false);
     }
-  }, [docId, loaiSelected, yeuCau, sourceIds, toast]);
+  }, [docId, sourceIds, toast]);
 
   // Autosave
   const saveMutation = useMutation({
@@ -532,6 +859,16 @@ export function DocumentEditor({
 
         <div className="flex items-center gap-2">
           <SaveIndicator status={status} label={statusLabel} />
+          {/* Template / re-create button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowWelcome(true)}
+            title="Thay đổi template hoặc tạo lại"
+            className="text-slate-400 hover:text-teal-600 hover:bg-teal-50 hidden sm:flex"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </Button>
           <Button variant="outline" size="sm" onClick={enterPreview} title="Xem trước (Ctrl+Shift+P)" className="hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50">
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Xem trước
@@ -620,33 +957,30 @@ export function DocumentEditor({
         <div className="flex-1 min-w-0 overflow-y-auto">
           {showWelcome ? (
             <WelcomePanel
-              yeuCau={yeuCau}
-              onYeuCauChange={setYeuCau}
-              loaiSelected={loaiSelected}
-              onLoaiSelect={(abbr, label) => {
-                setLoaiSelected(abbr);
-                setYeuCau((prev) => {
-                  if (!prev.trim()) return `Tạo ${label}: `;
-                  const prefixMatch = prev.match(/^Tạo [^:]+:\s*/);
-                  if (prefixMatch) return `Tạo ${label}: ${prev.slice(prefixMatch[0].length)}`;
-                  return prev;
-                });
-              }}
+              onSelectTemplate={onSelectTemplate}
+              onSelectBlank={onSelectBlank}
+              onSelectBlankWithContent={onSelectBlankWithContent}
               onGenerate={handleGenerate}
-              onSkip={() => setShowWelcome(false)}
               generating={generatingAi}
-              canGenerate={!!docId && yeuCau.trim().length > 0}
             />
           ) : (
             <Nd30Document
-              key={generatedContent ? "generated" : "initial"}
+              key={
+                isBlankMode
+                  ? (blankInitialData ? "blank-content" : "blank")
+                  : generatedContent ? "generated" : "initial"
+              }
               initialData={
-                generatedContent
-                  ? { ...defaultNd30Data(), ...generatedContent }
-                  : { ...defaultNd30Data(), ...parseContent(initialContent) }
+                isBlankMode
+                  ? (blankInitialData
+                      ? { ...defaultNd30Data(""), ...blankInitialData }
+                      : { ...defaultNd30Data(""), loaiVanBan: "" })
+                  : generatedContent
+                    ? { ...defaultNd30Data(), ...generatedContent }
+                    : { ...defaultNd30Data(), ...parseContent(initialContent) }
               }
               onChange={handleChange}
-              isNew={!generatedContent && wasNewDoc.current}
+              isNew={!isBlankMode && !generatedContent && wasNewDoc.current}
               editorMapRef={editorMapRef}
             />
           )}
