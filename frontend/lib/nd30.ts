@@ -139,6 +139,7 @@ export const VAN_BAN_TEMPLATES: Record<string, VanBanTemplate> = {
 };
 
 export const QUYEN_HAN_KY: Record<string, string> = {
+  "":    "",
   TM:  "TM.",
   KT:  "KT.",
   TL:  "TL.",

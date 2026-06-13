@@ -120,9 +120,11 @@ export function Nd30StaticContent({ data }: { data: Nd30Data }) {
           ))}
         </div>
         <div style={{ textAlign: "center", paddingLeft: "4mm" }}>
-          <div style={{ ...getFontStyle("quyen_han_ky"), marginBottom: "2px" }}>
-            {[data.quyenHanKy, data.chucDanhTapThe].filter(Boolean).join(" ")}
-          </div>
+          {(data.quyenHanKy || data.chucDanhTapThe) && (
+            <div style={{ ...getFontStyle("quyen_han_ky"), marginBottom: "2px" }}>
+              {[data.quyenHanKy, data.chucDanhTapThe].filter(Boolean).join(" ")}
+            </div>
+          )}
           {data.chucVuKy && <div style={getFontStyle("chuc_vu_ky")}>{data.chucVuKy}</div>}
           <div style={{ height: "18mm" }} />
           {data.hoTenKy && <div style={getFontStyle("ho_ten_ky")}>{data.hoTenKy}</div>}
