@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     upload_timeout_seconds: int = 300
     doc_job_ttl_seconds: int = 86400  # 24h
 
+    # Admin bootstrap — email này tự động nhận role admin khi đăng ký
+    admin_email: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:
