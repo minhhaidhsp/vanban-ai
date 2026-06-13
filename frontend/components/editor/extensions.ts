@@ -21,7 +21,7 @@ export const FontSizeExtension = TextStyle.extend({
   },
 });
 
-// Line height + paragraph spacing for paragraph/heading nodes
+// Line height + paragraph spacing + indent for paragraph/heading nodes
 export const ParagraphFormatExtension = Extension.create({
   name: "paragraphFormat",
   addGlobalAttributes() {
@@ -47,9 +47,50 @@ export const ParagraphFormatExtension = Extension.create({
             renderHTML: (attrs) =>
               attrs.marginBottom ? { style: `margin-bottom: ${attrs.marginBottom}` } : {},
           },
+          marginLeft: {
+            default: null,
+            parseHTML: (el) => (el as HTMLElement).style.marginLeft || null,
+            renderHTML: (attrs) =>
+              attrs.marginLeft ? { style: `margin-left: ${attrs.marginLeft}` } : {},
+          },
+          marginRight: {
+            default: null,
+            parseHTML: (el) => (el as HTMLElement).style.marginRight || null,
+            renderHTML: (attrs) =>
+              attrs.marginRight ? { style: `margin-right: ${attrs.marginRight}` } : {},
+          },
         },
       },
     ];
+  },
+});
+
+// Tab/Shift-Tab to increase/decrease paragraph left indent in 10mm steps
+export const TabIndentExtension = Extension.create({
+  name: "tabIndent",
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        const attrs = this.editor.getAttributes("paragraph");
+        const current = parseFloat((attrs.marginLeft || "0").replace("mm", "")) || 0;
+        const next = Math.min(current + 10, 80);
+        this.editor.chain().focus()
+          .updateAttributes("paragraph", { marginLeft: `${next}mm` })
+          .run();
+        return true;
+      },
+      "Shift-Tab": () => {
+        const attrs = this.editor.getAttributes("paragraph");
+        const current = parseFloat((attrs.marginLeft || "0").replace("mm", "")) || 0;
+        const next = Math.max(current - 10, 0);
+        this.editor.chain().focus()
+          .updateAttributes("paragraph", {
+            marginLeft: next > 0 ? `${next}mm` : null,
+          })
+          .run();
+        return true;
+      },
+    };
   },
 });
 
@@ -59,7 +100,8 @@ export const sharedExtensions = [
   StarterKit,
   FontSizeExtension,        // TextStyle mark + fontSize attr
   FontFamily,               // fontFamily attr on textStyle mark
-  ParagraphFormatExtension, // lineHeight + marginTop/Bottom on paragraphs
+  ParagraphFormatExtension, // lineHeight + margin attrs on paragraphs
+  TabIndentExtension,       // Tab/Shift-Tab indent
   Underline,
   TextAlign.configure({ types: ["heading", "paragraph"] }),
   Highlight,

@@ -259,6 +259,8 @@ export const ocrApi = {
     const { data } = await api.post(`/ocr/${jobId}/review`);
     return data as ReviewResult & { job_id: string };
   },
+
+  remove: (jobId: string) => api.delete(`/ocr/${jobId}`),
 };
 
 export interface ChunkUsed {

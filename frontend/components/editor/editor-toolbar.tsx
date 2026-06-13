@@ -45,6 +45,7 @@ function ToolbarButton({ onClick, active, disabled, children, title }: ToolbarBu
   return (
     <button
       type="button"
+      tabIndex={-1}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -108,6 +109,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
     <div ref={ref} className="relative">
       <button
         type="button"
+        tabIndex={-1}
         onClick={() => setOpen((o) => !o)}
         title="Khoảng cách dòng và đoạn"
         className="h-7 inline-flex items-center gap-0.5 px-1.5 rounded text-xs hover:bg-muted transition-colors"
@@ -122,6 +124,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
             <button
               key={value}
               type="button"
+              tabIndex={-1}
               onClick={() => setLineHeight(value)}
               className="flex items-center gap-3 px-4 py-1.5 text-sm hover:bg-gray-100 w-full text-left"
             >
@@ -134,6 +137,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
 
           <button
             type="button"
+            tabIndex={-1}
             onClick={toggleSpaceBefore}
             className="flex items-center gap-3 px-4 py-1.5 text-sm hover:bg-gray-100 w-full text-left"
           >
@@ -142,6 +146,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
           </button>
           <button
             type="button"
+            tabIndex={-1}
             onClick={toggleSpaceAfter}
             className="flex items-center gap-3 px-4 py-1.5 text-sm hover:bg-gray-100 w-full text-left"
           >
@@ -202,6 +207,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
               editor.chain().focus().unsetFontFamily().run();
             }
           }}
+          tabIndex={-1}
           className="h-7 text-xs border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring max-w-[130px]"
           title="Kiểu chữ"
         >
@@ -226,6 +232,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
               .setMark("textStyle", { fontSize: `${e.target.value}pt` })
               .run();
           }}
+          tabIndex={-1}
           className="h-7 text-xs border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-[58px]"
           title="Cỡ chữ"
         >

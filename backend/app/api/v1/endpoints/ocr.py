@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.redis import get_redis
-from app.core.storage import download_file, get_bucket_name, upload_file
+from app.core.storage import delete_file, download_file, get_bucket_name, upload_file
 from app.models.ocr_job import OcrJob
 from app.models.user import User
 from app.schemas.ocr_job import OcrJobListResponse, OcrJobResponse, OcrJobStatusResponse
@@ -963,3 +963,32 @@ async def get_ocr_job(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     return job
+
+
+# ── DELETE /{job_id} ──────────────────────────────────────────────────────────
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ocr_job(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Xóa OCR job và file liên quan trên storage."""
+    result = await db.execute(
+        select(OcrJob).where(
+            OcrJob.id == job_id,
+            OcrJob.user_id == str(current_user.id),
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    if job.file_path:
+        try:
+            await asyncio.to_thread(delete_file, job.file_path, _OCR_BUCKET)
+        except Exception as exc:
+            logger.warning("[ocr_delete] %s failed to delete file %s: %s", job_id, job.file_path, exc)
+
+    await db.delete(job)
+    await db.commit()
