@@ -487,28 +487,34 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         )}
       </div>
 
-      {/* ── Shared TipTap toolbar — sticks below top toolbar (49px) ── */}
-      <div className={`sticky top-[49px] z-30 shrink-0 border-b bg-white shadow-sm print:hidden transition-all duration-150 ${
-        activeEditor ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden"
-      }`}>
-        <EditorToolbar editor={activeEditor} />
-      </div>
+      {/* ── Toolbar + Ruler — gộp chung, ẩn hiện cùng nhau ── */}
+      <div
+        className={[
+          "sticky top-[44px] z-20 print:hidden",
+          "transition-all duration-150",
+          activeEditor
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none h-0 overflow-hidden",
+        ].join(" ")}
+      >
+        <div className="border-b bg-white shadow-sm">
+          <EditorToolbar editor={activeEditor} />
+        </div>
 
-      {/* ── Ruler — sticks below EditorToolbar (49px top toolbar + 40px toolbar = 89px) ── */}
-      {!isBlank && (
-        <EditorRuler
-          leftMarginMm={30}
-          rightMarginMm={20}
-          leftIndentMm={leftIndentMm}
-          rightIndentMm={rightIndentMm}
-          firstLineIndentMm={firstLineIndentMm}
-          onLeftIndentChange={setLeftIndentMm}
-          onRightIndentChange={setRightIndentMm}
-          onFirstLineIndentChange={setFirstLineIndentMm}
-          activeEditor={activeEditor}
-          className="sticky top-[89px] z-29"
-        />
-      )}
+        {!isBlank && (
+          <EditorRuler
+            leftMarginMm={30}
+            rightMarginMm={20}
+            leftIndentMm={leftIndentMm}
+            rightIndentMm={rightIndentMm}
+            firstLineIndentMm={firstLineIndentMm}
+            onLeftIndentChange={setLeftIndentMm}
+            onRightIndentChange={setRightIndentMm}
+            onFirstLineIndentChange={setFirstLineIndentMm}
+            activeEditor={activeEditor}
+          />
+        )}
+      </div>
 
       {/* ── Banner AI điền thông minh (chỉ hiện khi tạo mới, sau vùng sticky) ─── */}
       {isNew && (
