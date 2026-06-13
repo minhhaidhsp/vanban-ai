@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
     # Database
-    database_url: str = "postgresql://postgres:password@localhost:5432/vanban_ai"
+    database_url: str = "postgresql://postgres:password@localhost:5433/vanban_ai"
 
     # Redis
     redis_url: str = "redis://localhost:6379"

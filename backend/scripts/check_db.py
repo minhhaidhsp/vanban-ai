@@ -2,7 +2,7 @@ import asyncio
 import asyncpg
 
 async def check():
-    conn = await asyncpg.connect("postgresql://postgres:postgres123@localhost:5432/vanban_ai")
+    conn = await asyncpg.connect("postgresql://postgres:postgres123@localhost:5433/vanban_ai")
 
     tables = await conn.fetch(
         "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'reference%'"
