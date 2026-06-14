@@ -62,3 +62,12 @@ uploads/
 
 backend/clear_data.py
 backend/*.sql
+
+# Local scripts & sensitive notes (never commit)
+notes.txt
+backend/scripts/clear_all_data.py
+backend/check_db.py
+backend/migrate_v3.py
+backend/run_migration.py
+check_nd30.py
+clear_data.py

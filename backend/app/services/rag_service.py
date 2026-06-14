@@ -33,21 +33,45 @@ LLM_OFFLINE_MSG = (
 _SYSTEM_PROMPT = """Bạn là chuyên gia tư vấn pháp lý hành chính Việt Nam, \
 hỗ trợ cán bộ công chức cấp phường/xã tra cứu văn bản pháp luật.
 
+QUY ĐỊNH NGÔN NGỮ — BẮT BUỘC:
+- CHỈ trả lời bằng tiếng Việt (Quốc ngữ, có dấu). TUYỆT ĐỐI KHÔNG dùng từ/ký tự tiếng Trung, tiếng Anh, hoặc ngôn ngữ khác xen vào câu trả lời, trừ thuật ngữ pháp lý viết tắt thông dụng (VD: NĐ-CP, TT-BNV).
+- Nếu không chắc một từ tiếng Việt nào, diễn đạt lại bằng từ khác, KHÔNG chèn từ ngôn ngữ khác.
+
 NGUYÊN TẮC TRẢ LỜI:
 1. Trả lời DỰA TRÊN thông tin trong [CONTEXT] — ưu tiên trích dẫn trực tiếp
-2. Trích dẫn chính xác: số hiệu văn bản, điều khoản, tên văn bản
-3. Tổng hợp thông tin từ nhiều đoạn trong [CONTEXT] nếu liên quan đến câu hỏi
-4. CHỈ trả lời "Kho tài liệu hiện tại không có thông tin về [chủ đề]" khi [CONTEXT] HOÀN TOÀN không liên quan đến câu hỏi
-5. KHÔNG bịa đặt điều khoản, số liệu, ngày tháng không có trong [CONTEXT]
+2. Tổng hợp thông tin từ nhiều đoạn trong [CONTEXT] nếu liên quan đến câu hỏi
+3. CHỈ trả lời "Kho tài liệu hiện tại không có thông tin về [chủ đề]" khi [CONTEXT] HOÀN TOÀN không liên quan
+4. KHÔNG bịa đặt điều khoản, số liệu, ngày tháng không có trong [CONTEXT]
+
+TRÍCH DẪN — BẮT BUỘC:
+- Mỗi đoạn [CONTEXT] được đánh số [1], [2], [3]... ở đầu
+- Khi dùng thông tin từ đoạn nào, CHÈN NGAY marker [n] tương ứng vào cuối câu/claim đó (ví dụ: "...thời hạn giải quyết là 3 ngày làm việc [2].")
+- KHÔNG viết "[Nguồn: ...]" ở cuối bài — chỉ dùng marker [n] inline
+- Nếu một claim dựa trên nhiều đoạn, chèn nhiều marker liền nhau: [1][3]
+- Nếu đoạn [CONTEXT] không nêu rõ Điều/Khoản cụ thể, KHÔNG tự suy ra hoặc bịa số điều/khoản — chỉ dùng marker [n], không viết thêm "(Điều X)" sau marker đó.
+
+CẤU TRÚC TRẢ LỜI (bỏ qua mục nào không có dữ liệu trong [CONTEXT], KHÔNG tự thêm mục nếu không có thông tin). Mỗi mục bắt đầu bằng heading markdown "## Tên mục" trên 1 dòng riêng, theo đúng tên sau:
+
+## Trả lời trực tiếp
+1-2 câu tóm tắt câu trả lời chính
+
+## Căn cứ pháp lý
+BẮT BUỘC nêu tên văn bản, số ký hiệu, và Điều/Khoản/Điểm cụ thể NẾU [CONTEXT] có thông tin đó. Nếu [CONTEXT] không nêu Điều/Khoản, chỉ nêu tên văn bản/số ký hiệu kèm marker [n], KHÔNG bịa số điều/khoản.
+
+## Nội dung chi tiết
+Nếu câu hỏi liên quan thủ tục, hồ sơ, quy trình: liệt kê đánh số thứ tự rõ ràng (giấy tờ, các bước, thời hạn), mỗi mục 1 dòng bắt đầu bằng "1. ", "2. "...
+
+## Thẩm quyền
+Cấp xã/phường/huyện/tỉnh chịu trách nhiệm, ai ký/phê duyệt (chỉ nêu nếu [CONTEXT] có thông tin)
+
+## Lưu ý nghiệp vụ
+Trường hợp đặc biệt, ngoại lệ, điểm dễ nhầm (chỉ nêu nếu [CONTEXT] có thông tin liên quan)
 
 CÁCH TRÌNH BÀY:
 - Ngôn ngữ hành chính: trang trọng, chính xác, súc tích
-- Khi liệt kê giấy tờ/quy trình/điều kiện → đánh số thứ tự rõ ràng
-- Nêu rõ thời hạn giải quyết, mẫu đơn (nếu có trong context)
-- Kết thúc bằng trích dẫn: [Nguồn: tên/số văn bản, Điều X (nếu có)]
-- Độ dài vừa phải, tối đa khoảng 350 từ trừ khi câu hỏi yêu cầu chi tiết
+- Độ dài vừa phải, tối đa khoảng 400 từ trừ khi câu hỏi yêu cầu chi tiết hơn
 
-[CONTEXT]
+{history_section}[CONTEXT]
 {context}
 [/CONTEXT]
 
@@ -268,6 +292,7 @@ class RAGService:
         query: str,
         context: str,
         chunks: list[dict],
+        history: str | None = None,
     ) -> dict:
         """
         Gọi LLM với context + query, rồi validate đa chiều (citation + semantic).
@@ -279,7 +304,7 @@ class RAGService:
         messages = [
             {
                 "role": "system",
-                "content": _SYSTEM_PROMPT.format(context=context, query=query),
+                "content": _SYSTEM_PROMPT.format(context=context, query=query, history_section=history or ""),
             },
             {
                 "role": "user",
@@ -303,6 +328,7 @@ class RAGService:
 
         # FIX 2: Nếu LLM tự nhận "không có thông tin" → cap confidence thấp
         _OUT_OF_SCOPE_PHRASES = [
+            "kho tài liệu hiện tại không có thông tin về",
             "kho tài liệu hiện tại không có thông tin về vấn đề này",
             "ngoài phạm vi tài liệu",
             "không có trong kho tài liệu",
@@ -356,6 +382,7 @@ class RAGService:
         db: AsyncSession,
         top_k: int = DEFAULT_TOP_K,
         min_score: float = DEFAULT_MIN_SCORE,
+        history: str | None = None,
     ) -> dict:
         """
         Orchestrator chính với fallback chain:
@@ -437,7 +464,7 @@ class RAGService:
         context = self.build_context(reranked)
         logger.info("[rag] context built: %d chars", len(context))
 
-        result = await self.generate(question, context, reranked)
+        result = await self.generate(question, context, reranked, history=history)
         result["query"] = question
         result["llm_available"] = True
         # fallback_mode may be set True by generate() (out-of-scope detection)

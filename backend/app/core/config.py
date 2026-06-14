@@ -40,11 +40,23 @@ class Settings(BaseSettings):
     # LLM (Groq / OpenAI-compatible)
     llm_base_url: str = ""
     llm_api_key: str = ""
+    llm_api_keys: str = ""   # nhiều key phân tách bằng dấu phẩy, ưu tiên hơn llm_api_key
     llm_model_name: str = "llama-3.3-70b-versatile"
     llm_timeout: int = 60
     llm_max_retries: int = 3
     llm_temperature: float = 0.1
     llm_max_tokens: int = 2048
+
+    @property
+    def llm_api_key_list(self) -> list[str]:
+        """Trả về list các API key. Ưu tiên LLM_API_KEYS, fallback về LLM_API_KEY."""
+        if self.llm_api_keys:
+            keys = [k.strip() for k in self.llm_api_keys.split(",") if k.strip()]
+            if keys:
+                return keys
+        if self.llm_api_key:
+            return [self.llm_api_key]
+        return []
 
     # Batch upload
     upload_max_files: int = 20
