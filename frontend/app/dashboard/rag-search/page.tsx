@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle, ArrowUp, BookOpen, Sparkles, Wifi, WifiOff, X,
+  AlertCircle, ArrowUp, BookOpen, Mic, Sparkles, Wifi, WifiOff, X,
   Plus, PanelLeftClose, PanelLeftOpen, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -214,6 +214,9 @@ export default function RAGSearchPage() {
   const progressTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // ── Session state ─────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<RagChatSession[]>([]);
@@ -229,6 +232,48 @@ export default function RAGSearchPage() {
     setCollapsed(true);
     return () => setCollapsed(false);
   }, [setCollapsed]);
+
+  // ── Speech recognition setup ──────────────────────────────────────────────
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    setSpeechSupported(true);
+    const recognition = new SpeechRecognition();
+    recognition.lang = "vi-VN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setQuery((prev) => {
+        const sep = prev.trim() ? " " : "";
+        return prev + sep + transcript;
+      });
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+    };
+  }, []);
 
   // ── Load sessions on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -388,6 +433,21 @@ export default function RAGSearchPage() {
       handleSearch();
     }
   };
+
+  const handleToggleMic = useCallback(() => {
+    if (!recognitionRef.current || isSearching) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch {
+        // start() có thể throw nếu gọi liên tiếp quá nhanh
+      }
+    }
+  }, [isListening, isSearching]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -636,6 +696,22 @@ export default function RAGSearchPage() {
               disabled={isSearching}
               className="flex-1 resize-none border-0 bg-transparent focus:outline-none focus:ring-0 px-3 py-2 max-h-[200px] overflow-y-auto text-sm"
             />
+            {speechSupported && (
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                disabled={isSearching}
+                title={isListening ? "Đang nghe... (click để dừng)" : "Nhập bằng giọng nói"}
+                className={cn(
+                  "shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors mb-1 mr-1",
+                  isListening
+                    ? "bg-red-100 text-red-600 animate-pulse"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={handleSearch}
               disabled={!query.trim() || isSearching}
