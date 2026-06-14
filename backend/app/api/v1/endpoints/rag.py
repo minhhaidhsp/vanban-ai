@@ -1,17 +1,20 @@
 import asyncio
+import datetime
 import json
 import logging
 import time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func as sql_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.redis import get_redis
+from app.models.rag_chat import RagChatSession, RagChatMessage
 from app.models.user import User
 from app.services.chat_history_service import get_history, save_turn, clear_history
 from app.services.llm_service import llm_service
@@ -28,6 +31,7 @@ class RAGQueryRequest(BaseModel):
     top_k: int = 10
     min_score: float = 0.35
     stream: bool = False
+    session_id: str | None = None
 
 
 class ChunkUsed(BaseModel):
@@ -51,6 +55,7 @@ class RAGQueryResponse(BaseModel):
     llm_available: bool
     fallback_mode: bool = False
     latency_ms: int = 0
+    session_id: str
 
 
 class ChatStreamRequest(BaseModel):
@@ -110,11 +115,44 @@ async def rag_query(
 ):
     from app.services.embedding_service import is_available
     if not is_available():
-        from fastapi import HTTPException
         raise HTTPException(503, detail="Hệ thống đang khởi động, vui lòng thử lại sau 30 giây")
 
+    # ── Session: load existing or create new ──────────────────────────────
+    history: str | None = None
+
+    if body.session_id:
+        sess_result = await db.execute(
+            select(RagChatSession)
+            .where(
+                RagChatSession.id == body.session_id,
+                RagChatSession.user_id == current_user.id,
+            )
+            .options(selectinload(RagChatSession.messages))
+        )
+        session = sess_result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(404, detail="Không tìm thấy cuộc tra cứu")
+
+        if session.messages:
+            parts = ["LỊCH SỬ HỘI THOẠI TRƯỚC (tham khảo để hiểu ngữ cảnh câu hỏi hiện tại):"]
+            for msg in session.messages:
+                if msg.role == "user":
+                    parts.append(f"Cán bộ: {msg.content}")
+                elif msg.role == "assistant":
+                    parts.append(f"Trợ lý: {msg.content[:300]}")
+                    parts.append("---")
+            history = "\n".join(parts) + "\n\n"
+    else:
+        raw_title = body.query[:60]
+        title = raw_title + "..." if len(body.query) > 60 else raw_title
+        session = RagChatSession(user_id=current_user.id, title=title)
+        db.add(session)
+        await db.flush()
+        await db.refresh(session)
+
+    # ── Query + generate ──────────────────────────────────────────────────
     start = time.monotonic()
-    result = await rag_service.query(body.query, db, body.top_k, body.min_score)
+    result = await rag_service.query(body.query, db, body.top_k, body.min_score, history=history)
     latency_ms = int((time.monotonic() - start) * 1000)
 
     logger.info(
@@ -122,6 +160,22 @@ async def rag_query(
         latency_ms, result["confidence"], len(result["citations"]),
         result.get("fallback_mode", False),
     )
+
+    # ── Persist turn ──────────────────────────────────────────────────────
+    db.add(RagChatMessage(
+        session_id=session.id,
+        role="user",
+        content=body.query,
+    ))
+    db.add(RagChatMessage(
+        session_id=session.id,
+        role="assistant",
+        content=result["answer"],
+        citations=result["chunks_used"],
+        confidence=result["confidence"],
+    ))
+    session.updated_at = datetime.datetime.now(datetime.timezone.utc)
+    await db.commit()
 
     return RAGQueryResponse(
         query=result["query"],
@@ -135,6 +189,7 @@ async def rag_query(
         llm_available=result.get("llm_available", True),
         fallback_mode=result.get("fallback_mode", False),
         latency_ms=latency_ms,
+        session_id=session.id,
     )
 
 
@@ -269,19 +324,13 @@ async def chat_stream(
 
             # 3. Build messages with system prompt + optional doc context + history
             messages: list[dict] = [
-                {"role": "system", "content": _SYSTEM_PROMPT}
+                {"role": "system", "content": _SYSTEM_PROMPT.format(context=context, query=body.query, history_section="")}
             ]
 
             if body.doc_context:
                 messages.append({
                     "role": "system",
                     "content": "Văn bản đang soạn thảo:\n" + body.doc_context[:1000],
-                })
-
-            if context:
-                messages.append({
-                    "role": "system",
-                    "content": f"Nguồn tham chiếu:\n{context}",
                 })
 
             messages.extend(history)

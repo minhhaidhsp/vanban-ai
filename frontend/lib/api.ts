@@ -297,6 +297,7 @@ export interface RAGQueryResponse {
   llm_available: boolean;
   fallback_mode: boolean;
   latency_ms: number;
+  session_id: string;
 }
 
 export interface RAGHealthResponse {
@@ -307,7 +308,7 @@ export interface RAGHealthResponse {
 }
 
 export const ragApi = {
-  query: async (payload: { query: string; top_k?: number; min_score?: number }) => {
+  query: async (payload: { query: string; top_k?: number; min_score?: number; session_id?: string }) => {
     const { data } = await api.post("/rag/query", payload);
     return data as RAGQueryResponse;
   },
@@ -315,6 +316,44 @@ export const ragApi = {
   health: async () => {
     const { data } = await api.get("/rag/health");
     return data as RAGHealthResponse;
+  },
+};
+
+export interface RagChatMessage {
+  id:         string;
+  role:       "user" | "assistant";
+  content:    string;
+  citations:  ChunkUsed[] | null;
+  confidence: number | null;
+  created_at: string;
+}
+
+export interface RagChatSession {
+  id:         string;
+  title:      string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RagChatSessionDetail extends RagChatSession {
+  messages: RagChatMessage[];
+}
+
+export const ragSessionsApi = {
+  list: async (): Promise<RagChatSession[]> => {
+    const { data } = await api.get("/rag-sessions/");
+    return data as RagChatSession[];
+  },
+  create: async (): Promise<RagChatSession> => {
+    const { data } = await api.post("/rag-sessions/", {});
+    return data as RagChatSession;
+  },
+  get: async (sessionId: string): Promise<RagChatSessionDetail> => {
+    const { data } = await api.get(`/rag-sessions/${sessionId}`);
+    return data as RagChatSessionDetail;
+  },
+  delete: async (sessionId: string): Promise<void> => {
+    await api.delete(`/rag-sessions/${sessionId}`);
   },
 };
 
