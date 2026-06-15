@@ -80,7 +80,59 @@ function renderAnswerWithCitations(
     return parts;
   }
 
+  let listBuffer: { type: "ol" | "ul"; items: string[] } | null = null;
+
+  const flushList = () => {
+    if (!listBuffer) return;
+    const { type, items } = listBuffer;
+    const cls = type === "ol"
+      ? "list-decimal list-outside ml-5 space-y-1 mb-1.5"
+      : "list-disc list-outside ml-5 space-y-1 mb-1.5";
+    const key = `list-${elements.length}`;
+    if (type === "ol") {
+      elements.push(
+        <ol key={key} className={cls}>
+          {items.map((item, j) => (
+            <li key={j}>{parseInline(item, `ol-${key}-${j}`)}</li>
+          ))}
+        </ol>
+      );
+    } else {
+      elements.push(
+        <ul key={key} className={cls}>
+          {items.map((item, j) => (
+            <li key={j}>{parseInline(item, `ul-${key}-${j}`)}</li>
+          ))}
+        </ul>
+      );
+    }
+    listBuffer = null;
+  };
+
   lines.forEach((line, i) => {
+    const numberedMatch = line.match(/^\d+\.\s+(.*)/);
+    const bulletMatch = line.match(/^[-•]\s+(.*)/);
+
+    if (numberedMatch) {
+      if (!listBuffer || listBuffer.type !== "ol") {
+        flushList();
+        listBuffer = { type: "ol", items: [] };
+      }
+      listBuffer.items.push(numberedMatch[1]);
+      return;
+    }
+
+    if (bulletMatch) {
+      if (!listBuffer || listBuffer.type !== "ul") {
+        flushList();
+        listBuffer = { type: "ul", items: [] };
+      }
+      listBuffer.items.push(bulletMatch[1]);
+      return;
+    }
+
+    flushList();
+
     const trimmed = line.trim();
     if (trimmed.startsWith("## ")) {
       elements.push(
@@ -98,6 +150,8 @@ function renderAnswerWithCitations(
       );
     }
   });
+
+  flushList();
 
   return elements;
 }
@@ -534,7 +588,7 @@ export default function RAGSearchPage() {
               <Sparkles className="h-5 w-5 text-teal-600" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold">Tra cứu AI</h1>
+              <h1 className="text-lg font-semibold">Tra cứu văn bản</h1>
               <p className="text-xs text-muted-foreground">
                 Tra cứu văn bản pháp lý và thủ tục hành chính bằng ngôn ngữ tự nhiên
               </p>

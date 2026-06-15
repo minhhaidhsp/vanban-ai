@@ -117,7 +117,7 @@ export default function ReferenceDocsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Kho tri thức</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            272 văn bản · 7.525 đoạn nội dung · Nền tảng cho tác tử Tra cứu AI
+            272 văn bản · 7.525 đoạn nội dung · Nền tảng cho trợ lý AI Tra cứu văn bản
           </p>
         </div>
         <div className="flex gap-2">
@@ -127,7 +127,7 @@ export default function ReferenceDocsPage() {
             onClick={() => setBatchModalOpen(true)}
           >
             <Upload className="h-4 w-4" />
-            Upload hàng loạt (AI)
+            Upload
           </Button>
           <Button
             size="sm"

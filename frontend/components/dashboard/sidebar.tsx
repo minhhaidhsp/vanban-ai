@@ -6,6 +6,7 @@ import {
   Building2, FileText, FolderOpen, LayoutDashboard, LogOut,
   PanelLeftClose, PanelLeftOpen,
   ScanText, Settings, Sparkles, User, Users, type LucideIcon,
+  Mic, ImagePlus, BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,24 +31,27 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "NGHIỆP VỤ",
     items: [
-      { href: "/dashboard",            label: "Tổng quan",  icon: LayoutDashboard },
-      { href: "/dashboard/documents",  label: "Tài liệu",   icon: FileText },
-      { href: "/dashboard/rag-search", label: "Tra cứu AI", icon: Sparkles },
+      { href: "/dashboard",            label: "Tổng quan",       icon: LayoutDashboard },
+      { href: "/dashboard/documents",  label: "Tài liệu",        icon: FileText },
+      { href: "/dashboard/rag-search", label: "Tra cứu văn bản", icon: Sparkles },
     ],
   },
   {
-    label: "KHO TRI THỨC",
+    label: "CÔNG CỤ",
     items: [
-      { href: "/dashboard/reference-docs", label: "Kho văn bản", icon: FolderOpen },
-      { href: "/dashboard/ocr",            label: "OCR Văn bản", icon: ScanText },
+      { href: "/dashboard/ocr",                           label: "OCR Văn bản",                      icon: ScanText   },
+      { href: "/dashboard/tools/speech-to-text",          label: "Chuyển âm thanh thành văn bản",    icon: Mic        },
+      { href: "/dashboard/tools/image-generation",        label: "Tạo hình ảnh",                     icon: ImagePlus  },
+      { href: "/dashboard/tools/reminders",               label: "Đặt lịch nhắc hẹn",                icon: BellRing   },
     ],
   },
   {
     label: "HỆ THỐNG",
     items: [
-      { href: "/dashboard/profile",  label: "Tài khoản",    icon: User },
-      { href: "/dashboard/settings", label: "Cài đặt",      icon: Settings },
-      { href: "/dashboard/admin",    label: "Quản lý User", icon: Users, requiredRole: "admin" },
+      { href: "/dashboard/reference-docs", label: "Kho văn bản",  icon: FolderOpen },
+      { href: "/dashboard/profile",        label: "Tài khoản",    icon: User },
+      { href: "/dashboard/settings",       label: "Cài đặt",      icon: Settings },
+      { href: "/dashboard/admin",          label: "Quản lý User", icon: Users, requiredRole: "admin" },
     ],
   },
 ];

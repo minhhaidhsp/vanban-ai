@@ -186,38 +186,6 @@ export function DashboardOverview() {
         )}
       </div>
 
-      {/* ── Kho tri thức ────────────────────────────────────── */}
-      <Card className="border-teal-100 bg-teal-50/30">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="rounded-lg bg-teal-100 p-2">
-              <Database className="h-5 w-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-sm">Kho tri thức AI</p>
-              <p className="text-xs text-muted-foreground">
-                Nền tảng cho tác tử Tra cứu và Trợ giúp công dân
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Văn bản tham chiếu", value: "272" },
-              { label: "Đoạn nội dung", value: "7.525" },
-              { label: "Độ tin cậy", value: "93%" },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg bg-white border border-teal-100 p-3 text-center"
-              >
-                <p className="text-2xl font-bold text-teal-600">{item.value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* ── Row 2: Charts ───────────────────────────────────── */}
       {!statsLoading && !hasData ? (
         /* Empty state */
@@ -394,6 +362,37 @@ export function DashboardOverview() {
               </Link>
             ))
           )}
+        </CardContent>
+      </Card>
+      {/* ── Kho tri thức ────────────────────────────────────── */}
+      <Card className="border-teal-100 bg-teal-50/30">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="rounded-lg bg-teal-100 p-2">
+              <Database className="h-5 w-5 text-teal-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Kho tri thức AI</p>
+              <p className="text-xs text-muted-foreground">
+                Nền tảng cho trợ lý AI Tra cứu và Trợ giúp công dân
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Văn bản tham chiếu", value: "272" },
+              { label: "Đoạn nội dung", value: "7.525" },
+              { label: "Độ tin cậy", value: "93%" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg bg-white border border-teal-100 p-3 text-center"
+              >
+                <p className="text-2xl font-bold text-teal-600">{item.value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
