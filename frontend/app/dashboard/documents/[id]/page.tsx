@@ -13,7 +13,7 @@ const DocumentEditor = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-base">
         Đang tải...
       </div>
     ),
@@ -327,7 +327,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-base">
         Đang tải...
       </div>
     );

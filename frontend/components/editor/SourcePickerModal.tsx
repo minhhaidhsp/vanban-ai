@@ -79,7 +79,7 @@ export function SourcePickerModal({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm tài liệu..."
-            className="pl-8 h-8 text-sm"
+            className="pl-8 h-8 text-base"
           />
         </div>
 
@@ -91,7 +91,7 @@ export function SourcePickerModal({
           )}
 
           {!isLoading && candidates.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-8">
+            <p className="text-base text-gray-400 text-center py-8">
               {search ? "Không tìm thấy tài liệu" : "Chưa có tài liệu trong kho"}
             </p>
           )}
@@ -135,7 +135,7 @@ export function SourcePickerModal({
                         : <span className="text-[10px] px-1 py-0.5 rounded bg-red-50 text-red-500">⚠ Chưa xử lý</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-800 mt-0.5 line-clamp-2">{doc.trich_yeu || doc.title}</p>
+                  <p className="text-sm text-gray-800 mt-0.5 line-clamp-2">{doc.trich_yeu || doc.title}</p>
                 </div>
               </button>
             );
@@ -151,7 +151,7 @@ export function SourcePickerModal({
                 <Check className="h-3 w-3 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 truncate">{doc.trich_yeu || doc.title}</p>
+                <p className="text-sm text-gray-500 truncate">{doc.trich_yeu || doc.title}</p>
                 <p className="text-[10px] text-green-600">Đã thêm</p>
               </div>
             </div>

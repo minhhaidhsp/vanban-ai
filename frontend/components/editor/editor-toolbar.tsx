@@ -50,7 +50,7 @@ function ToolbarButton({ onClick, active, disabled, children, title }: ToolbarBu
       disabled={disabled}
       title={title}
       className={cn(
-        "h-7 w-7 inline-flex items-center justify-center rounded text-sm transition-colors",
+        "h-7 w-7 inline-flex items-center justify-center rounded text-base transition-colors",
         "hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed",
         active && "bg-muted text-primary font-medium"
       )}
@@ -112,7 +112,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
         tabIndex={-1}
         onClick={() => setOpen((o) => !o)}
         title="Khoảng cách dòng và đoạn"
-        className="h-7 inline-flex items-center gap-0.5 px-1.5 rounded text-xs hover:bg-muted transition-colors"
+        className="h-7 inline-flex items-center gap-0.5 px-1.5 rounded text-sm hover:bg-muted transition-colors"
       >
         <span className="text-[11px] font-mono">{curLineHeight}↕</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -126,7 +126,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
               type="button"
               tabIndex={-1}
               onClick={() => setLineHeight(value)}
-              className="flex items-center gap-3 px-4 py-1.5 text-sm hover:bg-gray-100 w-full text-left"
+              className="flex items-center gap-3 px-4 py-1.5 text-base hover:bg-gray-100 w-full text-left"
             >
               <span className={curLineHeight === value ? "opacity-100" : "opacity-0"}>✓</span>
               {label}
@@ -139,7 +139,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
             type="button"
             tabIndex={-1}
             onClick={toggleSpaceBefore}
-            className="flex items-center gap-3 px-4 py-1.5 text-sm hover:bg-gray-100 w-full text-left"
+            className="flex items-center gap-3 px-4 py-1.5 text-base hover:bg-gray-100 w-full text-left"
           >
             <span className={hasSpaceBefore ? "opacity-100" : "opacity-0"}>✓</span>
             Thêm khoảng trước đoạn
@@ -148,7 +148,7 @@ function ParagraphDropdown({ editor }: { editor: Editor }) {
             type="button"
             tabIndex={-1}
             onClick={toggleSpaceAfter}
-            className="flex items-center gap-3 px-4 py-1.5 text-sm hover:bg-gray-100 w-full text-left"
+            className="flex items-center gap-3 px-4 py-1.5 text-base hover:bg-gray-100 w-full text-left"
           >
             <span className={hasSpaceAfter ? "opacity-100" : "opacity-0"}>✓</span>
             Thêm khoảng sau đoạn
@@ -214,7 +214,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
             }
           }}
           tabIndex={-1}
-          className="h-7 text-xs border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring max-w-[130px]"
+          className="h-7 text-sm border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring max-w-[130px]"
           title="Kiểu chữ"
         >
           <option value="">— Kiểu chữ —</option>
@@ -236,7 +236,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
               .run();
           }}
           tabIndex={-1}
-          className="h-7 text-xs border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-[58px]"
+          className="h-7 text-sm border border-gray-200 rounded px-1 bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-[58px]"
           title="Cỡ chữ"
         >
           {[8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36].map((s) => (

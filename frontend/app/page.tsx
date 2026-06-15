@@ -54,7 +54,7 @@ const PROBLEMS = [
 
 const SOLUTIONS = [
   "Tra cứu, đối chiếu văn bản nhanh, có căn cứ kiểm chứng",
-  "Tự động hóa soạn thảo văn bản, tài liệu và nội dung hành chính thường dùng",
+  "Tự động hóa soạn thảo văn bản và tài liệu hành chính",
   "Hỗ trợ soạn thảo đúng thể thức, hạn chế sai sót nội dung",
   "Đảm bảo tiêu chuẩn Quốc gia về An toàn thông tin",
 ];
@@ -126,17 +126,13 @@ export default function HomePage() {
       {/* B. HERO */}
       <section className="bg-gradient-to-br from-slate-900 to-brand-900 py-28">
         <div className="container flex flex-col items-center text-center gap-6">
-          <span className="bg-brand-500/20 text-brand-300 rounded-full px-3 py-1 text-base">
-            Hệ thống AI hỗ trợ hành chính • Triển khai nội bộ
-          </span>
           <h1 className="text-white font-bold text-6xl tracking-tight max-w-3xl leading-tight">
             Nâng cao năng suất
             <br />
             hành chính cấp cơ sở
           </h1>
-          <p className="text-slate-300 max-w-xl text-xl leading-relaxed">
-            Hệ thống trợ lý AI với mô hình ngôn ngữ chuyên biệt cho hành chính công —
-            hỗ trợ cán bộ soạn thảo, tra cứu và giải đáp thủ tục hành chính.
+          <p className="text-slate-300 max-w-2xl text-xl leading-relaxed">
+            Hệ thống trợ lý AI chuyên biệt cho hành chính công, hỗ trợ cán bộ soạn thảo, tra cứu và giải đáp thủ tục hành chính.
           </p>
           <div className="flex gap-4 mt-2">
             <Link href="/register">
@@ -176,14 +172,14 @@ export default function HomePage() {
               Được thiết kế dựa trên khảo sát 152 cán bộ tại 10 đơn vị cấp xã
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl mx-auto">
             <div>
               <h3 className="font-semibold text-red-600 mb-4 text-xl">Thực trạng</h3>
               <ul className="space-y-3">
                 {PROBLEMS.map((p) => (
                   <li key={p} className="flex items-start gap-3">
                     <XCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                    <span className="text-base text-gray-700">{p}</span>
+                    <span className="text-base text-gray-700 md:whitespace-nowrap">{p}</span>
                   </li>
                 ))}
               </ul>
@@ -194,7 +190,7 @@ export default function HomePage() {
                 {SOLUTIONS.map((s) => (
                   <li key={s} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
-                    <span className="text-base text-gray-700">{s}</span>
+                    <span className="text-base text-gray-700 md:whitespace-nowrap">{s}</span>
                   </li>
                 ))}
               </ul>
@@ -220,7 +216,7 @@ export default function HomePage() {
               >
                 <Icon className="h-6 w-6 text-brand-600 shrink-0" />
                 <p className="font-semibold text-base text-slate-800 leading-snug">{title}</p>
-                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{subtitle}</p>
+                <p className="text-base text-muted-foreground leading-relaxed line-clamp-2">{subtitle}</p>
               </div>
             ))}
           </div>
@@ -256,7 +252,7 @@ export default function HomePage() {
       </section>
 
       {/* F. LƯU TRỮ & DỮ LIỆU */}
-      <section className="bg-brand-950 py-20">
+      <section className="bg-slate-900 py-20">
         <div className="container">
           <h2 className="text-4xl font-bold text-white text-center mb-12">
             Lưu trữ và Dữ liệu

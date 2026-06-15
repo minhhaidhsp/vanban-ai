@@ -89,7 +89,7 @@ export default function ProfilePage() {
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Tài khoản</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
+        <p className="text-muted-foreground text-base mt-0.5">
           Quản lý thông tin cá nhân và bảo mật
         </p>
       </div>
@@ -106,8 +106,8 @@ export default function ProfilePage() {
               {user ? getInitials(user.full_name) : "?"}
             </div>
             <div>
-              <p className="font-medium text-sm">{user?.full_name}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="font-medium text-base">{user?.full_name}</p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
             </div>
           </div>
 
@@ -172,7 +172,7 @@ export default function ProfilePage() {
                 onChange={(e) => setPwForm((p) => ({ ...p, new_password: e.target.value }))}
                 required
               />
-              <p className="text-xs text-muted-foreground">Tối thiểu 8 ký tự</p>
+              <p className="text-sm text-muted-foreground">Tối thiểu 8 ký tự</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="confirm_password">Xác nhận mật khẩu mới</Label>

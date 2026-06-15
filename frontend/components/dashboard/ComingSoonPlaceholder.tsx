@@ -13,8 +13,8 @@ export function ComingSoonPlaceholder({ Icon, title, description }: Props) {
         <Icon className="h-14 w-14 text-brand-300" />
       </div>
       <h1 className="text-xl font-semibold text-slate-800 mb-2">{title}</h1>
-      <p className="text-sm font-medium text-brand-600 mb-3">Tính năng đang được phát triển</p>
-      <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">{description}</p>
+      <p className="text-base font-medium text-brand-600 mb-3">Tính năng đang được phát triển</p>
+      <p className="text-base text-muted-foreground max-w-sm leading-relaxed">{description}</p>
     </div>
   );
 }

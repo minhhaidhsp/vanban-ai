@@ -322,15 +322,15 @@ export default function OcrNewPage() {
               <Upload className="size-8" />
               {file ? (
                 <>
-                  <p className="text-sm font-medium text-foreground truncate max-w-full px-2">
+                  <p className="text-base font-medium text-foreground truncate max-w-full px-2">
                     {file.name}
                   </p>
-                  <p className="text-xs">{formatBytes(file.size)}</p>
+                  <p className="text-sm">{formatBytes(file.size)}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-medium">Kéo thả file vào đây</p>
-                  <p className="text-xs">PDF, JPG, PNG, DOCX — tối đa 20MB</p>
+                  <p className="text-base font-medium">Kéo thả file vào đây</p>
+                  <p className="text-sm">PDF, JPG, PNG, DOCX — tối đa 20MB</p>
                 </>
               )}
             </div>
@@ -352,7 +352,7 @@ export default function OcrNewPage() {
         )}
 
         {/* Status indicator */}
-        <div className="rounded-lg border p-3 text-sm">
+        <div className="rounded-lg border p-3 text-base">
           {status === "idle" && (
             <p className="text-muted-foreground">Chờ file...</p>
           )}
@@ -364,7 +364,7 @@ export default function OcrNewPage() {
           )}
           {status === "processing" && (
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-base">
                 <span className="text-muted-foreground">Đang nhận dạng văn bản...</span>
                 <span className="font-medium">
                   {progress
@@ -378,7 +378,7 @@ export default function OcrNewPage() {
                   style={{ width: `${progress?.percent ?? 0}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground text-right">
+              <p className="text-sm text-muted-foreground text-right">
                 {progress?.percent ?? 0}%
                 {(progress?.total_pages ?? 0) > 1 && " • Có thể mất vài phút với file nhiều trang"}
               </p>
@@ -390,7 +390,7 @@ export default function OcrNewPage() {
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span className="font-medium">Hoàn tất!</span>
               </div>
-              <p className="text-xs text-muted-foreground pl-6">
+              <p className="text-sm text-muted-foreground pl-6">
                 {result.page_count != null ? `${result.page_count} trang` : "—"}
                 {" • "}
                 {result.char_count != null
@@ -485,7 +485,7 @@ export default function OcrNewPage() {
         {status === "done" && result && (
           <>
             <div className="flex items-center gap-2 px-6 pt-6 mb-3 shrink-0">
-              <span className="font-semibold text-sm truncate">{result.filename}</span>
+              <span className="font-semibold text-base truncate">{result.filename}</span>
               {result.file_type === "text_pdf" ? (
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap shrink-0">
                   📄 PDF văn bản
@@ -518,12 +518,12 @@ export default function OcrNewPage() {
           <div className="border border-red-200 rounded-lg p-4 bg-red-50 max-w-lg">
             <div className="flex items-center gap-2 mb-2">
               <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-              <span className="font-medium text-sm text-red-700">
+              <span className="font-medium text-base text-red-700">
                 Không thể OCR file này
               </span>
             </div>
-            {errorMsg && <p className="text-sm text-red-600 mb-1">{errorMsg}</p>}
-            <p className="text-xs text-red-500">
+            {errorMsg && <p className="text-base text-red-600 mb-1">{errorMsg}</p>}
+            <p className="text-sm text-red-500">
               Hãy thử lại với file khác hoặc kiểm tra định dạng file
             </p>
           </div>

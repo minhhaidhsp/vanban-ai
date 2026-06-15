@@ -242,7 +242,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
   if (isError || !rawData) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-        <p className="text-sm">Không tìm thấy kết quả OCR</p>
+        <p className="text-base">Không tìm thấy kết quả OCR</p>
         <Button variant="outline" size="sm" asChild>
           <Link href="/dashboard/ocr">Quay lại</Link>
         </Button>
@@ -261,7 +261,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
         <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">
           {statusLabel[rawData.status] ?? rawData.status}
         </span>
-        <p className="text-sm">Kết quả chưa sẵn sàng</p>
+        <p className="text-base">Kết quả chưa sẵn sàng</p>
         <Button variant="outline" size="sm" asChild>
           <Link href="/dashboard/ocr">Quay lại danh sách</Link>
         </Button>
@@ -281,7 +281,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
           {/* Header */}
           <div className="px-6 pt-6 shrink-0">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
+            <div className="flex items-center gap-1 text-base text-muted-foreground mb-4">
               <Link href="/dashboard/ocr" className="hover:text-foreground transition-colors">
                 OCR Văn bản
               </Link>
@@ -325,15 +325,15 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
             {/* File info */}
             <div>
-              <p className="text-xs text-muted-foreground uppercase mb-1">Văn bản</p>
-              <p className="font-semibold text-sm break-words">{rawData.filename}</p>
+              <p className="text-sm text-muted-foreground uppercase mb-1">Văn bản</p>
+              <p className="font-semibold text-base break-words">{rawData.filename}</p>
             </div>
 
             <div className="border-t" />
 
             {/* Xuất / Tải file */}
             <div>
-              <p className="text-xs text-muted-foreground uppercase mb-2">
+              <p className="text-sm text-muted-foreground uppercase mb-2">
                 {isTextPdf ? "Tải về / Xuất" : "Xuất file"}
               </p>
               {isTextPdf ? (
@@ -418,7 +418,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
             {/* AI Review */}
             <div>
-              <p className="text-xs text-muted-foreground uppercase mb-2">AI</p>
+              <p className="text-sm text-muted-foreground uppercase mb-2">AI</p>
               <Button
                 variant="outline"
                 className="w-full justify-start gap-2"
@@ -436,7 +436,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
 
             {/* Công cụ */}
             <div>
-              <p className="text-xs text-muted-foreground uppercase mb-2">Công cụ</p>
+              <p className="text-sm text-muted-foreground uppercase mb-2">Công cụ</p>
               <div className="flex flex-col gap-2">
                 <Button
                   variant="outline"
@@ -460,7 +460,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
             <div className="border-t" />
 
             {/* Thống kê */}
-            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
               <span>Số trang: {rawData.page_count ?? "—"}</span>
               <span>
                 Số ký tự:{" "}
@@ -495,7 +495,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
         <div className="flex items-center justify-between px-4 py-3 border-b bg-violet-50 shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-violet-600" />
-            <span className="font-semibold text-sm">AI Review</span>
+            <span className="font-semibold text-base">AI Review</span>
           </div>
           <button
             onClick={() => setShowReview(false)}
@@ -512,7 +512,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
             {reviewResult.summary && (
               <div className="mx-4 mt-3 p-3 bg-green-50 rounded-lg border border-green-200 shrink-0">
                 <p className="text-[10px] font-semibold uppercase text-green-700 mb-1">Tóm tắt</p>
-                <p className="text-xs text-green-800">{reviewResult.summary}</p>
+                <p className="text-sm text-green-800">{reviewResult.summary}</p>
               </div>
             )}
 
@@ -523,7 +523,7 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
                   key={tab}
                   onClick={() => setReviewTab(tab)}
                   className={[
-                    "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                    "px-3 py-2 text-base font-medium border-b-2 -mb-px transition-colors",
                     reviewTab === tab
                       ? "border-violet-600 text-violet-700"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -577,12 +577,12 @@ export default function OcrDetailPage({ params }: { params: { id: string } }) {
               {reviewTab === "changes" && (
                 <div className="space-y-3">
                   {reviewResult.changes.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-8">
+                    <p className="text-base text-muted-foreground text-center py-8">
                       Không có thay đổi nào
                     </p>
                   )}
                   {reviewResult.changes.map((change, i) => (
-                    <div key={i} className="border rounded-lg p-3 space-y-2 text-xs">
+                    <div key={i} className="border rounded-lg p-3 space-y-2 text-sm">
                       <span
                         className={[
                           "inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded",

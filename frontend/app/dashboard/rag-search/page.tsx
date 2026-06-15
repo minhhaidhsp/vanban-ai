@@ -136,7 +136,7 @@ function renderAnswerWithCitations(
     const trimmed = line.trim();
     if (trimmed.startsWith("## ")) {
       elements.push(
-        <h4 key={i} className="text-sm font-semibold text-brand-700 mt-3 mb-1 first:mt-0">
+        <h4 key={i} className="text-base font-semibold text-brand-700 mt-3 mb-1 first:mt-0">
           {trimmed.slice(3)}
         </h4>
       );
@@ -180,9 +180,9 @@ function ConfidenceMeter({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Độ tin cậy:</span>
-        <span className="text-xs font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">{pct}%</span>
+        <span className="text-sm text-muted-foreground">Độ tin cậy:</span>
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-sm text-muted-foreground">{pct}%</span>
       </div>
       <div className="w-32 h-1.5 bg-gray-200 rounded-full">
         <div
@@ -190,7 +190,7 @@ function ConfidenceMeter({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="flex gap-3 text-xs text-muted-foreground">
+      <div className="flex gap-3 text-sm text-muted-foreground">
         <span>Citation: {Math.round(citationScore * 100)}%</span>
         <span>Ngữ nghĩa: {Math.round(semanticScore * 100)}%</span>
       </div>
@@ -216,7 +216,7 @@ function CopyButton({ answer, chunks }: { answer: string; chunks: ChunkUsed[] })
   return (
     <button
       onClick={handleCopy}
-      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
     >
       {copied ? <span>✅ Đã copy</span> : <span>📋 Copy</span>}
     </button>
@@ -237,7 +237,7 @@ function LLMStatusBadge() {
 
   const online = data.llm === "ok";
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
       {online ? (
         <>
           <Wifi className="h-3.5 w-3.5 text-green-500" />
@@ -514,7 +514,7 @@ export default function RAGSearchPage() {
         historyCollapsed ? "w-0 overflow-hidden" : "w-[220px]"
       )}>
         <div className="flex items-center justify-between p-3 border-b shrink-0">
-          <span className="text-sm font-medium truncate">Lịch sử tra cứu</span>
+          <span className="text-base font-medium truncate">Lịch sử tra cứu</span>
           <button
             onClick={() => setHistoryCollapsed(true)}
             className="p-1 rounded hover:bg-muted text-muted-foreground shrink-0"
@@ -527,7 +527,7 @@ export default function RAGSearchPage() {
         <div className="p-2 shrink-0">
           <button
             onClick={handleNewSession}
-            className="w-full flex items-center gap-2 text-sm px-3 py-2 border rounded-md hover:bg-muted transition-colors"
+            className="w-full flex items-center gap-2 text-base px-3 py-2 border rounded-md hover:bg-muted transition-colors"
           >
             <Plus className="h-4 w-4 shrink-0" />
             <span>Cuộc tra cứu mới</span>
@@ -536,16 +536,16 @@ export default function RAGSearchPage() {
 
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-2">
           {loadingSessions ? (
-            <p className="text-xs text-muted-foreground px-3 py-2">Đang tải...</p>
+            <p className="text-sm text-muted-foreground px-3 py-2">Đang tải...</p>
           ) : sessions.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-3 py-2">Chưa có lịch sử</p>
+            <p className="text-sm text-muted-foreground px-3 py-2">Chưa có lịch sử</p>
           ) : (
             sessions.map((s) => (
               <div
                 key={s.id}
                 onClick={() => handleSelectSession(s.id)}
                 className={cn(
-                  "group flex items-center justify-between gap-1 px-3 py-2 rounded-md text-sm cursor-pointer",
+                  "group flex items-center justify-between gap-1 px-3 py-2 rounded-md text-base cursor-pointer",
                   s.id === currentSessionId
                     ? "bg-muted font-medium"
                     : "hover:bg-muted/50"
@@ -589,7 +589,7 @@ export default function RAGSearchPage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold">Tra cứu văn bản</h1>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Tra cứu văn bản pháp lý và thủ tục hành chính bằng ngôn ngữ tự nhiên
               </p>
             </div>
@@ -605,8 +605,8 @@ export default function RAGSearchPage() {
             <div className="flex flex-col items-center gap-4 py-10 text-center text-muted-foreground">
               <Sparkles className="h-10 w-10 opacity-20" />
               <div>
-                <p className="font-medium text-sm text-foreground">Tra cứu thông minh</p>
-                <p className="text-xs mt-1">
+                <p className="font-medium text-base text-foreground">Tra cứu thông minh</p>
+                <p className="text-sm mt-1">
                   Đặt câu hỏi về văn bản pháp luật, AI sẽ tìm và tổng hợp câu trả lời từ kho văn bản.
                 </p>
               </div>
@@ -615,7 +615,7 @@ export default function RAGSearchPage() {
                   <button
                     key={q}
                     onClick={() => setQuery(q)}
-                    className="text-left text-xs px-3 py-2 rounded-md border border-brand-200 text-brand-700 bg-brand-50/50 hover:bg-brand-50 transition-colors"
+                    className="text-left text-sm px-3 py-2 rounded-md border border-brand-200 text-brand-700 bg-brand-50/50 hover:bg-brand-50 transition-colors"
                   >
                     {q}
                   </button>
@@ -628,13 +628,13 @@ export default function RAGSearchPage() {
           {messages.map((msg) =>
             msg.role === "user" ? (
               <div key={msg.id} className="flex justify-end">
-                <div className="max-w-[75%] bg-brand-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
+                <div className="max-w-[75%] bg-brand-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-base whitespace-pre-wrap">
                   {msg.content}
                 </div>
               </div>
             ) : (
               <div key={msg.id} className="flex justify-start">
-                <div className="max-w-[85%] w-full rounded-lg border bg-card p-4 text-sm leading-relaxed space-y-3">
+                <div className="max-w-[85%] w-full rounded-lg border bg-card p-4 text-base leading-relaxed space-y-3">
 
                   {/* Confidence + copy — only when metadata available (new messages) */}
                   {msg.confidence !== null &&
@@ -654,7 +654,7 @@ export default function RAGSearchPage() {
                   )}
 
                   {/* Answer text with ## headings, **bold**, [n] citations */}
-                  <div className="text-slate-700">
+                  <div className="text-foreground">
                     {renderAnswerWithCitations(msg.content, (n) => {
                       setActiveCitationChunks(msg.citations ?? []);
                       setActiveCitation(n - 1);
@@ -664,7 +664,7 @@ export default function RAGSearchPage() {
                   {/* Citation pills */}
                   {msg.citations && msg.citations.length > 0 && (
                     <div className="pt-2 border-t flex flex-wrap gap-2">
-                      <span className="text-xs text-slate-400">Nguồn trích dẫn:</span>
+                      <span className="text-sm text-slate-400">Nguồn trích dẫn:</span>
                       {msg.citations.map((chunk, i) => (
                         <button
                           key={i}
@@ -679,7 +679,7 @@ export default function RAGSearchPage() {
                                 : chunk.so_ki_hieu
                               : chunk.document_title || "Không rõ nguồn"
                           }
-                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600 max-w-[200px]"
+                          className="inline-flex items-center gap-1 text-sm px-2 py-1 rounded-full border transition-colors bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600 max-w-[200px]"
                         >
                           <span className="shrink-0">{i + 1}.</span>
                           <span className="truncate">
@@ -701,7 +701,7 @@ export default function RAGSearchPage() {
           {/* Progress bubble while searching */}
           {isSearching && (
             <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground flex items-center gap-3">
+              <div className="max-w-[85%] rounded-lg border bg-muted/40 px-4 py-3 text-base text-muted-foreground flex items-center gap-3">
                 <div className="h-4 w-4 rounded-full border-2 border-brand-600 border-t-transparent animate-spin flex-shrink-0" />
                 <div className="flex flex-col gap-0.5">
                   {PROGRESS_STEPS.slice(0, progressStep + 1).map((step, i) => (
@@ -720,7 +720,7 @@ export default function RAGSearchPage() {
           {/* Error bubble — hiện ngay sau message cuối (assistant bị lỗi) */}
           {error && !isSearching && (
             <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
+              <div className="max-w-[85%] rounded-lg border border-red-200 bg-red-50 p-3 text-base text-red-700 flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500" />
                 <span>{error}</span>
               </div>
@@ -748,7 +748,7 @@ export default function RAGSearchPage() {
               placeholder="Hỏi tiếp về thủ tục này..."
               rows={1}
               disabled={isSearching}
-              className="flex-1 resize-none border-0 bg-transparent focus:outline-none focus:ring-0 px-3 py-2 max-h-[200px] overflow-y-auto text-sm"
+              className="flex-1 resize-none border-0 bg-transparent focus:outline-none focus:ring-0 px-3 py-2 max-h-[200px] overflow-y-auto text-base"
             />
             {speechSupported && (
               <button
@@ -780,7 +780,7 @@ export default function RAGSearchPage() {
               <ArrowUp className="h-4 w-4" />
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1.5 px-1">
+          <p className="text-sm text-muted-foreground mt-1.5 px-1">
             Enter để gửi · Shift+Enter để xuống dòng
           </p>
         </div>
@@ -793,7 +793,7 @@ export default function RAGSearchPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
             <div className="flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-brand-600" />
-              <span className="text-sm font-semibold text-slate-700">
+              <span className="text-base font-semibold text-slate-700">
                 Nguồn trích dẫn [{activeCitation + 1}]
               </span>
             </div>
@@ -806,7 +806,7 @@ export default function RAGSearchPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center justify-between px-4 py-2 border-b text-xs text-slate-500">
+          <div className="flex items-center justify-between px-4 py-2 border-b text-sm text-slate-500">
             <span>
               {activeCitation + 1} / {activeCitationChunks.length} nguồn
             </span>
@@ -835,31 +835,31 @@ export default function RAGSearchPage() {
               return (
                 <div className="space-y-3">
                   <div className="p-3 bg-brand-50 rounded-lg border border-brand-100">
-                    <p className="text-xs text-brand-600 font-medium mb-0.5">Tài liệu</p>
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="text-sm text-brand-600 font-medium mb-0.5">Tài liệu</p>
+                    <p className="text-base font-semibold text-slate-800">
                       {chunk.so_ki_hieu || chunk.document_title}
                     </p>
                     {chunk.dieu_khoan && (
-                      <p className="text-xs text-slate-500 mt-1">{chunk.dieu_khoan}</p>
+                      <p className="text-sm text-slate-500 mt-1">{chunk.dieu_khoan}</p>
                     )}
                   </div>
 
                   <div className="flex gap-2">
-                    <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                    <span className="text-sm px-2 py-1 rounded-full bg-slate-100 text-slate-600">
                       Độ khớp: {Math.round((chunk.score ?? 0) * 100)}%
                     </span>
                     {chunk.rerank_score && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600">
+                      <span className="text-sm px-2 py-1 rounded-full bg-blue-50 text-blue-600">
                         Rerank: {chunk.rerank_score.toFixed(2)}
                       </span>
                     )}
                   </div>
 
                   <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">
+                    <p className="text-sm font-medium text-slate-500 mb-2 uppercase tracking-wide">
                       Nội dung đoạn trích
                     </p>
-                    <div className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border whitespace-pre-wrap">
+                    <div className="text-base text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border whitespace-pre-wrap">
                       {chunk.content_preview}
                     </div>
                   </div>

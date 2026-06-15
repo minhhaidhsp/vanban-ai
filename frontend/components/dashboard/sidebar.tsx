@@ -126,7 +126,7 @@ export function Sidebar() {
                     <span
                       title={label}
                       className={cn(
-                        "flex items-center rounded-md py-2 text-sm transition-colors",
+                        "flex items-center rounded-md py-2 text-base transition-colors",
                         collapsed ? "justify-center px-0" : "gap-3 px-3",
                         active
                           ? "bg-brand-50 text-brand-700 font-medium"
@@ -155,7 +155,7 @@ export function Sidebar() {
               </span>
             ) : (
               <>
-                <p className="text-xs font-medium text-slate-700 truncate">{user.full_name}</p>
+                <p className="text-sm font-medium text-slate-700 truncate">{user.full_name}</p>
                 <p className="text-[11px] text-slate-400 truncate mb-1">{user.email}</p>
                 <span className={cn(
                   "text-[10px] px-2 py-0.5 rounded-full font-medium",
@@ -170,7 +170,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           className={cn(
-            "w-full gap-3 text-sm text-muted-foreground hover:text-destructive",
+            "w-full gap-3 text-base text-muted-foreground hover:text-destructive",
             collapsed ? "justify-center px-0" : "justify-start"
           )}
           title={collapsed ? "Đăng xuất" : undefined}

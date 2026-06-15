@@ -201,7 +201,7 @@ function ReviewPanelContent({
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
-        <p className="text-sm text-violet-700 font-medium">Đang rà soát văn bản...</p>
+        <p className="text-base text-violet-700 font-medium">Đang rà soát văn bản...</p>
       </div>
     );
   }
@@ -231,7 +231,7 @@ function ReviewPanelContent({
 
       {reviewSummary && (
         <div className="px-3 py-2 border-b shrink-0">
-          <p className="text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg p-2 leading-relaxed">
+          <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg p-2 leading-relaxed">
             {reviewSummary}
           </p>
         </div>
@@ -240,7 +240,7 @@ function ReviewPanelContent({
       {/* Changes list */}
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         {reviewChanges.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-10">
+          <p className="text-base text-muted-foreground text-center py-10">
             Không tìm thấy thay đổi nào.
           </p>
         )}
@@ -251,7 +251,7 @@ function ReviewPanelContent({
             <div
               key={i}
               className={cn(
-                "border rounded-lg p-3 space-y-2 text-xs transition-opacity",
+                "border rounded-lg p-3 space-y-2 text-sm transition-opacity",
                 (accepted || rejected) ? "opacity-50" : "",
                 accepted ? "border-green-200 bg-green-50/30" : "",
                 rejected ? "border-red-200 bg-red-50/30" : "",
@@ -325,7 +325,7 @@ function ReviewPanelContent({
         <div className="px-3 py-2 border-t shrink-0">
           <button
             onClick={onApplyAll}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-brand-600 text-white text-base font-medium hover:bg-brand-700 transition-colors"
           >
             <Check className="h-3.5 w-3.5" />
             Áp dụng tất cả ({pendingCount})
@@ -347,14 +347,14 @@ function TablePanelContent({
 }) {
   return (
     <div className="flex flex-col p-3 gap-3">
-      <p className="text-xs text-gray-500 leading-relaxed">
+      <p className="text-sm text-gray-500 leading-relaxed">
         Trích xuất và tổng hợp số liệu từ văn bản hiện tại thành bảng markdown.
       </p>
       <button
         type="button"
         onClick={onGenerate}
         disabled={isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <LayoutGrid className="h-3.5 w-3.5" />
         Lập bảng số liệu
@@ -374,14 +374,14 @@ function DraftPanelContent({
 }) {
   return (
     <div className="flex flex-col p-3 gap-3">
-      <p className="text-xs text-gray-500 leading-relaxed">
+      <p className="text-sm text-gray-500 leading-relaxed">
         Gợi ý đoạn văn tiếp theo phù hợp thể thức và văn phong hành chính.
       </p>
       <button
         type="button"
         onClick={onGenerate}
         disabled={isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Sparkles className="h-3.5 w-3.5" />
         Gợi ý nội dung tiếp theo
@@ -406,10 +406,10 @@ function ComparePanelContent({
   if (sourceIds.length === 0) {
     return (
       <div className="flex flex-col p-3 gap-3">
-        <p className="text-xs text-gray-500 leading-relaxed">
+        <p className="text-sm text-gray-500 leading-relaxed">
           So sánh văn bản hiện tại với một tài liệu tham chiếu đã ghim.
         </p>
-        <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2 border border-amber-100">
+        <p className="text-sm text-amber-600 bg-amber-50 rounded-lg p-2 border border-amber-100">
           Chưa ghim tài liệu tham chiếu nào. Hãy ghim tài liệu trong tab Nguồn.
         </p>
       </div>
@@ -418,7 +418,7 @@ function ComparePanelContent({
 
   return (
     <div className="flex flex-col p-3 gap-3">
-      <p className="text-xs text-gray-500 leading-relaxed">
+      <p className="text-sm text-gray-500 leading-relaxed">
         So sánh văn bản hiện tại với một tài liệu tham chiếu đã ghim.
       </p>
       <div className="flex flex-col gap-1.5">
@@ -428,7 +428,7 @@ function ComparePanelContent({
             type="button"
             onClick={() => setSelectedId(id)}
             className={cn(
-              "text-left px-2 py-2 rounded-lg border text-xs transition-colors",
+              "text-left px-2 py-2 rounded-lg border text-sm transition-colors",
               selectedId === id
                 ? "border-brand-400 bg-brand-50 text-brand-700 font-medium"
                 : "border-gray-100 hover:border-brand-200 hover:bg-gray-50 text-gray-600"
@@ -442,7 +442,7 @@ function ComparePanelContent({
         type="button"
         onClick={() => selectedId && onGenerate(selectedId)}
         disabled={!selectedId || isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Wrench className="h-3.5 w-3.5" />
         So sánh
@@ -785,7 +785,7 @@ export function RightPanel({
       case "style":
         return (
           <div className="flex flex-col p-3 gap-3">
-            <p className="text-xs text-gray-500 leading-relaxed">
+            <p className="text-sm text-gray-500 leading-relaxed">
               Chuẩn hóa văn phong toàn bộ văn bản về văn phong hành chính công vụ chuẩn mực.
               Kết quả hiển thị trong tab Chat AI,
               dùng nút Chèn vào văn bản để áp dụng.
@@ -794,7 +794,7 @@ export function RightPanel({
               type="button"
               onClick={() => handleToolClick("style")}
               disabled={isStreaming}
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <PenLine className="h-3.5 w-3.5" />
               Chuẩn hóa văn phong
@@ -804,12 +804,12 @@ export function RightPanel({
       case "summarize":
       case "citation":
         return (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-sm p-4 text-center">
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400 text-base p-4 text-center">
             <Bot className="h-8 w-8 text-gray-200" />
             <p>Kết quả đã gửi vào tab Chat AI</p>
             <button
               onClick={() => setActiveTab("chat")}
-              className="text-xs text-brand-600 hover:underline mt-1"
+              className="text-sm text-brand-600 hover:underline mt-1"
             >
               Xem Chat →
             </button>
@@ -841,7 +841,7 @@ export function RightPanel({
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors",
+              "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium border-b-2 transition-colors",
               activeTab === tab
                 ? "border-brand-500 text-brand-600"
                 : "border-transparent text-slate-500 hover:text-brand-500 hover:border-brand-200"
@@ -878,13 +878,13 @@ export function RightPanel({
               <ChevronLeft className="h-4 w-4" />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 truncate">
+              <p className="text-base font-semibold text-slate-800 truncate">
                 {viewingCitation.so_ki_hieu ||
                  viewingCitation.document_title ||
                  "Tài liệu tham chiếu"}
               </p>
               {viewingCitation.dieu_khoan && (
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-sm text-muted-foreground truncate">
                   {viewingCitation.dieu_khoan}
                 </p>
               )}
@@ -895,16 +895,16 @@ export function RightPanel({
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <div className="bg-brand-50/40 border border-brand-100 rounded-xl p-4">
-              <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-3">
+              <p className="text-sm font-semibold text-brand-700 uppercase tracking-wide mb-3">
                 Nội dung trích dẫn
               </p>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+              <p className="text-base text-slate-700 leading-relaxed whitespace-pre-wrap">
                 {viewingCitation.content_preview || "Không có nội dung xem trước."}
               </p>
             </div>
             <button
               onClick={() => setViewingCitation(null)}
-              className="mt-4 w-full text-sm text-brand-600 hover:text-brand-700 py-2 rounded-lg border border-brand-200 hover:bg-brand-50 transition-colors"
+              className="mt-4 w-full text-base text-brand-600 hover:text-brand-700 py-2 rounded-lg border border-brand-200 hover:bg-brand-50 transition-colors"
             >
               ← Quay lại chat
             </button>
@@ -924,7 +924,7 @@ export function RightPanel({
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-base font-medium text-gray-700">
                 {TOOLS.find((t) => t.id === activeTool)?.label ?? activeTool}
               </span>
             </div>
@@ -1031,7 +1031,7 @@ export function RightPanel({
                             )}
                           />
                         </div>
-                        <span className="text-xs text-slate-600 flex-1 truncate">{task.label}</span>
+                        <span className="text-sm text-slate-600 flex-1 truncate">{task.label}</span>
                         <span className="text-[10px] text-gray-400 shrink-0">
                           {formatRelativeTime(task.timestamp)}
                         </span>
@@ -1057,7 +1057,7 @@ export function RightPanel({
         <>
           <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0 space-y-3">
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center text-xs text-gray-400 gap-3 py-8">
+              <div className="flex flex-col items-center justify-center h-full text-center text-sm text-gray-400 gap-3 py-8">
                 <Bot className="h-10 w-10 text-gray-200" />
                 <p className="leading-relaxed">
                   Hỏi về căn cứ pháp lý,
@@ -1078,19 +1078,19 @@ export function RightPanel({
               >
                 <div
                   className={cn(
-                    "max-w-[88%] rounded-2xl px-3 py-2 text-sm",
+                    "max-w-[88%] rounded-2xl px-3 py-2 text-base",
                     msg.role === "user"
                       ? "bg-slate-100 text-slate-800 rounded-tr-sm"
                       : "bg-brand-50 border border-brand-100 text-slate-800 rounded-tl-sm"
                   )}
                 >
                   {msg.role === "user" ? (
-                    <span className="whitespace-pre-wrap text-sm">
+                    <span className="whitespace-pre-wrap text-base">
                       {msg.displayLabel ?? msg.content}
                     </span>
                   ) : msg.isStreaming ? (
                     <>
-                      <span className="whitespace-pre-wrap text-sm">{msg.content}</span>
+                      <span className="whitespace-pre-wrap text-base">{msg.content}</span>
                       <span className="inline-flex gap-1 ml-1">
                         {[0, 150, 300].map((d) => (
                           <span
@@ -1104,10 +1104,10 @@ export function RightPanel({
                   ) : msg.content.startsWith("Lỗi:") ? (
                     <div className="flex items-start gap-2">
                       <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-amber-700">{msg.content.replace("Lỗi: ", "")}</p>
+                      <p className="text-base text-amber-700">{msg.content.replace("Lỗi: ", "")}</p>
                     </div>
                   ) : (
-                    <div className="chat-markdown text-sm text-slate-800">
+                    <div className="chat-markdown text-base text-slate-800">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -1159,7 +1159,7 @@ export function RightPanel({
                           .trim();
                         onInsertText(cleanText);
                       }}
-                      className="mt-1.5 text-xs text-brand-400 hover:text-brand-600 flex items-center gap-1"
+                      className="mt-1.5 text-sm text-brand-400 hover:text-brand-600 flex items-center gap-1"
                     >
                       ↩ Chèn vào văn bản
                     </button>
@@ -1176,7 +1176,7 @@ export function RightPanel({
                         a.click();
                         document.body.removeChild(a);
                       }}
-                      className="mt-1.5 flex items-center gap-1.5 text-xs bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 transition-colors font-medium w-fit"
+                      className="mt-1.5 flex items-center gap-1.5 text-sm bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 transition-colors font-medium w-fit"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Tải {msg.formName}
@@ -1194,7 +1194,7 @@ export function RightPanel({
                 key={p.label}
                 onClick={() => sendMessage(p.label)}
                 disabled={isStreaming}
-                className="text-xs px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+                className="text-sm px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
                 {p.emoji} {p.label}
               </button>
@@ -1223,7 +1223,7 @@ export function RightPanel({
                 placeholder="Nhập câu hỏi... (Shift+Enter để xuống hàng)"
                 disabled={isStreaming}
                 rows={2}
-                className="flex-1 resize-none border-0 bg-transparent focus:outline-none focus:ring-0 px-2 py-1.5 max-h-[120px] overflow-y-auto text-sm disabled:opacity-50"
+                className="flex-1 resize-none border-0 bg-transparent focus:outline-none focus:ring-0 px-2 py-1.5 max-h-[120px] overflow-y-auto text-base disabled:opacity-50"
               />
               <div className="flex flex-col gap-0.5 mb-0.5 mr-0.5">
                 <button onClick={handleClearHistory} title="Xóa lịch sử"

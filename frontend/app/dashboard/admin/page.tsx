@@ -94,7 +94,7 @@ export default function AdminPage() {
         </div>
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Quản lý người dùng</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-base text-muted-foreground">
             {users.length} tài khoản trong hệ thống
           </p>
         </div>
@@ -139,7 +139,7 @@ export default function AdminPage() {
                         updateMutation.mutate({ id: u.id, data: { role: e.target.value } })
                       }
                       className={cn(
-                        "text-xs px-2 py-1 rounded-full border font-medium",
+                        "text-sm px-2 py-1 rounded-full border font-medium",
                         "appearance-none focus:outline-none focus:ring-1 focus:ring-brand-400",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
                         ROLE_BADGE_CLASS[u.role] ?? "bg-slate-100 text-slate-600",
@@ -183,7 +183,7 @@ export default function AdminPage() {
                       </button>
                     )}
                     {u.id === currentUser?.id && (
-                      <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <span className="text-sm text-slate-400 flex items-center gap-1">
                         <UserCheck className="h-3.5 w-3.5" />
                         Bạn
                       </span>

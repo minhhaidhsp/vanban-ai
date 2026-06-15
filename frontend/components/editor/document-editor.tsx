@@ -160,7 +160,7 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
             <FileText className="h-6 w-6 text-brand-600" />
           </div>
           <h2 className="text-xl font-semibold text-slate-800">Bạn muốn bắt đầu như thế nào?</h2>
-          <p className="text-sm text-muted-foreground mt-1">Chọn cách tạo văn bản phù hợp</p>
+          <p className="text-base text-muted-foreground mt-1">Chọn cách tạo văn bản phù hợp</p>
         </div>
 
         {/* Tab toggle buttons */}
@@ -177,7 +177,7 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
               )}
             >
               <TabIcon className={cn("h-4 w-4", activeTab === id ? "text-brand-600" : "text-slate-400")} />
-              <span className={cn("text-xs font-semibold", activeTab === id ? "text-brand-700" : "text-slate-500")}>{title}</span>
+              <span className={cn("text-sm font-semibold", activeTab === id ? "text-brand-700" : "text-slate-500")}>{title}</span>
               <span className={cn("text-[10px]", activeTab === id ? "text-brand-500" : "text-muted-foreground")}>{sub}</span>
             </button>
           ))}
@@ -207,17 +207,17 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
             <div className="flex flex-col items-center justify-center h-48 gap-4">
               <Loader2 className="h-12 w-12 animate-spin text-brand-600" />
               <p className="text-lg font-medium text-gray-700">AI đang soạn thảo...</p>
-              <p className="text-sm text-gray-400">Thường mất 15–30 giây</p>
+              <p className="text-base text-gray-400">Thường mất 15–30 giây</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
+                <p className="text-base font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
                 <textarea
                   value={yeuCau}
                   onChange={(e) => setYeuCau(e.target.value)}
                   placeholder={"Mô tả văn bản bạn muốn tạo...\nVí dụ: Quyết định phê duyệt danh sách học sinh xuất sắc năm học 2025-2026"}
-                  className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                   autoFocus
                 />
               </div>
@@ -269,7 +269,7 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
               {uploadedFile ? (
                 <div className="flex items-center justify-center gap-2">
                   <FileText className="h-5 w-5 text-brand-600" />
-                  <span className="text-sm font-medium text-brand-700 truncate max-w-[200px]">
+                  <span className="text-base font-medium text-brand-700 truncate max-w-[200px]">
                     {uploadedFile.name}
                   </span>
                   <button
@@ -283,13 +283,13 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
               ) : (
                 <>
                   <Upload className="h-7 w-7 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 font-medium">
+                  <p className="text-base text-gray-500 font-medium">
                     Kéo thả hoặc click để upload văn bản có sẵn
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     PDF, Word, JPG, PNG — tối đa 20MB
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-sm text-gray-400 mt-0.5">
                     Không bắt buộc — có thể bỏ qua để vào trang trắng
                   </p>
                 </>
@@ -305,7 +305,7 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
                     style={{ width: `${ocrProgress}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center justify-between text-sm text-slate-500">
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="h-3 w-3 animate-spin text-brand-500" />
                     Đang xử lý văn bản...
@@ -375,7 +375,7 @@ interface DocumentEditorProps {
 function SaveIndicator({ status, label }: { status: string; label: string }) {
   if (!label) return null;
   return (
-    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
       {status === "saving" && <Loader2 className="h-3 w-3 animate-spin" />}
       {status === "saved"  && <Check   className="h-3 w-3 text-green-500" />}
       {status === "error"  && <AlertCircle className="h-3 w-3 text-destructive" />}
@@ -867,7 +867,7 @@ export function DocumentEditor({
           {!editingTitle ? (
             <button
               onClick={() => setEditingTitle(true)}
-              className="text-sm font-medium text-slate-700 hover:text-brand-700
+              className="text-base font-medium text-slate-700 hover:text-brand-700
                          truncate max-w-[250px] text-left hover:underline
                          decoration-dashed underline-offset-2"
               title={documentTitle}
@@ -889,7 +889,7 @@ export function DocumentEditor({
                   if (docId) documentApi.update(docId, { title: documentTitle });
                 }
               }}
-              className="text-sm font-medium border-b border-brand-400
+              className="text-base font-medium border-b border-brand-400
                          outline-none bg-transparent w-[250px]"
             />
           )}
@@ -965,7 +965,7 @@ export function DocumentEditor({
 
       {/* ── AI-generated banner ───────────────────────────────────────────── */}
       {showAiBanner && (
-        <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-2 shrink-0 print:hidden">
+        <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 text-amber-800 text-base px-4 py-2 shrink-0 print:hidden">
           <span>✨ AI đã tạo mẫu — hãy xem lại và chỉnh sửa trước khi ban hành</span>
           <button
             onClick={() => setShowAiBanner(false)}

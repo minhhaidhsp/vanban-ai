@@ -105,12 +105,12 @@ function SectionEditor({
 function TypeSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex items-center gap-2 print:hidden">
-      <span className="text-xs text-muted-foreground whitespace-nowrap">Loại VB:</span>
+      <span className="text-sm text-muted-foreground whitespace-nowrap">Loại VB:</span>
       <div className="relative">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-7 pl-2 pr-7 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+          className="h-7 pl-2 pr-7 text-sm rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
         >
           <option value="">— Trang trắng —</option>
           {Object.entries(VAN_BAN_TYPES).map(([key, vb]) => (
@@ -120,7 +120,7 @@ function TypeSelector({ value, onChange }: { value: string; onChange: (v: string
         <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
       </div>
       {value && (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           Mẫu {getTemplateForType(value).code}: {getTemplateForType(value).name}
         </span>
       )}
@@ -411,12 +411,12 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         {/* Độ mật */}
         {!isBlank && (
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">Độ mật:</span>
+          <span className="text-sm text-muted-foreground">Độ mật:</span>
           <div className="relative">
             <select
               value={data.doMat}
               onChange={(e) => update("doMat", e.target.value)}
-              className="h-7 pl-2 pr-6 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-7 pl-2 pr-6 text-sm rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {DO_MAT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -428,12 +428,12 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         {/* Độ khẩn */}
         {!isBlank && (
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">Độ khẩn:</span>
+          <span className="text-sm text-muted-foreground">Độ khẩn:</span>
           <div className="relative">
             <select
               value={data.doKhan}
               onChange={(e) => update("doKhan", e.target.value)}
-              className="h-7 pl-2 pr-6 text-xs rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-7 pl-2 pr-6 text-sm rounded border border-input bg-background appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {DO_KHAN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -445,14 +445,14 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         {/* AI Gợi ý */}
         {!isBlank && (
         <div className="ml-auto flex items-center gap-1 border-l pl-3">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">AI:</span>
+          <span className="text-sm text-muted-foreground whitespace-nowrap">AI:</span>
 
           {/* Trích yếu */}
           <button
             type="button"
             onClick={handleSuggestTrichYeu}
             title="AI gợi ý trích yếu"
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1 px-2 py-1 text-sm rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
           >
             ✨ Trích yếu
           </button>
@@ -463,7 +463,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
             onClick={handleSuggestSoKyHieu}
             disabled={soKySuggesting}
             title="AI gợi ý số/ký hiệu theo NĐ30"
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded text-purple-600 hover:bg-purple-50 disabled:opacity-40 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1 px-2 py-1 text-sm rounded text-purple-600 hover:bg-purple-50 disabled:opacity-40 transition-colors whitespace-nowrap"
           >
             <span className={soKySuggesting ? "animate-spin inline-block" : ""}>
               {soKySuggesting ? "⟳" : "✨"}
@@ -476,7 +476,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
             type="button"
             onClick={() => setCanCuPanelOpen(true)}
             title="Gợi ý căn cứ pháp lý từ kho văn bản"
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1 px-2 py-1 text-sm rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
           >
             ✨ Căn cứ
           </button>
@@ -515,7 +515,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
 
       {/* ── Banner AI điền thông minh (chỉ hiện khi tạo mới, sau vùng sticky) ─── */}
       {isNew && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border-b border-purple-100 text-sm text-purple-700 print:hidden">
+        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border-b border-purple-100 text-base text-purple-700 print:hidden">
           <span>✨</span>
           <span>Văn bản mới — dùng AI để điền nhanh:</span>
           <button type="button" onClick={handleAIFillAll}

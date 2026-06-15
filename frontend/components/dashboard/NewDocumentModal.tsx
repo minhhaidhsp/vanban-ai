@@ -36,7 +36,7 @@ export function NewDocumentModal({ open, onClose }: NewDocumentModalProps) {
       <DialogContent className="max-w-sm">
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-          <p className="text-sm font-medium text-gray-700">Đang tạo văn bản...</p>
+          <p className="text-base font-medium text-gray-700">Đang tạo văn bản...</p>
         </div>
       </DialogContent>
     </Dialog>

@@ -109,7 +109,7 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Cài đặt</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
+        <p className="text-muted-foreground text-base mt-0.5">
           Cấu hình thông tin đơn vị và giao diện
         </p>
       </div>
@@ -150,7 +150,7 @@ export default function SettingsPage() {
                 onChange={(e) => setOrgForm((p) => ({ ...p, viet_tat: e.target.value }))}
                 placeholder="UBND"
               />
-              <p className="text-xs text-muted-foreground">Dùng trong số ký hiệu</p>
+              <p className="text-sm text-muted-foreground">Dùng trong số ký hiệu</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dia_danh">Địa danh</Label>
@@ -213,9 +213,9 @@ export default function SettingsPage() {
                     ))}
                   </div>
                   <div>
-                    <p className="text-sm font-medium leading-tight">{theme.label}</p>
+                    <p className="text-base font-medium leading-tight">{theme.label}</p>
                     {theme.sublabel && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{theme.sublabel}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{theme.sublabel}</p>
                     )}
                   </div>
                 </button>

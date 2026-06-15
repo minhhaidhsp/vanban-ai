@@ -77,8 +77,8 @@ function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalPr
             <input ref={fileInputRef} type="file" className="hidden"
               accept=".pdf,.doc,.docx" multiple onChange={handleFileInput} />
             <Upload className="h-7 w-7 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">Kéo thả PDF, Word vào đây</p>
-            <p className="text-xs text-gray-400 mt-1">Tối đa 10 file</p>
+            <p className="text-base text-gray-500">Kéo thả PDF, Word vào đây</p>
+            <p className="text-sm text-gray-400 mt-1">Tối đa 10 file</p>
           </div>
 
           {/* File list */}
@@ -87,7 +87,7 @@ function UploadSourceModal({ open, onClose, onStartUpload }: UploadSourceModalPr
               {files.map((f, i) => (
                 <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border bg-white">
                   <FileText className="h-3.5 w-3.5 text-brand-500 shrink-0" />
-                  <span className="text-sm truncate max-w-[200px] block" title={f.name}>
+                  <span className="text-base truncate max-w-[200px] block" title={f.name}>
                     {f.name}
                   </span>
                   <button onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
@@ -240,7 +240,7 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
       <div className="flex items-center justify-between px-3 py-2.5 border-b bg-white shrink-0">
         <div className="flex items-center gap-1.5">
           <BookOpen className="h-4 w-4 text-brand-600" />
-          <span className="text-sm font-semibold text-gray-800">Tài liệu tham chiếu</span>
+          <span className="text-base font-semibold text-gray-800">Tài liệu tham chiếu</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -270,9 +270,9 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
 
         {/* Pending uploads — shown above DB sources while processing */}
         {pendingUploads.map((p) => (
-          <div key={p.filename} className="flex items-center gap-2 px-3 py-2 text-sm">
+          <div key={p.filename} className="flex items-center gap-2 px-3 py-2 text-base">
             <FileText className="w-4 h-4 shrink-0 text-gray-400" />
-            <span className="truncate flex-1 text-gray-500 text-xs" title={p.filename}>
+            <span className="truncate flex-1 text-gray-500 text-sm" title={p.filename}>
               {p.filename}
             </span>
             {p.status === "uploading" && <Loader2 className="w-3 h-3 animate-spin text-brand-500 shrink-0" />}
@@ -285,20 +285,20 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
         {sources.length === 0 && pendingUploads.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-8 px-3 gap-2">
             <FileText className="h-8 w-8 text-gray-200" />
-            <p className="text-xs text-gray-400 leading-relaxed">
+            <p className="text-sm text-gray-400 leading-relaxed">
               Thêm tài liệu để AI tìm kiếm chính xác hơn
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => guardNewDoc() && setUploadOpen(true)}
-                className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                className="text-sm text-brand-600 hover:text-brand-700 font-medium"
               >
                 ↑ Upload file
               </button>
-              <span className="text-xs text-gray-300">|</span>
+              <span className="text-sm text-gray-300">|</span>
               <button
                 onClick={() => guardNewDoc() && setPickerOpen(true)}
-                className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                className="text-sm text-brand-600 hover:text-brand-700 font-medium"
               >
                 🔍 Từ kho
               </button>
@@ -314,7 +314,7 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
           >
             <FileText className="h-3.5 w-3.5 text-brand-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-800 truncate leading-tight"
+              <p className="text-sm font-medium text-gray-800 truncate leading-tight"
                  title={src.title}>
                 {src.so_ki_hieu || src.title}
               </p>

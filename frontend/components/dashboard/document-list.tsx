@@ -113,7 +113,7 @@ export function DocumentList() {
   const totalPages = Math.ceil(total / LIMIT);
 
   if (isLoading) {
-    return <div className="text-muted-foreground text-sm py-8 text-center">Đang tải...</div>;
+    return <div className="text-muted-foreground text-base py-8 text-center">Đang tải...</div>;
   }
 
   return (
@@ -122,7 +122,7 @@ export function DocumentList() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">
           Tài liệu
-          <span className="ml-2 text-sm text-muted-foreground font-normal">
+          <span className="ml-2 text-base text-muted-foreground font-normal">
             ({total})
           </span>
         </h2>
@@ -154,13 +154,13 @@ export function DocumentList() {
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
             placeholder="Tìm kiếm văn bản..."
-            className="pl-8 h-8 text-sm"
+            className="pl-8 h-8 text-base"
           />
         </div>
 
         {/* Loại filter */}
         <Select value={loaiFilter} onValueChange={(v) => { setLoaiFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 text-sm w-[160px]">
+          <SelectTrigger className="h-8 text-base w-[160px]">
             <SelectValue placeholder="Loại văn bản" />
           </SelectTrigger>
           <SelectContent>
@@ -172,13 +172,13 @@ export function DocumentList() {
         </Select>
 
         {/* Source toggle */}
-        <div className="flex rounded-md border overflow-hidden h-8 text-sm">
+        <div className="flex rounded-md border overflow-hidden h-8 text-base">
           {(["all", "editor", "upload"] as SourceFilter[]).map((s) => (
             <button
               key={s}
               onClick={() => { setSourceFilter(s); setPage(1); }}
               className={cn(
-                "px-3 py-1 text-xs font-medium transition-colors",
+                "px-3 py-1 text-sm font-medium transition-colors",
                 sourceFilter === s
                   ? "bg-brand-600 text-white"
                   : "bg-white hover:bg-brand-50/50 text-gray-600"
@@ -252,22 +252,22 @@ export function DocumentList() {
                 {/* Loại */}
                 <td className="px-4 py-3 hidden sm:table-cell">
                   {doc.loai_vb ? (
-                    <Badge variant="outline" className="text-xs whitespace-nowrap bg-brand-50 text-brand-700 border-brand-200">
+                    <Badge variant="outline" className="text-sm whitespace-nowrap bg-brand-50 text-brand-700 border-brand-200">
                       {loaiFullName(doc.loai_vb)}
                     </Badge>
                   ) : (
-                    <span className="text-muted-foreground text-xs">—</span>
+                    <span className="text-muted-foreground text-sm">—</span>
                   )}
                 </td>
 
                 {/* Nguồn */}
                 <td className="px-4 py-3 hidden md:table-cell">
                   {doc.source === "editor" ? (
-                    <Badge className="text-xs whitespace-nowrap inline-flex items-center bg-brand-600 text-white border-brand-600 hover:bg-brand-600">
+                    <Badge className="text-sm whitespace-nowrap inline-flex items-center bg-brand-600 text-white border-brand-600 hover:bg-brand-600">
                       Soạn thảo
                     </Badge>
                   ) : (
-                    <Badge className="text-xs whitespace-nowrap inline-flex items-center bg-gray-600 text-white border-gray-600 hover:bg-gray-600">
+                    <Badge className="text-sm whitespace-nowrap inline-flex items-center bg-gray-600 text-white border-gray-600 hover:bg-gray-600">
                       Upload
                     </Badge>
                   )}
