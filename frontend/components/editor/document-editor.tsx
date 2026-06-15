@@ -483,8 +483,9 @@ export function DocumentEditor({
   const [isBlankMode, setIsBlankMode] = useState(false);
   const [blankInitialData, setBlankInitialData] = useState<Partial<Nd30Data> | null>(null);
   const searchParams = useSearchParams();
+  const _parsed = parseContent(initialContent);
   const dataRef = useRef<Nd30Data>(
-    { ...defaultNd30Data(), ...parseContent(initialContent) }
+    { ...defaultNd30Data(_parsed.loaiVanBan ?? ""), ..._parsed }
   );
 
   // Source IDs for RAG scoping
@@ -664,7 +665,7 @@ export function DocumentEditor({
     if (docId) {
       documentApi.update(docId, {
         title,
-        content: JSON.stringify({ version: "nd30", loaiVanBan: "" }),
+        content: JSON.stringify({ version: "nd30", ...dataRef.current }),
       }).catch(() => {});
     }
     setShowWelcome(false);
@@ -892,7 +893,7 @@ export function DocumentEditor({
                          outline-none bg-transparent w-[250px]"
             />
           )}
-          {dataRef.current?.loaiVanBan && (
+          {!showWelcome && dataRef.current?.loaiVanBan && (
             <span className="hidden sm:inline-flex items-center px-2 py-0.5
                              rounded-full text-[11px] font-medium
                              bg-teal-50 text-teal-700 border border-teal-200">
