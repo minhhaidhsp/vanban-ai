@@ -314,9 +314,6 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
           coQuanChuQuan: prev.coQuanChuQuan || org.ten_chu_quan,
           coQuanBanHanh: prev.coQuanBanHanh || org.ten_co_quan,
           diaDanh: prev.diaDanh || org.dia_danh,
-          quyenHanKy: prev.quyenHanKy || org.chu_ky_mac_dinh?.quyen_han || "TM.",
-          chucDanhTapThe: prev.chucDanhTapThe || org.chu_ky_mac_dinh?.ten_tap_the || "",
-          chucVuKy: prev.chucVuKy || org.chu_ky_mac_dinh?.chuc_vu || "",
           _orgVietTat: org.viet_tat,
         } as Nd30Data & { _orgVietTat: string }));
       })
