@@ -62,10 +62,10 @@
 .chat-markdown ol { list-style-type: decimal; padding-left: 1.25rem; margin: 0.4rem 0; }
 .chat-markdown li { margin: 0.2rem 0; }
 .chat-markdown strong { font-weight: 600; color: #1e293b; }
-.chat-markdown code { background: #f0fdfa; color: #0f766e; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
-.chat-markdown blockquote { border-left: 3px solid #0d9488; padding-left: 0.75rem; color: #475569; margin: 0.5rem 0; }
+.chat-markdown code { background: var(--brand-50); color: var(--brand-700); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+.chat-markdown blockquote { border-left: 3px solid var(--brand-600); padding-left: 0.75rem; color: #475569; margin: 0.5rem 0; }
 .chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { font-weight: 600; margin: 0.5rem 0 0.25rem; }
-.chat-markdown a { color: #0d9488; }
+.chat-markdown a { color: var(--brand-600); }
 .chat-markdown br { display: block; margin: 0.2rem 0; }
 
 @layer base {
@@ -90,6 +90,18 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 174.7 83.9% 31.6%;
     --radius: 0.5rem;
+
+    /* ── Brand color ramp (theme: teal — default) ── */
+    --brand-50:  #f0fdfa;
+    --brand-100: #ccfbf1;
+    --brand-200: #99f6e4;
+    --brand-300: #5eead4;
+    --brand-400: #2dd4bf;
+    --brand-500: #14b8a6;
+    --brand-600: #0d9488;
+    --brand-700: #0f766e;
+    --brand-800: #115e59;
+    --brand-900: #134e4a;
   }
 
   .dark {
@@ -113,6 +125,39 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
   }
+}
+
+/* ── Theme presets (toggled via class on <html>) ─────────────────────── */
+
+.theme-blue {
+  --brand-50:  #e6f1fb;
+  --brand-100: #cce3f7;
+  --brand-200: #99c7ef;
+  --brand-300: #66abe7;
+  --brand-400: #378add;
+  --brand-500: #185fa5;
+  --brand-600: #0c447c;
+  --brand-700: #0a3a6b;
+  --brand-800: #08305a;
+  --brand-900: #042c53;
+  --primary: 210 82% 27%;
+  --ring:    210 82% 27%;
+}
+
+.theme-blue-red {
+  --brand-50:  #e6f1fb;
+  --brand-100: #cce3f7;
+  --brand-200: #99c7ef;
+  --brand-300: #66abe7;
+  --brand-400: #378add;
+  --brand-500: #185fa5;
+  --brand-600: #0c447c;
+  --brand-700: #0a3a6b;
+  --brand-800: #08305a;
+  --brand-900: #042c53;
+  --primary: 210 82% 27%;
+  --ring:    210 82% 27%;
+  --accent-danger: #e24b4a;
 }
 
 @layer base {

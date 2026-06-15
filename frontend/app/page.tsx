@@ -109,7 +109,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 bg-white border-b">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl">
-            <Building2 className="h-6 w-6 text-teal-600" />
+            <Building2 className="h-6 w-6 text-brand-600" />
             <span>CivicAI</span>
           </div>
           <div className="flex items-center gap-3">
@@ -117,16 +117,16 @@ export default function HomePage() {
               <Button variant="ghost">Đăng nhập</Button>
             </Link>
             <Link href="/register">
-              <Button className="bg-teal-600 hover:bg-teal-700 text-white">Bắt đầu</Button>
+              <Button className="bg-brand-600 hover:bg-brand-700 text-white">Bắt đầu</Button>
             </Link>
           </div>
         </div>
       </header>
 
       {/* B. HERO */}
-      <section className="bg-gradient-to-br from-slate-900 to-teal-900 py-28">
+      <section className="bg-gradient-to-br from-slate-900 to-brand-900 py-28">
         <div className="container flex flex-col items-center text-center gap-6">
-          <span className="bg-teal-500/20 text-teal-300 rounded-full px-3 py-1 text-base">
+          <span className="bg-brand-500/20 text-brand-300 rounded-full px-3 py-1 text-base">
             Hệ thống AI hỗ trợ hành chính • Triển khai nội bộ
           </span>
           <h1 className="text-white font-bold text-6xl tracking-tight max-w-3xl leading-tight">
@@ -140,7 +140,7 @@ export default function HomePage() {
           </p>
           <div className="flex gap-4 mt-2">
             <Link href="/register">
-              <Button size="lg" className="bg-teal-500 hover:bg-teal-400 text-white">
+              <Button size="lg" className="bg-brand-500 hover:bg-brand-400 text-white">
                 Dùng thử ngay
               </Button>
             </Link>
@@ -160,7 +160,7 @@ export default function HomePage() {
         <div className="container grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
           {STATS.map((s) => (
             <div key={s.label}>
-              <p className="font-bold text-5xl text-teal-400">{s.value}</p>
+              <p className="font-bold text-5xl text-brand-400">{s.value}</p>
               <p className="text-base text-slate-400 mt-1">{s.label}</p>
             </div>
           ))}
@@ -189,11 +189,11 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-teal-600 mb-4 text-xl">Với CivicAI</h3>
+              <h3 className="font-semibold text-brand-600 mb-4 text-xl">Với CivicAI</h3>
               <ul className="space-y-3">
                 {SOLUTIONS.map((s) => (
                   <li key={s} className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-teal-500 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
                     <span className="text-base text-gray-700">{s}</span>
                   </li>
                 ))}
@@ -216,9 +216,9 @@ export default function HomePage() {
             {COMPLIANCE.map(({ Icon, title, subtitle }) => (
               <div
                 key={title}
-                className="flex flex-col gap-3 bg-white border border-teal-100 rounded-xl p-5 shadow-sm min-h-[128px]"
+                className="flex flex-col gap-3 bg-white border border-brand-100 rounded-xl p-5 shadow-sm min-h-[128px]"
               >
-                <Icon className="h-6 w-6 text-teal-600 shrink-0" />
+                <Icon className="h-6 w-6 text-brand-600 shrink-0" />
                 <p className="font-semibold text-base text-slate-800 leading-snug">{title}</p>
                 <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{subtitle}</p>
               </div>
@@ -242,8 +242,8 @@ export default function HomePage() {
                 key={name}
                 className="rounded-xl border bg-white shadow-sm p-5 flex flex-col gap-3"
               >
-                <div className="rounded-lg bg-teal-50 p-2.5 w-fit">
-                  <Icon className="h-5 w-5 text-teal-600" />
+                <div className="rounded-lg bg-brand-50 p-2.5 w-fit">
+                  <Icon className="h-5 w-5 text-brand-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-base">{name}</p>
@@ -256,7 +256,7 @@ export default function HomePage() {
       </section>
 
       {/* F. LƯU TRỮ & DỮ LIỆU */}
-      <section className="bg-teal-950 py-20">
+      <section className="bg-brand-950 py-20">
         <div className="container">
           <h2 className="text-4xl font-bold text-white text-center mb-12">
             Lưu trữ và Dữ liệu
@@ -264,7 +264,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {SECURITY.map(({ Icon, title, desc }) => (
               <div key={title} className="bg-white/10 rounded-xl p-6 text-white">
-                <Icon className="h-7 w-7 text-teal-400 mb-3" />
+                <Icon className="h-7 w-7 text-brand-400 mb-3" />
                 <p className="font-semibold text-lg mb-2">{title}</p>
                 <p className="text-base text-slate-300 leading-relaxed">{desc}</p>
               </div>
@@ -279,7 +279,7 @@ export default function HomePage() {
           <Link href="/login">
             <Button
               size="lg"
-              className="bg-teal-500 hover:bg-teal-400 text-white text-xl px-12 py-7 h-auto"
+              className="bg-brand-500 hover:bg-brand-400 text-white text-xl px-12 py-7 h-auto"
             >
               Bắt đầu trải nghiệm ngay
             </Button>

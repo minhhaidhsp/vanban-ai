@@ -102,7 +102,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-5">
           {/* Avatar */}
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xl select-none">
+            <div className="h-16 w-16 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-xl select-none">
               {user ? getInitials(user.full_name) : "?"}
             </div>
             <div>
@@ -137,7 +137,7 @@ export default function ProfilePage() {
             <Button
               type="submit"
               disabled={updateProfile.isPending || fullName === user?.full_name}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
+              className="bg-brand-600 hover:bg-brand-700 text-white"
             >
               {updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Lưu thay đổi
@@ -187,7 +187,7 @@ export default function ProfilePage() {
             <Button
               type="submit"
               disabled={changePassword.isPending}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
+              className="bg-brand-600 hover:bg-brand-700 text-white"
             >
               {changePassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Đổi mật khẩu

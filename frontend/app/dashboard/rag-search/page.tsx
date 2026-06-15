@@ -66,7 +66,7 @@ function renderAnswerWithCitations(
           <button
             key={`${keyPrefix}-c-${idx}`}
             onClick={() => onCitationClick(num)}
-            className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 hover:bg-teal-200 cursor-pointer mx-0.5 transition-colors"
+            className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-brand-100 text-brand-700 hover:bg-brand-200 cursor-pointer mx-0.5 transition-colors"
             title={`Xem nguồn [${num}]`}
           >
             {num}
@@ -136,7 +136,7 @@ function renderAnswerWithCitations(
     const trimmed = line.trim();
     if (trimmed.startsWith("## ")) {
       elements.push(
-        <h4 key={i} className="text-sm font-semibold text-teal-700 mt-3 mb-1 first:mt-0">
+        <h4 key={i} className="text-sm font-semibold text-brand-700 mt-3 mb-1 first:mt-0">
           {trimmed.slice(3)}
         </h4>
       );
@@ -169,7 +169,7 @@ function ConfidenceMeter({
 }) {
   const pct = Math.round(confidence * 100);
   const barColor =
-    confidence >= 0.7 ? "bg-teal-500" :
+    confidence >= 0.7 ? "bg-brand-500" :
     confidence >= 0.4 ? "bg-amber-500" :
     "bg-red-500";
   const label =
@@ -584,8 +584,8 @@ export default function RAGSearchPage() {
         {/* Header */}
         <div className="border-b px-6 py-4 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-teal-50 p-2">
-              <Sparkles className="h-5 w-5 text-teal-600" />
+            <div className="rounded-xl bg-brand-50 p-2">
+              <Sparkles className="h-5 w-5 text-brand-600" />
             </div>
             <div>
               <h1 className="text-lg font-semibold">Tra cứu văn bản</h1>
@@ -615,7 +615,7 @@ export default function RAGSearchPage() {
                   <button
                     key={q}
                     onClick={() => setQuery(q)}
-                    className="text-left text-xs px-3 py-2 rounded-md border border-teal-200 text-teal-700 bg-teal-50/50 hover:bg-teal-50 transition-colors"
+                    className="text-left text-xs px-3 py-2 rounded-md border border-brand-200 text-brand-700 bg-brand-50/50 hover:bg-brand-50 transition-colors"
                   >
                     {q}
                   </button>
@@ -628,7 +628,7 @@ export default function RAGSearchPage() {
           {messages.map((msg) =>
             msg.role === "user" ? (
               <div key={msg.id} className="flex justify-end">
-                <div className="max-w-[75%] bg-teal-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
+                <div className="max-w-[75%] bg-brand-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
                   {msg.content}
                 </div>
               </div>
@@ -679,7 +679,7 @@ export default function RAGSearchPage() {
                                 : chunk.so_ki_hieu
                               : chunk.document_title || "Không rõ nguồn"
                           }
-                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors bg-white border-slate-200 text-slate-500 hover:border-teal-300 hover:text-teal-600 max-w-[200px]"
+                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600 max-w-[200px]"
                         >
                           <span className="shrink-0">{i + 1}.</span>
                           <span className="truncate">
@@ -702,7 +702,7 @@ export default function RAGSearchPage() {
           {isSearching && (
             <div className="flex justify-start">
               <div className="max-w-[85%] rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground flex items-center gap-3">
-                <div className="h-4 w-4 rounded-full border-2 border-teal-600 border-t-transparent animate-spin flex-shrink-0" />
+                <div className="h-4 w-4 rounded-full border-2 border-brand-600 border-t-transparent animate-spin flex-shrink-0" />
                 <div className="flex flex-col gap-0.5">
                   {PROGRESS_STEPS.slice(0, progressStep + 1).map((step, i) => (
                     <span
@@ -734,7 +734,7 @@ export default function RAGSearchPage() {
         <div className="border-t p-4 shrink-0">
           <div className={cn(
             "relative rounded-3xl border bg-background flex items-end p-2",
-            "focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-400 transition-shadow"
+            "focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-400 transition-shadow"
           )}>
             <textarea
               ref={textareaRef}
@@ -772,7 +772,7 @@ export default function RAGSearchPage() {
               className={cn(
                 "shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors mb-1 mr-1",
                 query.trim() && !isSearching
-                  ? "bg-teal-600 text-white hover:bg-teal-700"
+                  ? "bg-brand-600 text-white hover:bg-brand-700"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               )}
               title="Gửi"
@@ -792,7 +792,7 @@ export default function RAGSearchPage() {
           {/* Sidebar header */}
           <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
             <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-teal-600" />
+              <BookOpen className="h-4 w-4 text-brand-600" />
               <span className="text-sm font-semibold text-slate-700">
                 Nguồn trích dẫn [{activeCitation + 1}]
               </span>
@@ -834,8 +834,8 @@ export default function RAGSearchPage() {
               const chunk = activeCitationChunks[activeCitation];
               return (
                 <div className="space-y-3">
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <p className="text-xs text-teal-600 font-medium mb-0.5">Tài liệu</p>
+                  <div className="p-3 bg-brand-50 rounded-lg border border-brand-100">
+                    <p className="text-xs text-brand-600 font-medium mb-0.5">Tài liệu</p>
                     <p className="text-sm font-semibold text-slate-800">
                       {chunk.so_ki_hieu || chunk.document_title}
                     </p>

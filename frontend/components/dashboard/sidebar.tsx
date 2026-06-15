@@ -59,7 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   admin:  { label: "Quản trị", className: "bg-red-100 text-red-700" },
   leader: { label: "Lãnh đạo", className: "bg-purple-100 text-purple-700" },
-  staff:  { label: "Cán bộ",   className: "bg-teal-100 text-teal-700" },
+  staff:  { label: "Cán bộ",   className: "bg-brand-100 text-brand-700" },
 };
 
 export function Sidebar() {
@@ -91,8 +91,8 @@ export function Sidebar() {
         collapsed ? "flex-col justify-center gap-1 py-2" : "justify-between px-4"
       )}>
         <div className={cn("flex items-center", collapsed ? "" : "gap-2")}>
-          <Building2 className="h-5 w-5 text-teal-600" />
-          {!collapsed && <span className="font-bold text-lg text-teal-600">CivicAI</span>}
+          <Building2 className="h-5 w-5 text-brand-600" />
+          {!collapsed && <span className="font-bold text-lg text-brand-600">CivicAI</span>}
         </div>
         <button
           onClick={toggle}
@@ -129,11 +129,11 @@ export function Sidebar() {
                         "flex items-center rounded-md py-2 text-sm transition-colors",
                         collapsed ? "justify-center px-0" : "gap-3 px-3",
                         active
-                          ? "bg-teal-50 text-teal-700 font-medium"
-                          : "text-foreground hover:bg-teal-50/50 hover:text-teal-600"
+                          ? "bg-brand-50 text-brand-700 font-medium"
+                          : "text-foreground hover:bg-brand-50/50 hover:text-brand-600"
                       )}
                     >
-                      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-teal-600" : "")} />
+                      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-brand-600" : "")} />
                       {!collapsed && label}
                     </span>
                   </Link>

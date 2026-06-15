@@ -55,6 +55,7 @@ export interface OrganizationDto {
   viet_tat: string;
   dia_danh: string;
   chu_ky_mac_dinh: { quyen_han?: string; ten_tap_the?: string; chuc_vu?: string };
+  theme: string;
 }
 
 export const organizationApi = {
@@ -69,6 +70,7 @@ export const organizationApi = {
     viet_tat?: string;
     dia_danh?: string;
     chu_ky_mac_dinh?: Record<string, string>;
+    theme?: string;
   }) => {
     const { data } = await api.put("/organizations/current", payload);
     return data as OrganizationDto;
@@ -609,6 +611,7 @@ export const documentApi = {
     loai_vb?: string
     sort_by?: string
     sort_order?: string
+    scope?: "mine"
   }) => {
     const { data } = await api.get("/documents/", { params });
     return data as { items: DocumentDto[]; total: number };

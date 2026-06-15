@@ -16,6 +16,7 @@ class UpdateOrganizationRequest(BaseModel):
     viet_tat: str | None = None
     dia_danh: str | None = None
     chu_ky_mac_dinh: dict | None = None
+    theme: str | None = None
 
 
 @router.get("/current")
@@ -35,6 +36,7 @@ async def get_current_organization(
         "viet_tat": org.viet_tat,
         "dia_danh": org.dia_danh,
         "chu_ky_mac_dinh": org.chu_ky_mac_dinh or {},
+        "theme": org.theme,
     }
 
 
@@ -63,4 +65,5 @@ async def update_organization(
         "viet_tat": org.viet_tat,
         "dia_danh": org.dia_danh,
         "chu_ky_mac_dinh": org.chu_ky_mac_dinh or {},
+        "theme": org.theme,
     }

@@ -25,7 +25,7 @@ const ROLE_OPTIONS = [
 const ROLE_BADGE_CLASS: Record<string, string> = {
   admin:  "bg-red-100 text-red-700 border-red-200",
   leader: "bg-purple-100 text-purple-700 border-purple-200",
-  staff:  "bg-teal-100 text-teal-700 border-teal-200",
+  staff:  "bg-brand-100 text-brand-700 border-brand-200",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -75,7 +75,7 @@ export default function AdminPage() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
       </div>
     );
   }
@@ -116,7 +116,7 @@ export default function AdminPage() {
             {isLoading ? (
               <tr>
                 <td colSpan={5} className="text-center py-12 text-muted-foreground">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-teal-500" />
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-brand-500" />
                   Đang tải...
                 </td>
               </tr>
@@ -140,7 +140,7 @@ export default function AdminPage() {
                       }
                       className={cn(
                         "text-xs px-2 py-1 rounded-full border font-medium",
-                        "appearance-none focus:outline-none focus:ring-1 focus:ring-teal-400",
+                        "appearance-none focus:outline-none focus:ring-1 focus:ring-brand-400",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
                         ROLE_BADGE_CLASS[u.role] ?? "bg-slate-100 text-slate-600",
                       )}

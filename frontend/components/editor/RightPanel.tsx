@@ -56,7 +56,7 @@ export interface RightPanelProps {
 const BADGE_COLOR: Record<string, string> = {
   chinh_ta: "bg-red-100 text-red-700",
   the_thuc: "bg-purple-100 text-purple-700",
-  van_phong: "bg-teal-100 text-teal-700",
+  van_phong: "bg-brand-100 text-brand-700",
   dau_cau: "bg-yellow-100 text-yellow-700",
   thuat_ngu: "bg-green-100 text-green-700",
 };
@@ -113,12 +113,12 @@ const TOOL_COLORS: Record<ToolColor, {
   active: string; hover: string; icon: string; iconDefault: string; iconHover: string; label: string;
 }> = {
   teal: {
-    active:      "border-teal-500 bg-teal-50",
-    hover:       "hover:border-teal-300 hover:bg-teal-50/50",
-    icon:        "text-teal-600",
-    iconDefault: "text-teal-400",
-    iconHover:   "group-hover:text-teal-500",
-    label:       "text-teal-700",
+    active:      "border-brand-500 bg-brand-50",
+    hover:       "hover:border-brand-300 hover:bg-brand-50/50",
+    icon:        "text-brand-600",
+    iconDefault: "text-brand-400",
+    iconHover:   "group-hover:text-brand-500",
+    label:       "text-brand-700",
   },
   blue: {
     active:      "border-blue-500 bg-blue-50",
@@ -147,14 +147,14 @@ const TOOL_COLORS: Record<ToolColor, {
 };
 
 const LABEL_DEFAULT: Record<ToolColor, string> = {
-  teal:  "text-teal-500",
+  teal:  "text-brand-500",
   blue:  "text-blue-500",
   amber: "text-amber-500",
   slate: "text-slate-500",
 };
 
 const BORDER_DEFAULT: Record<ToolColor, string> = {
-  teal:  "border-teal-100",
+  teal:  "border-brand-100",
   blue:  "border-blue-100",
   amber: "border-amber-100",
   slate: "border-slate-100",
@@ -304,7 +304,7 @@ function ReviewPanelContent({
                 <div className="flex gap-1.5 pt-0.5">
                   <button
                     onClick={() => onApplyChange?.(i)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-teal-50 text-teal-600 hover:bg-teal-100 text-[11px] font-medium transition-colors border border-teal-200"
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-brand-50 text-brand-600 hover:bg-brand-100 text-[11px] font-medium transition-colors border border-brand-200"
                   >
                     <Check className="h-3 w-3" /> Áp dụng
                   </button>
@@ -325,7 +325,7 @@ function ReviewPanelContent({
         <div className="px-3 py-2 border-t shrink-0">
           <button
             onClick={onApplyAll}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors"
           >
             <Check className="h-3.5 w-3.5" />
             Áp dụng tất cả ({pendingCount})
@@ -354,7 +354,7 @@ function TablePanelContent({
         type="button"
         onClick={onGenerate}
         disabled={isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <LayoutGrid className="h-3.5 w-3.5" />
         Lập bảng số liệu
@@ -381,7 +381,7 @@ function DraftPanelContent({
         type="button"
         onClick={onGenerate}
         disabled={isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Sparkles className="h-3.5 w-3.5" />
         Gợi ý nội dung tiếp theo
@@ -430,8 +430,8 @@ function ComparePanelContent({
             className={cn(
               "text-left px-2 py-2 rounded-lg border text-xs transition-colors",
               selectedId === id
-                ? "border-teal-400 bg-teal-50 text-teal-700 font-medium"
-                : "border-gray-100 hover:border-teal-200 hover:bg-gray-50 text-gray-600"
+                ? "border-brand-400 bg-brand-50 text-brand-700 font-medium"
+                : "border-gray-100 hover:border-brand-200 hover:bg-gray-50 text-gray-600"
             )}
           >
             {id.length > 30 ? `${id.slice(0, 30)}…` : id}
@@ -442,7 +442,7 @@ function ComparePanelContent({
         type="button"
         onClick={() => selectedId && onGenerate(selectedId)}
         disabled={!selectedId || isStreaming}
-        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Wrench className="h-3.5 w-3.5" />
         So sánh
@@ -794,7 +794,7 @@ export function RightPanel({
               type="button"
               onClick={() => handleToolClick("style")}
               disabled={isStreaming}
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-teal-600 text-white text-xs font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <PenLine className="h-3.5 w-3.5" />
               Chuẩn hóa văn phong
@@ -809,7 +809,7 @@ export function RightPanel({
             <p>Kết quả đã gửi vào tab Chat AI</p>
             <button
               onClick={() => setActiveTab("chat")}
-              className="text-xs text-teal-600 hover:underline mt-1"
+              className="text-xs text-brand-600 hover:underline mt-1"
             >
               Xem Chat →
             </button>
@@ -843,8 +843,8 @@ export function RightPanel({
             className={cn(
               "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors",
               activeTab === tab
-                ? "border-teal-500 text-teal-600"
-                : "border-transparent text-slate-500 hover:text-teal-500 hover:border-teal-200"
+                ? "border-brand-500 text-brand-600"
+                : "border-transparent text-slate-500 hover:text-brand-500 hover:border-brand-200"
             )}
           >
             {tab === "tools" ? (
@@ -857,7 +857,7 @@ export function RightPanel({
                 <Bot className="h-3.5 w-3.5" />
                 Chat AI
                 {messages.length > 0 && (
-                  <span className="ml-1 bg-teal-600 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
+                  <span className="ml-1 bg-brand-600 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
                     {Math.ceil(messages.length / 2)}
                   </span>
                 )}
@@ -873,7 +873,7 @@ export function RightPanel({
           <div className="flex items-center gap-2 px-3 py-2.5 border-b bg-white shrink-0">
             <button
               onClick={() => setViewingCitation(null)}
-              className="p-1 rounded-md hover:bg-teal-50 text-slate-500 hover:text-teal-600 transition-colors"
+              className="p-1 rounded-md hover:bg-brand-50 text-slate-500 hover:text-brand-600 transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -889,13 +889,13 @@ export function RightPanel({
                 </p>
               )}
             </div>
-            <span className="text-[10px] bg-teal-50 text-teal-600 border border-teal-200 rounded-full px-2 py-0.5 shrink-0">
+            <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-200 rounded-full px-2 py-0.5 shrink-0">
               {Math.round(viewingCitation.score * 100)}% khớp
             </span>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
-            <div className="bg-teal-50/40 border border-teal-100 rounded-xl p-4">
-              <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-3">
+            <div className="bg-brand-50/40 border border-brand-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-3">
                 Nội dung trích dẫn
               </p>
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
@@ -904,7 +904,7 @@ export function RightPanel({
             </div>
             <button
               onClick={() => setViewingCitation(null)}
-              className="mt-4 w-full text-sm text-teal-600 hover:text-teal-700 py-2 rounded-lg border border-teal-200 hover:bg-teal-50 transition-colors"
+              className="mt-4 w-full text-sm text-brand-600 hover:text-brand-700 py-2 rounded-lg border border-brand-200 hover:bg-brand-50 transition-colors"
             >
               ← Quay lại chat
             </button>
@@ -982,7 +982,7 @@ export function RightPanel({
             {tasks.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-1 px-0.5">
-                  <Clock className="h-3 w-3 text-teal-400" />
+                  <Clock className="h-3 w-3 text-brand-400" />
                   <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
                     Gần đây
                   </p>
@@ -1010,12 +1010,12 @@ export function RightPanel({
                             setActiveTool(task.toolId as ToolId);
                           }
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-teal-50/50 transition-colors text-left cursor-pointer"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-brand-50/50 transition-colors text-left cursor-pointer"
                       >
                         <div
                           className={cn(
                             "rounded-md p-1 shrink-0",
-                            color === "teal"  && "bg-teal-50",
+                            color === "teal"  && "bg-brand-50",
                             color === "blue"  && "bg-blue-50",
                             color === "amber" && "bg-amber-50",
                             color === "slate" && "bg-slate-100",
@@ -1024,7 +1024,7 @@ export function RightPanel({
                           <ToolIcon
                             className={cn(
                               "h-3 w-3",
-                              color === "teal"  && "text-teal-500",
+                              color === "teal"  && "text-brand-500",
                               color === "blue"  && "text-blue-500",
                               color === "amber" && "text-amber-500",
                               color === "slate" && "text-slate-500",
@@ -1044,7 +1044,7 @@ export function RightPanel({
 
             {sourceIds.length > 0 && (
               <div className="mt-4 pt-3 border-t">
-                <p className="text-[10px] text-teal-600 font-medium">
+                <p className="text-[10px] text-brand-600 font-medium">
                   ✓ Chat đang tìm trong {sourceIds.length} tài liệu đã ghim
                 </p>
               </div>
@@ -1081,7 +1081,7 @@ export function RightPanel({
                     "max-w-[88%] rounded-2xl px-3 py-2 text-sm",
                     msg.role === "user"
                       ? "bg-slate-100 text-slate-800 rounded-tr-sm"
-                      : "bg-teal-50 border border-teal-100 text-slate-800 rounded-tl-sm"
+                      : "bg-brand-50 border border-brand-100 text-slate-800 rounded-tl-sm"
                   )}
                 >
                   {msg.role === "user" ? (
@@ -1138,7 +1138,7 @@ export function RightPanel({
                           <button
                             key={i}
                             onClick={() => setViewingCitation(c)}
-                            className="text-[11px] text-teal-600 hover:text-teal-800 hover:underline underline-offset-2 font-medium transition-colors"
+                            className="text-[11px] text-brand-600 hover:text-brand-800 hover:underline underline-offset-2 font-medium transition-colors"
                           >
                             {c.so_ki_hieu || c.document_title || `Nguồn ${i + 1}`}
                             {i < uniqueCitations.length - 1 && (
@@ -1159,7 +1159,7 @@ export function RightPanel({
                           .trim();
                         onInsertText(cleanText);
                       }}
-                      className="mt-1.5 text-xs text-teal-400 hover:text-teal-600 flex items-center gap-1"
+                      className="mt-1.5 text-xs text-brand-400 hover:text-brand-600 flex items-center gap-1"
                     >
                       ↩ Chèn vào văn bản
                     </button>
@@ -1176,7 +1176,7 @@ export function RightPanel({
                         a.click();
                         document.body.removeChild(a);
                       }}
-                      className="mt-1.5 flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-3 py-1.5 transition-colors font-medium w-fit"
+                      className="mt-1.5 flex items-center gap-1.5 text-xs bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 transition-colors font-medium w-fit"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Tải {msg.formName}
@@ -1204,7 +1204,7 @@ export function RightPanel({
           <div className="p-3 border-t shrink-0">
             <div className={cn(
               "relative rounded-2xl border bg-background flex items-end p-1.5",
-              "focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-400 transition-shadow"
+              "focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-400 transition-shadow"
             )}>
               <textarea
                 ref={inputRef}
@@ -1246,7 +1246,7 @@ export function RightPanel({
                   className={cn(
                     "h-7 w-7 rounded-full flex items-center justify-center transition-colors",
                     input.trim() && !isStreaming
-                      ? "bg-teal-600 text-white hover:bg-teal-700"
+                      ? "bg-brand-600 text-white hover:bg-brand-700"
                       : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   )}>
                   {isStreaming
