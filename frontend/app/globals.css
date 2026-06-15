@@ -168,3 +168,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.15; }
+  50%       { opacity: 0.45; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 3.5s ease-in-out infinite;
+  opacity: 0.15;
+}

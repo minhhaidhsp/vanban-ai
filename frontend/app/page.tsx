@@ -6,6 +6,22 @@ import {
   Server, Brain, Wallet, ChevronDown, Scale,
 } from "lucide-react";
 import ChatWidget from "@/components/public/ChatWidget";
+import { HeroPattern } from "@/components/landing/HeroPattern";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+async function getOrgTheme(): Promise<string> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/organizations/public-theme`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return "teal";
+    const data = await res.json();
+    return data.theme ?? "teal";
+  } catch {
+    return "teal";
+  }
+}
 
 const AGENTS = [
   {
@@ -102,9 +118,12 @@ const COMPLIANCE = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const theme = await getOrgTheme();
+  const themeClass = theme === "blue" ? "theme-blue" : theme === "blue-red" ? "theme-blue-red" : "";
+
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className={`flex min-h-screen flex-col${themeClass ? ` ${themeClass}` : ""}`}>
       {/* A. HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b">
         <div className="container flex h-16 items-center justify-between">
@@ -124,8 +143,9 @@ export default function HomePage() {
       </header>
 
       {/* B. HERO */}
-      <section className="bg-gradient-to-br from-slate-900 to-brand-900 py-28">
-        <div className="container flex flex-col items-center text-center gap-6">
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-brand-900 py-28">
+        <HeroPattern />
+        <div className="container relative z-10 flex flex-col items-center text-center gap-6">
           <h1 className="text-white font-bold text-6xl tracking-tight max-w-3xl leading-tight">
             Nâng cao năng suất
             <br />
@@ -140,13 +160,17 @@ export default function HomePage() {
                 Dùng thử ngay
               </Button>
             </Link>
-            <a
-              href="#features"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-white/30 text-white hover:bg-white/10 transition-colors text-base font-medium"
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border-white/30 text-white hover:bg-white/10 hover:text-white bg-transparent"
             >
-              <ChevronDown className="h-4 w-4" />
-              Xem tính năng
-            </a>
+              <a href="#features">
+                <ChevronDown className="h-4 w-4" />
+                Xem tính năng
+              </a>
+            </Button>
           </div>
         </div>
       </section>
@@ -252,7 +276,7 @@ export default function HomePage() {
       </section>
 
       {/* F. LƯU TRỮ & DỮ LIỆU */}
-      <section className="bg-slate-900 py-20">
+      <section className="bg-slate-800 py-16">
         <div className="container">
           <h2 className="text-4xl font-bold text-white text-center mb-12">
             Lưu trữ và Dữ liệu
@@ -270,7 +294,7 @@ export default function HomePage() {
       </section>
 
       {/* G. CTA */}
-      <section className="bg-slate-900 py-20 text-center">
+      <section className="bg-slate-900 py-14 text-center border-t border-white/10">
         <div className="container flex flex-col items-center">
           <Link href="/login">
             <Button
@@ -286,7 +310,7 @@ export default function HomePage() {
       {/* H. FOOTER */}
       <footer className="border-t py-8">
         <p className="text-center text-base text-slate-500">
-          © 2025 CivicAI · Trường Đại học Sư phạm TP.HCM · Sở KH&CN TP.HCM
+          © 2026 CivicAI
         </p>
       </footer>
 

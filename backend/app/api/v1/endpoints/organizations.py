@@ -10,6 +10,15 @@ from app.models.organization import Organization
 router = APIRouter()
 
 
+@router.get("/public-theme")
+async def get_public_theme(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Organization.theme).where(Organization.is_active.is_(True)).limit(1)
+    )
+    theme = result.scalar_one_or_none()
+    return {"theme": theme or "teal"}
+
+
 class UpdateOrganizationRequest(BaseModel):
     ten_chu_quan: str | None = None
     ten_co_quan: str | None = None

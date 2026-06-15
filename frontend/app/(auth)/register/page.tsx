@@ -60,21 +60,21 @@ export default function RegisterPage() {
             <h2 className="text-3xl font-bold leading-tight">
               Nền tảng AI hỗ trợ<br />hành chính công
             </h2>
-            <p className="mt-3 text-brand-200 text-sm leading-relaxed">
+            <p className="mt-3 text-brand-200 text-base leading-relaxed">
               Giúp cán bộ soạn thảo văn bản nhanh hơn, tra cứu chính xác hơn,
               và quản lý tài liệu hiệu quả hơn.
             </p>
           </div>
           <ul className="space-y-3">
             {FEATURES.map((f) => (
-              <li key={f} className="flex items-center gap-2.5 text-sm text-brand-100">
+              <li key={f} className="flex items-center gap-2.5 text-base text-brand-100">
                 <CheckCircle2 className="h-4 w-4 text-brand-300 shrink-0" />
                 {f}
               </li>
             ))}
           </ul>
         </div>
-        <p className="text-brand-400 text-xs">© 2025 CivicAI. Bảo lưu mọi quyền.</p>
+        <p className="text-brand-400 text-sm">© 2025 CivicAI. Bảo lưu mọi quyền.</p>
       </div>
 
       {/* Right panel — form */}
@@ -88,7 +88,7 @@ export default function RegisterPage() {
 
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Tạo tài khoản</h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <p className="text-muted-foreground text-base mt-1">
               Điền thông tin để đăng ký tài khoản CivicAI
             </p>
           </div>
@@ -98,7 +98,7 @@ export default function RegisterPage() {
               <Label htmlFor="full_name">Họ và tên</Label>
               <Input id="full_name" {...register("full_name")} />
               {errors.full_name && (
-                <p className="text-sm text-destructive">{errors.full_name.message}</p>
+                <p className="text-base text-destructive">{errors.full_name.message}</p>
               )}
             </div>
 
@@ -106,7 +106,7 @@ export default function RegisterPage() {
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" {...register("email")} />
               {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
+                <p className="text-base text-destructive">{errors.email.message}</p>
               )}
             </div>
 
@@ -114,18 +114,18 @@ export default function RegisterPage() {
               <Label htmlFor="password">Mật khẩu</Label>
               <Input id="password" type="password" {...register("password")} />
               {errors.password && (
-                <p className="text-sm text-destructive">{errors.password.message}</p>
+                <p className="text-base text-destructive">{errors.password.message}</p>
               )}
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-base text-destructive">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "Đang đăng ký..." : "Đăng ký"}
             </Button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-base text-muted-foreground">
             Đã có tài khoản?{" "}
             <Link href="/login" className="text-primary hover:underline">
               Đăng nhập
