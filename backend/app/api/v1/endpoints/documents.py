@@ -160,10 +160,12 @@ async def list_documents(
     loai_vb: str | None = Query(None),
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
+    scope: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role == "staff" and not current_user.is_superuser:
+    # scope="mine" → always filter to current user regardless of role
+    if scope == "mine" or (current_user.role == "staff" and not current_user.is_superuser):
         base = select(Document).where(Document.owner_id == current_user.id)
     else:
         base = select(Document)
@@ -183,6 +185,7 @@ async def list_documents(
         "title":      Document.title,
         "loai_vb":    Document.loai_vb,
         "created_at": Document.created_at,
+        "updated_at": Document.updated_at,
     }
     sort_col = _sort_cols.get(sort_by, Document.created_at)
     sort_expr = sort_col.asc() if sort_order == "asc" else sort_col.desc()
