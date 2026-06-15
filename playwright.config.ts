@@ -35,6 +35,17 @@ export default defineConfig({
         screenshot: "off",   // tắt screenshot auto
       },
     },
+    {
+      name: "video-demo",
+      use: {
+        ...devices["Desktop Chrome"],
+        headless: false,
+        slowMo: 300,
+        viewport: { width: 1920, height: 1080 },
+        video: "on",
+        screenshot: "off",
+      },
+    },
   ],
   outputDir: "test-results",
 });
