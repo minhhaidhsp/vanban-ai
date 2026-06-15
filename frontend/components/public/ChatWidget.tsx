@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { MessageCircle, X, Send, Bot, Download } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { MessageCircle, X, Send, Bot, Download, Mic } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "@/lib/utils";
 
 interface Citation {
   document_title: string | null;
@@ -47,9 +48,13 @@ export default function ChatWidget() {
     dieu_khoan?: string;
   }>(null);
 
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isOpenRef = useRef(false);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -63,11 +68,30 @@ export default function ChatWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "vi-VN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput((prev) => prev + (prev.trim() ? " " : "") + transcript);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    setSpeechSupported(true);
+  }, []);
+
   const sendMessage = async () => {
     const query = input.trim();
     if (!query || isLoading) return;
 
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setIsLoading(true);
     setMessages((prev) => [
       ...prev,
@@ -201,6 +225,16 @@ export default function ChatWidget() {
     }
   };
 
+  const handleToggleMic = useCallback(() => {
+    if (!recognitionRef.current || isLoading) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try { recognitionRef.current.start(); setIsListening(true); } catch {}
+    }
+  }, [isListening, isLoading]);
+
   return (
     <>
       {/* Chat panel */}
@@ -317,25 +351,55 @@ export default function ChatWidget() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-gray-100 p-3 flex gap-2 items-end shrink-0">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Nhập câu hỏi... (Enter để gửi)"
-            disabled={isLoading}
-            rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:opacity-50 max-h-24 leading-snug"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={isLoading || !input.trim()}
-            className="shrink-0 w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            aria-label="Gửi"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+        <div className="border-t border-gray-100 p-3 shrink-0">
+          <div className={cn(
+            "relative rounded-2xl border border-gray-200 bg-white flex items-end p-1.5",
+            "focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-400 transition-shadow"
+          )}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Nhập câu hỏi... (Enter để gửi)"
+              disabled={isLoading}
+              rows={1}
+              className="flex-1 resize-none border-0 bg-transparent focus:outline-none focus:ring-0 px-2 py-1.5 max-h-24 overflow-y-auto text-sm leading-snug disabled:opacity-50"
+            />
+            {speechSupported && (
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                disabled={isLoading}
+                title={isListening ? "Đang nghe..." : "Nhập bằng giọng nói"}
+                className={cn(
+                  "shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors mb-0.5 mr-0.5",
+                  isListening
+                    ? "bg-red-100 text-red-600 animate-pulse"
+                    : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                )}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={sendMessage}
+              disabled={isLoading || !input.trim()}
+              className={cn(
+                "shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors mb-0.5 mr-0.5",
+                input.trim() && !isLoading
+                  ? "bg-teal-600 text-white hover:bg-teal-700"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              )}
+              aria-label="Gửi"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
