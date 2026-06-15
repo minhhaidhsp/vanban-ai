@@ -143,10 +143,10 @@ export default async function HomePage() {
       </header>
 
       {/* B. HERO */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-brand-900 py-28">
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-brand-900 py-16 md:py-24 lg:py-28">
         <HeroPattern />
         <div className="container relative z-10 flex flex-col items-center text-center gap-6">
-          <h1 className="text-white font-bold text-6xl tracking-tight max-w-3xl leading-tight">
+          <h1 className="text-white font-bold text-4xl sm:text-5xl lg:text-6xl tracking-tight max-w-3xl leading-tight">
             Nâng cao năng suất
             <br />
             hành chính cấp cơ sở
@@ -154,9 +154,9 @@ export default async function HomePage() {
           <p className="text-slate-300 max-w-2xl text-xl leading-relaxed">
             Hệ thống trợ lý AI chuyên biệt cho hành chính công, hỗ trợ cán bộ soạn thảo, tra cứu và giải đáp thủ tục hành chính.
           </p>
-          <div className="flex gap-4 mt-2">
-            <Link href="/register">
-              <Button size="lg" className="bg-brand-500 hover:bg-brand-400 text-white">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-2 w-full sm:w-auto items-center">
+            <Link href="/register" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto bg-brand-500 hover:bg-brand-400 text-white">
                 Dùng thử ngay
               </Button>
             </Link>
@@ -164,7 +164,7 @@ export default async function HomePage() {
               asChild
               size="lg"
               variant="outline"
-              className="border-white/30 text-white hover:bg-white/10 hover:text-white bg-transparent"
+              className="w-full sm:w-auto border-white/30 text-white hover:bg-white/10 hover:text-white bg-transparent"
             >
               <a href="#features">
                 <ChevronDown className="h-4 w-4" />
@@ -180,7 +180,7 @@ export default async function HomePage() {
         <div className="container grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
           {STATS.map((s) => (
             <div key={s.label}>
-              <p className="font-bold text-5xl text-brand-400">{s.value}</p>
+              <p className="font-bold text-3xl sm:text-4xl lg:text-5xl text-brand-400">{s.value}</p>
               <p className="text-base text-slate-400 mt-1">{s.label}</p>
             </div>
           ))}
@@ -227,7 +227,7 @@ export default async function HomePage() {
       <section className="bg-slate-50 py-16">
         <div className="container">
           <div className="text-center mb-10">
-            <h2 className="text-4xl font-bold">Bảo mật & Tuân thủ</h2>
+            <h2 className="text-3xl md:text-4xl font-bold">Bảo mật & Tuân thủ</h2>
             <p className="text-muted-foreground mt-2 text-base">
               Đáp ứng đầy đủ quy định pháp lý về an toàn thông tin cho hệ thống hành chính công
             </p>
@@ -251,7 +251,7 @@ export default async function HomePage() {
       <section id="features" className="bg-white py-20">
         <div className="container">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold">7 trợ lý AI chuyên biệt</h2>
+            <h2 className="text-3xl md:text-4xl font-bold">7 trợ lý AI chuyên biệt</h2>
             <p className="text-muted-foreground mt-2 text-base">
               Các trợ lý AI cộng tác với nhau, con người giữ quyền quyết định
             </p>
