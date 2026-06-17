@@ -82,7 +82,8 @@ export default async function HomePage() {
   const themeClass = theme === "blue" ? "theme-blue" : theme === "blue-red" ? "theme-blue-red" : "";
 
   return (
-    <main className={`flex min-h-screen flex-col${themeClass ? ` ${themeClass}` : ""}`}>
+    <div className={themeClass || undefined}>
+    <main className="flex min-h-screen flex-col">
 
       {/* ── A. HEADER ── */}
       <header
@@ -105,10 +106,10 @@ export default async function HomePage() {
             </span>
           </div>
           <Link
-            href="/register"
+            href="/login"
             className="text-sm px-5 py-2 rounded-full font-medium transition-colors border border-[#378ADD]/50 text-[#85B7EB] hover:bg-[#378ADD]/20"
           >
-            Dùng thử ngay
+            Đăng nhập
           </Link>
         </div>
       </header>
@@ -172,7 +173,7 @@ export default async function HomePage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-              <Link href="/register" className="w-full sm:w-auto">
+              <Link href="/login" className="w-full sm:w-auto">
                 <button
                   className="w-full sm:w-auto px-8 py-3 rounded-full font-medium text-white transition-opacity hover:opacity-90"
                   style={{ background: "linear-gradient(90deg, #378ADD 0%, #7F77DD 100%)" }}
@@ -426,5 +427,6 @@ export default async function HomePage() {
 
       <ChatWidget />
     </main>
+    </div>
   );
 }

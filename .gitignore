@@ -66,6 +66,7 @@ backend/*.sql
 # Local scripts & sensitive notes (never commit)
 notes.txt
 backend/scripts/clear_all_data.py
+backend/scripts/seed_demo_users.py
 backend/check_db.py
 backend/migrate_v3.py
 backend/run_migration.py
