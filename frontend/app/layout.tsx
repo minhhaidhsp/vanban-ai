@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin", "vietnamese"] });
 
 export const metadata: Metadata = {
   title: "CivicAI",
-  description: "Hệ đa tác tử AI hỗ trợ hành chính công",
+  description: "Hệ thống trợ lý AI hỗ trợ hành chính công cấp cơ sở",
 };
 
 export default function RootLayout({

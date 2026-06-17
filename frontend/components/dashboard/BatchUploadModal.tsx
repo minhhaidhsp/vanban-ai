@@ -175,11 +175,11 @@ export function BatchUploadModal({ open, onClose, onSuccess }: BatchUploadModalP
               />
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <Upload className="h-8 w-8" />
-                <p className="text-sm">
+                <p className="text-base">
                   Kéo thả hoặc nhấn để chọn file
                   {selectedFiles.length > 0 && ` (${selectedFiles.length}/${MAX_FILES})`}
                 </p>
-                <p className="text-xs">PDF, Word, TXT — tối đa {MAX_FILES} file</p>
+                <p className="text-sm">PDF, Word, TXT — tối đa {MAX_FILES} file</p>
               </div>
             </div>
 
@@ -188,11 +188,11 @@ export function BatchUploadModal({ open, onClose, onSuccess }: BatchUploadModalP
                 {selectedFiles.map((f, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 p-2 rounded border text-sm"
+                    className="flex items-center gap-2 p-2 rounded border text-base"
                   >
                     <FileText className="h-4 w-4 text-primary shrink-0" />
                     <span className="flex-1 truncate">{f.name}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
+                    <span className="text-sm text-muted-foreground shrink-0">
                       {(f.size / 1024).toFixed(0)} KB
                     </span>
                     <Button
@@ -209,7 +209,7 @@ export function BatchUploadModal({ open, onClose, onSuccess }: BatchUploadModalP
             )}
 
             {uploadError && (
-              <p className="text-sm text-destructive">{uploadError}</p>
+              <p className="text-base text-destructive">{uploadError}</p>
             )}
 
             <DialogFooter>
@@ -234,23 +234,23 @@ export function BatchUploadModal({ open, onClose, onSuccess }: BatchUploadModalP
               {jobs.map((job) => (
                 <div
                   key={job.job_id}
-                  className="flex items-start gap-3 p-3 rounded-lg border text-sm"
+                  className="flex items-start gap-3 p-3 rounded-lg border text-base"
                 >
                   {statusIcon(job.status)}
                   <div className="flex-1 min-w-0">
                     <p className="truncate font-medium">{job.filename}</p>
                     {job.status === "failed" && job.error && (
-                      <p className="text-xs text-destructive mt-0.5">{job.error}</p>
+                      <p className="text-sm text-destructive mt-0.5">{job.error}</p>
                     )}
                     {(job.status === "pending" || job.status === "processing") && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-sm text-muted-foreground mt-0.5">
                         {statusLabel[job.status]}
                       </p>
                     )}
                   </div>
                   <span
                     className={cn(
-                      "shrink-0 text-xs font-medium",
+                      "shrink-0 text-sm font-medium",
                       job.status === "done" && "text-green-600",
                       job.status === "failed" && "text-destructive",
                       (job.status === "pending" || job.status === "processing") &&

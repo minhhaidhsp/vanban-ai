@@ -116,8 +116,8 @@ export default function ReferenceDocsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Kho tri thức</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            272 văn bản · 7.525 đoạn nội dung · Nền tảng cho tác tử Tra cứu AI
+          <p className="text-base text-muted-foreground mt-0.5">
+            272 văn bản · 7.525 đoạn nội dung · Nền tảng cho trợ lý AI Tra cứu văn bản
           </p>
         </div>
         <div className="flex gap-2">
@@ -127,7 +127,7 @@ export default function ReferenceDocsPage() {
             onClick={() => setBatchModalOpen(true)}
           >
             <Upload className="h-4 w-4" />
-            Upload hàng loạt (AI)
+            Upload
           </Button>
           <Button
             size="sm"
@@ -146,7 +146,7 @@ export default function ReferenceDocsPage() {
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+              "flex items-center gap-1.5 px-4 py-2 text-base font-medium border-b-2 transition-colors -mb-px",
               activeTab === tab.id
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -214,7 +214,7 @@ export default function ReferenceDocsPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : isError ? (
-        <div className="flex items-center justify-center py-16 text-destructive text-sm">
+        <div className="flex items-center justify-center py-16 text-destructive text-base">
           Không thể tải danh sách văn bản
         </div>
       ) : (

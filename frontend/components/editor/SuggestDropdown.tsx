@@ -21,7 +21,7 @@ export function SuggestDropdown({ items, onSelect, onClose, isOpen }: SuggestDro
             key={i}
             type="button"
             onClick={() => { onSelect(item); onClose(); }}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50 hover:text-purple-700 border-b last:border-0 transition-colors"
+            className="w-full text-left px-3 py-2 text-base hover:bg-purple-50 hover:text-purple-700 border-b last:border-0 transition-colors"
           >
             {item}
           </button>

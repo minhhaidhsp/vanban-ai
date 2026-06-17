@@ -201,7 +201,7 @@ export default function OcrPage() {
         </Button>
       </div>
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-base text-muted-foreground">
         Lịch sử các lần OCR ({total} văn bản)
       </p>
 
@@ -210,7 +210,7 @@ export default function OcrPage() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="text-sm border rounded px-2 py-1.5 bg-white"
+          className="text-base border rounded px-2 py-1.5 bg-white"
         >
           <option value="">Tất cả trạng thái</option>
           <option value="done">✓ Hoàn tất</option>
@@ -221,7 +221,7 @@ export default function OcrPage() {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="text-sm border rounded px-2 py-1.5 bg-white"
+          className="text-base border rounded px-2 py-1.5 bg-white"
         >
           <option value="">Tất cả loại</option>
           <option value="text_pdf">PDF văn bản</option>
@@ -250,8 +250,8 @@ export default function OcrPage() {
         // No jobs ever created
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <ScanText className="h-12 w-12 opacity-20" />
-          <p className="text-sm">Chưa có lịch sử OCR nào.</p>
-          <p className="text-xs">
+          <p className="text-base">Chưa có lịch sử OCR nào.</p>
+          <p className="text-sm">
             <Link
               href="/dashboard/ocr/new"
               className="text-primary underline underline-offset-2"
@@ -322,7 +322,7 @@ export default function OcrPage() {
                         </span>
                       )}
                       {!job.file_type && (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{formatDateTime(job.created_at)}</td>
@@ -360,7 +360,7 @@ export default function OcrPage() {
                           </>
                         )}
                         {(job.status === "pending" || job.status === "processing") && (
-                          <span className="text-xs text-muted-foreground">Đang xử lý...</span>
+                          <span className="text-sm text-muted-foreground">Đang xử lý...</span>
                         )}
                         {job.status === "error" && (
                           <Button

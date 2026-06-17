@@ -71,3 +71,22 @@ backend/migrate_v3.py
 backend/run_migration.py
 check_nd30.py
 clear_data.py
+
+# docx-builder
+e2e/doc-screenshots/docx-builder/node_modules/
+e2e/doc-screenshots/docx-builder/*.docx
+
+# video output
+e2e/doc-screenshots/output/*.webm
+test-results/
+
+# screenshot artifacts (verification/debug images)
+e2e/doc-screenshots/*.png
+e2e/doc-screenshots/output/
+
+# playwright report
+playwright-report/
+
+# notebooks
+notebooks/
+vllm_qwen25_vanbanai.ipynb

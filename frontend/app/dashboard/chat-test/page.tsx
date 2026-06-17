@@ -11,7 +11,7 @@ export default function ChatTestPage() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold mb-4">Chat Panel Test</h1>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-base text-gray-500 mb-6">
         Test SSE streaming, citations, chat history, quick chips.
       </p>
       <button

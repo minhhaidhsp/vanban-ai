@@ -83,33 +83,33 @@ export function TrichYeuSuggestPanel({
 
         {/* Search box */}
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">
             🔍
           </span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm kiếm trích yếu..."
-            className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full pl-9 pr-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
         </div>
 
         {/* Section 1: History */}
         <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide mb-2 flex items-center gap-1">
+          <p className="text-sm font-semibold uppercase text-muted-foreground tracking-wide mb-2 flex items-center gap-1">
             <span>🕐</span>
             {historyLoading ? "Đang tải lịch sử..." : `Đã dùng trước đây (${filteredHistory.length})`}
           </p>
 
           {historyLoading && (
-            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 py-2 text-base text-muted-foreground">
               <span className="animate-spin inline-block">⟳</span>
               Đang tải...
             </div>
           )}
 
           {!historyLoading && filteredHistory.length === 0 && !search && (
-            <p className="text-xs text-muted-foreground text-center py-2">
+            <p className="text-sm text-muted-foreground text-center py-2">
               Chưa có lịch sử cho loại văn bản này
             </p>
           )}
@@ -119,7 +119,7 @@ export function TrichYeuSuggestPanel({
               key={i}
               type="button"
               onClick={() => handleSelect(h.trich_yeu)}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 text-sm border border-transparent hover:border-blue-200 transition-colors mb-1 flex items-center justify-between gap-2"
+              className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 text-base border border-transparent hover:border-blue-200 transition-colors mb-1 flex items-center justify-between gap-2"
             >
               <span className="flex-1" style={{ wordBreak: "break-word", whiteSpace: "normal" }}>
                 {h.trich_yeu}
@@ -133,13 +133,13 @@ export function TrichYeuSuggestPanel({
 
         {/* Section 2: AI suggestions */}
         <div className="border-t pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide mb-2 flex items-center gap-1">
+          <p className="text-sm font-semibold uppercase text-muted-foreground tracking-wide mb-2 flex items-center gap-1">
             <span>✨</span>
             {aiLoading ? "AI đang tạo gợi ý..." : `Gợi ý từ AI (${filteredAi.length})`}
           </p>
 
           {aiLoading && (
-            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 py-2 text-base text-muted-foreground">
               <span className="animate-spin inline-block">⟳</span>
               AI đang tạo gợi ý...
             </div>
@@ -150,14 +150,14 @@ export function TrichYeuSuggestPanel({
               key={i}
               type="button"
               onClick={() => handleSelect(s)}
-              className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-purple-50 hover:text-purple-700 text-sm border border-transparent hover:border-purple-200 transition-colors mb-1"
+              className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-purple-50 hover:text-purple-700 text-base border border-transparent hover:border-purple-200 transition-colors mb-1"
             >
               {s}
             </button>
           ))}
 
           {!aiLoading && filteredAi.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-2">
+            <p className="text-sm text-muted-foreground text-center py-2">
               {search ? "Không tìm thấy gợi ý AI" : "Không có gợi ý AI"}
             </p>
           )}
@@ -165,7 +165,7 @@ export function TrichYeuSuggestPanel({
 
         {/* Manual input */}
         <div className="border-t pt-3">
-          <p className="text-xs font-medium uppercase text-muted-foreground tracking-wide mb-2">
+          <p className="text-sm font-medium uppercase text-muted-foreground tracking-wide mb-2">
             Hoặc nhập thủ công
           </p>
           <div className="flex gap-2">
@@ -178,7 +178,7 @@ export function TrichYeuSuggestPanel({
                 }
               }}
               placeholder="Nhập trích yếu..."
-              className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="flex-1 px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
             <Button
               type="button"

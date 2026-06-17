@@ -8,7 +8,31 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const THEMES = [
+  {
+    id: "teal",
+    label: "Xanh ngọc",
+    sublabel: "Mặc định",
+    swatches: ["#f0fdfa", "#2dd4bf", "#0d9488", "#115e59"],
+  },
+  {
+    id: "blue",
+    label: "Xanh dương",
+    sublabel: "",
+    swatches: ["#e6f1fb", "#378add", "#0c447c", "#08305a"],
+  },
+  {
+    id: "blue-red",
+    label: "Xanh dương & Đỏ",
+    sublabel: "",
+    swatches: ["#e6f1fb", "#378add", "#0c447c", "#e24b4a"],
+  },
+] as const;
+
+type ThemeId = (typeof THEMES)[number]["id"];
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -19,7 +43,6 @@ export default function SettingsPage() {
     queryFn: organizationApi.getCurrent,
   });
 
-  // ── Org info form ─────────────────────────────────────────────────────────
   const [orgForm, setOrgForm] = useState({
     ten_chu_quan: "",
     ten_co_quan: "",
@@ -27,12 +50,7 @@ export default function SettingsPage() {
     dia_danh: "",
   });
 
-  // ── Signature form ────────────────────────────────────────────────────────
-  const [sigForm, setSigForm] = useState({
-    quyen_han: "",
-    ten_tap_the: "",
-    chuc_vu: "",
-  });
+  const [selectedTheme, setSelectedTheme] = useState<ThemeId>("teal");
 
   useEffect(() => {
     if (org) {
@@ -42,11 +60,7 @@ export default function SettingsPage() {
         viet_tat:     org.viet_tat     ?? "",
         dia_danh:     org.dia_danh     ?? "",
       });
-      setSigForm({
-        quyen_han:   org.chu_ky_mac_dinh?.quyen_han   ?? "",
-        ten_tap_the: org.chu_ky_mac_dinh?.ten_tap_the ?? "",
-        chuc_vu:     org.chu_ky_mac_dinh?.chuc_vu     ?? "",
-      });
+      setSelectedTheme((org.theme as ThemeId) ?? "teal");
     }
   }, [org]);
 
@@ -65,15 +79,22 @@ export default function SettingsPage() {
     updateOrg.mutate(orgForm);
   };
 
-  const handleSigSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateOrg.mutate({
-      chu_ky_mac_dinh: {
-        quyen_han:   sigForm.quyen_han,
-        ten_tap_the: sigForm.ten_tap_the,
-        chuc_vu:     sigForm.chuc_vu,
-      },
-    });
+  const handleThemeSelect = (themeId: ThemeId) => {
+    if (themeId === selectedTheme) return;
+    setSelectedTheme(themeId);
+    updateOrg.mutate(
+      { theme: themeId },
+      {
+        onSuccess: () => {
+          toast({ title: "Đã áp dụng giao diện mới" });
+          window.location.reload();
+        },
+        onError: () => {
+          setSelectedTheme((org?.theme as ThemeId) ?? "teal");
+          toast({ title: "Lưu thất bại", variant: "destructive" });
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -88,12 +109,12 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Cài đặt</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Cấu hình thông tin đơn vị và mẫu văn bản
+        <p className="text-muted-foreground text-base mt-0.5">
+          Cấu hình thông tin đơn vị và giao diện
         </p>
       </div>
 
-      {/* ── Section 1: Thông tin đơn vị ──────────────────────────────── */}
+      {/* ── Thông tin đơn vị ─────────────────────────────────── */}
       <Card>
         <CardHeader>
           <CardTitle>Thông tin đơn vị</CardTitle>
@@ -129,7 +150,7 @@ export default function SettingsPage() {
                 onChange={(e) => setOrgForm((p) => ({ ...p, viet_tat: e.target.value }))}
                 placeholder="UBND"
               />
-              <p className="text-xs text-muted-foreground">Dùng trong số ký hiệu</p>
+              <p className="text-sm text-muted-foreground">Dùng trong số ký hiệu</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dia_danh">Địa danh</Label>
@@ -143,7 +164,7 @@ export default function SettingsPage() {
             <Button
               type="submit"
               disabled={updateOrg.isPending}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
+              className="bg-brand-600 hover:bg-brand-700 text-white"
             >
               {updateOrg.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Lưu
@@ -152,52 +173,55 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* ── Section 2: Chữ ký mặc định ───────────────────────────────── */}
+      {/* ── Giao diện ────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>Chữ ký mặc định</CardTitle>
+          <CardTitle>Giao diện</CardTitle>
           <CardDescription>
-            Tự động điền vào phần ký tên văn bản
+            Màu chủ đạo của hệ thống — áp dụng cho toàn bộ giao diện
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSigSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="quyen_han">Quyền hạn ký</Label>
-              <Input
-                id="quyen_han"
-                value={sigForm.quyen_han}
-                onChange={(e) => setSigForm((p) => ({ ...p, quyen_han: e.target.value }))}
-                placeholder="TM. ỦY BAN NHÂN DÂN"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ten_tap_the">Tên tập thể</Label>
-              <Input
-                id="ten_tap_the"
-                value={sigForm.ten_tap_the}
-                onChange={(e) => setSigForm((p) => ({ ...p, ten_tap_the: e.target.value }))}
-                placeholder="CHỦ TỊCH"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="chuc_vu">Chức vụ ký</Label>
-              <Input
-                id="chuc_vu"
-                value={sigForm.chuc_vu}
-                onChange={(e) => setSigForm((p) => ({ ...p, chuc_vu: e.target.value }))}
-                placeholder="Chủ tịch UBND phường"
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={updateOrg.isPending}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
-            >
-              {updateOrg.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Lưu
-            </Button>
-          </form>
+          <div className="grid grid-cols-3 gap-3">
+            {THEMES.map((theme) => {
+              const isActive = selectedTheme === theme.id;
+              return (
+                <button
+                  key={theme.id}
+                  onClick={() => handleThemeSelect(theme.id)}
+                  disabled={updateOrg.isPending}
+                  className={cn(
+                    "relative flex flex-col items-center gap-2.5 rounded-xl border-2 p-4 text-center transition-all",
+                    isActive
+                      ? "border-brand-600 bg-brand-50 shadow-sm"
+                      : "border-border bg-card hover:border-brand-200 hover:bg-muted/30"
+                  )}
+                >
+                  {isActive && (
+                    <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-600">
+                      <Check className="h-3 w-3 text-white" />
+                    </span>
+                  )}
+                  {/* Swatch preview */}
+                  <div className="flex gap-1">
+                    {theme.swatches.map((hex, i) => (
+                      <span
+                        key={i}
+                        className="h-6 w-6 rounded-full border border-black/10 shadow-sm"
+                        style={{ backgroundColor: hex }}
+                      />
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-base font-medium leading-tight">{theme.label}</p>
+                    {theme.sublabel && (
+                      <p className="text-sm text-muted-foreground mt-0.5">{theme.sublabel}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
     </div>

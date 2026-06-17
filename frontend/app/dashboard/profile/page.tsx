@@ -89,7 +89,7 @@ export default function ProfilePage() {
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Tài khoản</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
+        <p className="text-muted-foreground text-base mt-0.5">
           Quản lý thông tin cá nhân và bảo mật
         </p>
       </div>
@@ -102,12 +102,12 @@ export default function ProfilePage() {
         <CardContent className="space-y-5">
           {/* Avatar */}
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xl select-none">
+            <div className="h-16 w-16 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-xl select-none">
               {user ? getInitials(user.full_name) : "?"}
             </div>
             <div>
-              <p className="font-medium text-sm">{user?.full_name}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="font-medium text-base">{user?.full_name}</p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
             </div>
           </div>
 
@@ -137,7 +137,7 @@ export default function ProfilePage() {
             <Button
               type="submit"
               disabled={updateProfile.isPending || fullName === user?.full_name}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
+              className="bg-brand-600 hover:bg-brand-700 text-white"
             >
               {updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Lưu thay đổi
@@ -172,7 +172,7 @@ export default function ProfilePage() {
                 onChange={(e) => setPwForm((p) => ({ ...p, new_password: e.target.value }))}
                 required
               />
-              <p className="text-xs text-muted-foreground">Tối thiểu 8 ký tự</p>
+              <p className="text-sm text-muted-foreground">Tối thiểu 8 ký tự</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="confirm_password">Xác nhận mật khẩu mới</Label>
@@ -187,7 +187,7 @@ export default function ProfilePage() {
             <Button
               type="submit"
               disabled={changePassword.isPending}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
+              className="bg-brand-600 hover:bg-brand-700 text-white"
             >
               {changePassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Đổi mật khẩu

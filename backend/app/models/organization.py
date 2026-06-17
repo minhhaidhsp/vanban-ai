@@ -15,6 +15,7 @@ class Organization(Base):
     viet_tat: Mapped[str] = mapped_column(String(50), default="UBND")
     dia_danh: Mapped[str] = mapped_column(String(100), default="TP. Ho Chi Minh")
     chu_ky_mac_dinh: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    theme: Mapped[str] = mapped_column(String(50), default="teal", server_default="teal")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

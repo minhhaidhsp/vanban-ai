@@ -21,11 +21,11 @@ export default function NewDocumentPage() {
 
   if (error) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base text-muted-foreground">
         <p>Không thể tạo văn bản. Vui lòng thử lại.</p>
         <button
           onClick={() => router.push("/dashboard/documents")}
-          className="text-teal-600 hover:underline"
+          className="text-brand-600 hover:underline"
         >
           Quay lại danh sách
         </button>
@@ -34,8 +34,8 @@ export default function NewDocumentPage() {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin text-teal-600" />
+    <div className="flex-1 flex items-center justify-center gap-2 text-base text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
       Đang tạo văn bản mới...
     </div>
   );

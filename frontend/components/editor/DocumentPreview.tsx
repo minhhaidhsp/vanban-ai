@@ -36,7 +36,7 @@ export function DocumentPreview({ data, onClose }: DocumentPreviewProps) {
           <ArrowLeft className="h-4 w-4 mr-1.5" />
           Quay lại soạn thảo
         </Button>
-        <span className="text-xs text-muted-foreground select-none">
+        <span className="text-sm text-muted-foreground select-none">
           Ctrl+Shift+P để thoát • Chỉ đọc
         </span>
       </div>

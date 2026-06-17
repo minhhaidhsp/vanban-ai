@@ -10,12 +10,22 @@ from app.models.organization import Organization
 router = APIRouter()
 
 
+@router.get("/public-theme")
+async def get_public_theme(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Organization.theme).where(Organization.is_active.is_(True)).limit(1)
+    )
+    theme = result.scalar_one_or_none()
+    return {"theme": theme or "teal"}
+
+
 class UpdateOrganizationRequest(BaseModel):
     ten_chu_quan: str | None = None
     ten_co_quan: str | None = None
     viet_tat: str | None = None
     dia_danh: str | None = None
     chu_ky_mac_dinh: dict | None = None
+    theme: str | None = None
 
 
 @router.get("/current")
@@ -35,6 +45,7 @@ async def get_current_organization(
         "viet_tat": org.viet_tat,
         "dia_danh": org.dia_danh,
         "chu_ky_mac_dinh": org.chu_ky_mac_dinh or {},
+        "theme": org.theme,
     }
 
 
@@ -63,4 +74,5 @@ async def update_organization(
         "viet_tat": org.viet_tat,
         "dia_danh": org.dia_danh,
         "chu_ky_mac_dinh": org.chu_ky_mac_dinh or {},
+        "theme": org.theme,
     }

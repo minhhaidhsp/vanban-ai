@@ -17,7 +17,7 @@ export default function DashboardError({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 py-16">
       <h2 className="text-lg font-semibold">Đã xảy ra lỗi</h2>
-      <p className="text-sm text-muted-foreground">{error.message}</p>
+      <p className="text-base text-muted-foreground">{error.message}</p>
       <Button onClick={reset}>Thử lại</Button>
     </div>
   );

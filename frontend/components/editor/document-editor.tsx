@@ -156,11 +156,11 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
 
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-teal-50 mb-3">
-            <FileText className="h-6 w-6 text-teal-600" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-50 mb-3">
+            <FileText className="h-6 w-6 text-brand-600" />
           </div>
           <h2 className="text-xl font-semibold text-slate-800">Bạn muốn bắt đầu như thế nào?</h2>
-          <p className="text-sm text-muted-foreground mt-1">Chọn cách tạo văn bản phù hợp</p>
+          <p className="text-base text-muted-foreground mt-1">Chọn cách tạo văn bản phù hợp</p>
         </div>
 
         {/* Tab toggle buttons */}
@@ -176,9 +176,9 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
                 activeTab === id ? "bg-white shadow-sm" : "hover:bg-white/50"
               )}
             >
-              <TabIcon className={cn("h-4 w-4", activeTab === id ? "text-teal-600" : "text-slate-400")} />
-              <span className={cn("text-xs font-semibold", activeTab === id ? "text-teal-700" : "text-slate-500")}>{title}</span>
-              <span className={cn("text-[10px]", activeTab === id ? "text-teal-500" : "text-muted-foreground")}>{sub}</span>
+              <TabIcon className={cn("h-4 w-4", activeTab === id ? "text-brand-600" : "text-slate-400")} />
+              <span className={cn("text-sm font-semibold", activeTab === id ? "text-brand-700" : "text-slate-500")}>{title}</span>
+              <span className={cn("text-[10px]", activeTab === id ? "text-brand-500" : "text-muted-foreground")}>{sub}</span>
             </button>
           ))}
         </div>
@@ -192,10 +192,10 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
                 type="button"
                 onClick={() => onSelectTemplate(abbr)}
                 className="group flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-200
-                           hover:border-teal-400 hover:bg-teal-50 transition-all w-full"
+                           hover:border-brand-400 hover:bg-brand-50 transition-all w-full"
               >
-                <CardIcon className="h-5 w-5 text-slate-400 group-hover:text-teal-500" />
-                <span className="text-[12px] font-medium text-slate-700 group-hover:text-teal-700">{label}</span>
+                <CardIcon className="h-5 w-5 text-slate-400 group-hover:text-brand-500" />
+                <span className="text-[12px] font-medium text-slate-700 group-hover:text-brand-700">{label}</span>
               </button>
             ))}
           </div>
@@ -205,24 +205,24 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
         {activeTab === "ai" && (
           generating ? (
             <div className="flex flex-col items-center justify-center h-48 gap-4">
-              <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
+              <Loader2 className="h-12 w-12 animate-spin text-brand-600" />
               <p className="text-lg font-medium text-gray-700">AI đang soạn thảo...</p>
-              <p className="text-sm text-gray-400">Thường mất 15–30 giây</p>
+              <p className="text-base text-gray-400">Thường mất 15–30 giây</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
+                <p className="text-base font-medium text-gray-700 mb-2">Mô tả văn bản cần tạo</p>
                 <textarea
                   value={yeuCau}
                   onChange={(e) => setYeuCau(e.target.value)}
                   placeholder={"Mô tả văn bản bạn muốn tạo...\nVí dụ: Quyết định phê duyệt danh sách học sinh xuất sắc năm học 2025-2026"}
-                  className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full h-32 resize-none border border-gray-200 rounded-xl p-3 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                   autoFocus
                 />
               </div>
               <Button
-                className="bg-teal-600 hover:bg-teal-700 text-white w-full"
+                className="bg-brand-600 hover:bg-brand-700 text-white w-full"
                 disabled={!yeuCau.trim()}
                 onClick={() => onGenerate(yeuCau, "")}
               >
@@ -242,8 +242,8 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
                 "border-2 border-dashed rounded-xl p-5 text-center",
                 "cursor-pointer transition-colors",
                 uploadedFile
-                  ? "border-teal-400 bg-teal-50"
-                  : "border-gray-200 hover:border-teal-300"
+                  ? "border-brand-400 bg-brand-50"
+                  : "border-gray-200 hover:border-brand-300"
               )}
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -268,14 +268,14 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
               />
               {uploadedFile ? (
                 <div className="flex items-center justify-center gap-2">
-                  <FileText className="h-5 w-5 text-teal-600" />
-                  <span className="text-sm font-medium text-teal-700 truncate max-w-[200px]">
+                  <FileText className="h-5 w-5 text-brand-600" />
+                  <span className="text-base font-medium text-brand-700 truncate max-w-[200px]">
                     {uploadedFile.name}
                   </span>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setUploadedFile(null); }}
-                    className="p-0.5 rounded hover:bg-teal-100 text-teal-400 hover:text-teal-600"
+                    className="p-0.5 rounded hover:bg-brand-100 text-brand-400 hover:text-brand-600"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -283,13 +283,13 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
               ) : (
                 <>
                   <Upload className="h-7 w-7 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 font-medium">
+                  <p className="text-base text-gray-500 font-medium">
                     Kéo thả hoặc click để upload văn bản có sẵn
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     PDF, Word, JPG, PNG — tối đa 20MB
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-sm text-gray-400 mt-0.5">
                     Không bắt buộc — có thể bỏ qua để vào trang trắng
                   </p>
                 </>
@@ -301,16 +301,16 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
               <div className="space-y-3">
                 <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                   <div
-                    className="bg-teal-500 h-2.5 rounded-full transition-all duration-500 ease-out"
+                    className="bg-brand-500 h-2.5 rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${ocrProgress}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center justify-between text-sm text-slate-500">
                   <span className="flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin text-teal-500" />
+                    <Loader2 className="h-3 w-3 animate-spin text-brand-500" />
                     Đang xử lý văn bản...
                   </span>
-                  <span className="font-medium text-teal-600">{ocrProgress}%</span>
+                  <span className="font-medium text-brand-600">{ocrProgress}%</span>
                 </div>
                 <p className="text-[11px] text-center text-muted-foreground">
                   Có thể mất 15–30 giây tùy kích thước file
@@ -319,7 +319,7 @@ function WelcomePanel({ onSelectTemplate, onSelectBlank, onSelectBlankWithConten
             ) : (
               <Button
                 onClick={handleEnterBlank}
-                className="bg-teal-600 hover:bg-teal-700 text-white w-full"
+                className="bg-brand-600 hover:bg-brand-700 text-white w-full"
               >
                 {uploadedFile ? (
                   <>
@@ -375,7 +375,7 @@ interface DocumentEditorProps {
 function SaveIndicator({ status, label }: { status: string; label: string }) {
   if (!label) return null;
   return (
-    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
       {status === "saving" && <Loader2 className="h-3 w-3 animate-spin" />}
       {status === "saved"  && <Check   className="h-3 w-3 text-green-500" />}
       {status === "error"  && <AlertCircle className="h-3 w-3 text-destructive" />}
@@ -483,8 +483,9 @@ export function DocumentEditor({
   const [isBlankMode, setIsBlankMode] = useState(false);
   const [blankInitialData, setBlankInitialData] = useState<Partial<Nd30Data> | null>(null);
   const searchParams = useSearchParams();
+  const _parsed = parseContent(initialContent);
   const dataRef = useRef<Nd30Data>(
-    { ...defaultNd30Data(), ...parseContent(initialContent) }
+    { ...defaultNd30Data(_parsed.loaiVanBan ?? ""), ..._parsed }
   );
 
   // Source IDs for RAG scoping
@@ -664,7 +665,7 @@ export function DocumentEditor({
     if (docId) {
       documentApi.update(docId, {
         title,
-        content: JSON.stringify({ version: "nd30", loaiVanBan: "" }),
+        content: JSON.stringify({ version: "nd30", ...dataRef.current }),
       }).catch(() => {});
     }
     setShowWelcome(false);
@@ -850,7 +851,7 @@ export function DocumentEditor({
           {/* Back button */}
           <button
             onClick={() => router.push("/dashboard/documents")}
-            className="p-2 rounded-lg hover:bg-teal-50 text-slate-500 hover:text-teal-600 transition-colors"
+            className="p-2 rounded-lg hover:bg-brand-50 text-slate-500 hover:text-brand-600 transition-colors"
             title="Quay lại danh sách"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -858,7 +859,7 @@ export function DocumentEditor({
           {/* Mobile toggle: sources */}
           <button
             onClick={() => { setShowLeft((v) => !v); setShowRight(false); }}
-            className="lg:hidden p-1.5 rounded-md hover:bg-teal-50 text-slate-500 hover:text-teal-600"
+            className="lg:hidden p-1.5 rounded-md hover:bg-brand-50 text-slate-500 hover:text-brand-600"
             title="Tài liệu tham chiếu"
           >
             <PanelLeft className="h-4 w-4" />
@@ -866,7 +867,7 @@ export function DocumentEditor({
           {!editingTitle ? (
             <button
               onClick={() => setEditingTitle(true)}
-              className="text-sm font-medium text-slate-700 hover:text-teal-700
+              className="text-base font-medium text-slate-700 hover:text-brand-700
                          truncate max-w-[250px] text-left hover:underline
                          decoration-dashed underline-offset-2"
               title={documentTitle}
@@ -888,14 +889,14 @@ export function DocumentEditor({
                   if (docId) documentApi.update(docId, { title: documentTitle });
                 }
               }}
-              className="text-sm font-medium border-b border-teal-400
+              className="text-base font-medium border-b border-brand-400
                          outline-none bg-transparent w-[250px]"
             />
           )}
-          {dataRef.current?.loaiVanBan && (
+          {!showWelcome && dataRef.current?.loaiVanBan && (
             <span className="hidden sm:inline-flex items-center px-2 py-0.5
                              rounded-full text-[11px] font-medium
-                             bg-teal-50 text-teal-700 border border-teal-200">
+                             bg-brand-50 text-brand-700 border border-brand-200">
               {dataRef.current.loaiVanBan}
             </span>
           )}
@@ -909,11 +910,11 @@ export function DocumentEditor({
             size="sm"
             onClick={() => setShowWelcome(true)}
             title="Thay đổi template hoặc tạo lại"
-            className="text-slate-400 hover:text-teal-600 hover:bg-teal-50 hidden sm:flex"
+            className="text-slate-400 hover:text-brand-600 hover:bg-brand-50 hidden sm:flex"
           >
             <LayoutGrid className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="sm" onClick={enterPreview} title="Xem trước (Ctrl+Shift+P)" className="hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50">
+          <Button variant="outline" size="sm" onClick={enterPreview} title="Xem trước (Ctrl+Shift+P)" className="hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50">
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Xem trước
           </Button>
@@ -923,7 +924,7 @@ export function DocumentEditor({
                 variant="outline" size="sm"
                 disabled={exporting || !docId}
                 title={!docId ? "Lưu trước" : "Tải xuống"}
-                className="hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50"
+                className="hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
               >
                 {exporting
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -943,7 +944,7 @@ export function DocumentEditor({
           </DropdownMenu>
           <Button
             size="sm"
-            className="bg-teal-600 hover:bg-teal-700 text-white"
+            className="bg-brand-600 hover:bg-brand-700 text-white"
             onClick={() => saveNow()}
             disabled={saveMutation.isPending}
           >
@@ -954,7 +955,7 @@ export function DocumentEditor({
           </Button>
           <button
             onClick={() => { setShowRight((v) => !v); setShowLeft(false); }}
-            className="lg:hidden p-1.5 rounded-md hover:bg-teal-50 text-slate-500 hover:text-teal-600"
+            className="lg:hidden p-1.5 rounded-md hover:bg-brand-50 text-slate-500 hover:text-brand-600"
             title="Công cụ AI"
           >
             <PanelRight className="h-4 w-4" />
@@ -964,7 +965,7 @@ export function DocumentEditor({
 
       {/* ── AI-generated banner ───────────────────────────────────────────── */}
       {showAiBanner && (
-        <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-2 shrink-0 print:hidden">
+        <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 text-amber-800 text-base px-4 py-2 shrink-0 print:hidden">
           <span>✨ AI đã tạo mẫu — hãy xem lại và chỉnh sửa trước khi ban hành</span>
           <button
             onClick={() => setShowAiBanner(false)}

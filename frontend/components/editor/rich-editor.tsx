@@ -47,7 +47,7 @@ export function RichEditor({
       {showToolbar && <EditorToolbar editor={editor} />}
       <EditorContent editor={editor} />
       {showWordCount && editor && (
-        <div className="px-3 py-1.5 border-t text-xs text-muted-foreground text-right">
+        <div className="px-3 py-1.5 border-t text-sm text-muted-foreground text-right">
           {editor.storage.characterCount.words()} từ ·{" "}
           {editor.storage.characterCount.characters()} ký tự
         </div>

@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend,
+  Tooltip, ResponsiveContainer,
+  PieChart, Pie, Legend, Cell,
 } from "recharts";
 import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 
@@ -71,10 +71,10 @@ function MetricCard({ label, value, icon, sublabel, iconBg = "bg-primary/10" }: 
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-muted-foreground mb-1">{label}</p>
+            <p className="text-base text-muted-foreground mb-1">{label}</p>
             <p className="text-3xl font-bold tracking-tight">{value.toLocaleString("vi-VN")}</p>
             {sublabel && (
-              <p className="text-xs text-muted-foreground mt-1">{sublabel}</p>
+              <p className="text-sm text-muted-foreground mt-1">{sublabel}</p>
             )}
           </div>
           <div className={`rounded-lg p-2.5 ${iconBg}`}>
@@ -88,12 +88,6 @@ function MetricCard({ label, value, icon, sublabel, iconBg = "bg-primary/10" }: 
 
 // ── Chart colors ──────────────────────────────────────────────────────────────
 
-const BAR_COLORS = [
-  "#6366f1", "#8b5cf6", "#a78bfa", "#c4b5fd",
-  "#7c3aed", "#4f46e5", "#3b82f6", "#06b6d4",
-  "#10b981", "#f59e0b", "#ef4444", "#ec4899",
-];
-
 const PIE_COLORS = { editor: "#0d9488", upload: "#94a3b8" };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -106,16 +100,9 @@ export function DashboardOverview() {
 
   const { data: recentData, isLoading: recentLoading } = useQuery<{ items: DocumentDto[]; total: number }>({
     queryKey: ["documents-recent"],
-    queryFn: () => documentApi.list({ limit: 5, sort_by: "updated_at" }),
+    queryFn: () => documentApi.list({ limit: 5, sort_by: "updated_at", scope: "mine" }),
   });
   const recentDocs = recentData?.items ?? [];
-
-  // Prepare chart data
-  const barData = stats
-    ? Object.entries(stats.by_type)
-        .sort((a, b) => b[1] - a[1])
-        .map(([key, count]) => ({ name: loaiLabel(key), abbr: key, count }))
-    : [];
 
   const pieData = stats
     ? [
@@ -131,18 +118,18 @@ export function DashboardOverview() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tổng quan</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
+          <p className="text-muted-foreground text-base mt-0.5">
             Thống kê và hoạt động của hệ thống CivicAI
           </p>
         </div>
         <div className="text-right hidden sm:block">
-          <p className="text-sm font-medium">
+          <p className="text-base font-medium">
             {new Date().toLocaleDateString("vi-VN", {
               weekday: "long", day: "2-digit",
               month: "2-digit", year: "numeric",
             })}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5">
             UBND Phường Nhiêu Lộc · TP.HCM
           </p>
         </div>
@@ -157,9 +144,9 @@ export function DashboardOverview() {
             <MetricCard
               label="Tổng tài liệu"
               value={stats?.total ?? 0}
-              icon={<LayoutDashboard className="h-5 w-5 text-teal-600" />}
+              icon={<LayoutDashboard className="h-5 w-5 text-brand-600" />}
               sublabel="Tất cả loại"
-              iconBg="bg-teal-50"
+              iconBg="bg-brand-50"
             />
             <MetricCard
               label="Văn bản soạn thảo"
@@ -186,38 +173,6 @@ export function DashboardOverview() {
         )}
       </div>
 
-      {/* ── Kho tri thức ────────────────────────────────────── */}
-      <Card className="border-teal-100 bg-teal-50/30">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="rounded-lg bg-teal-100 p-2">
-              <Database className="h-5 w-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-sm">Kho tri thức AI</p>
-              <p className="text-xs text-muted-foreground">
-                Nền tảng cho tác tử Tra cứu và Trợ giúp công dân
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Văn bản tham chiếu", value: "272" },
-              { label: "Đoạn nội dung", value: "7.525" },
-              { label: "Độ tin cậy", value: "93%" },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg bg-white border border-teal-100 p-3 text-center"
-              >
-                <p className="text-2xl font-bold text-teal-600">{item.value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* ── Row 2: Charts ───────────────────────────────────── */}
       {!statsLoading && !hasData ? (
         /* Empty state */
@@ -225,110 +180,64 @@ export function DashboardOverview() {
           <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <TrendingUp className="h-10 w-10 text-muted-foreground" />
             <p className="font-medium text-muted-foreground">Chưa có dữ liệu thống kê</p>
-            <p className="text-xs text-muted-foreground max-w-xs">
+            <p className="text-sm text-muted-foreground max-w-xs">
               Bắt đầu soạn thảo hoặc upload văn bản để xem biểu đồ phân tích tại đây.
             </p>
             <Link href="/dashboard/documents/new">
-              <button className="mt-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors">
+              <button className="mt-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-base hover:bg-primary/90 transition-colors">
                 Soạn văn bản đầu tiên
               </button>
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {/* BarChart: by_type (3/5 width) */}
-          <Card className="lg:col-span-3">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Phân loại văn bản</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statsLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : barData.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  Chưa có văn bản có phân loại
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={barData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                    <XAxis
-                      dataKey="abbr"
-                      tick={{ fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      formatter={(v: ValueType | undefined) => [v ?? 0, "Văn bản"]}
-                      labelFormatter={(l) => loaiLabel(String(l ?? ""))}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                      {barData.map((_, i) => (
-                        <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* PieChart: editor vs upload (2/5 width) */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Nguồn tài liệu</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statsLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : pieData.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  Chưa có dữ liệu
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                      label={({ name, percent }: { name?: string; percent?: number }) =>
-                        `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
-                      }
-                      labelLine={false}
-                    >
-                      {pieData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      formatter={(value) => (
-                        <span style={{ fontSize: 12 }}>{value}</span>
-                      )}
-                    />
-                    <Tooltip
-                      formatter={(v: ValueType | undefined) => [v ?? 0, "Văn bản"]}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Nguồn tài liệu</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-48 w-full" />
+            ) : pieData.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-base text-muted-foreground">
+                Chưa có dữ liệu
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }: { name?: string; percent?: number }) =>
+                      `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
+                    }
+                    labelLine={false}
+                  >
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Legend
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value) => (
+                      <span style={{ fontSize: 12 }}>{value}</span>
+                    )}
+                  />
+                  <Tooltip
+                    formatter={(v: ValueType | undefined) => [v ?? 0, "Văn bản"]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Row 3: Hoạt động gần đây ───────────────────────── */}
@@ -338,7 +247,7 @@ export function DashboardOverview() {
             Hoạt động gần đây
             <Link
               href="/dashboard/documents"
-              className="text-xs text-primary font-normal hover:underline"
+              className="text-sm text-primary font-normal hover:underline"
             >
               Xem tất cả →
             </Link>
@@ -357,7 +266,7 @@ export function DashboardOverview() {
               </div>
             ))
           ) : recentDocs.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
+            <p className="text-base text-muted-foreground text-center py-6">
               Chưa có hoạt động nào
             </p>
           ) : (
@@ -374,7 +283,7 @@ export function DashboardOverview() {
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                  <p className="text-base font-medium truncate group-hover:text-primary transition-colors">
                     {doc.title}
                   </p>
                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -388,12 +297,43 @@ export function DashboardOverview() {
                     </span>
                   </div>
                 </div>
-                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                <span className="text-sm text-muted-foreground shrink-0 tabular-nums">
                   {relativeTime(doc.updated_at)}
                 </span>
               </Link>
             ))
           )}
+        </CardContent>
+      </Card>
+      {/* ── Kho tri thức ────────────────────────────────────── */}
+      <Card className="border-brand-100 bg-brand-50/30">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="rounded-lg bg-brand-100 p-2">
+              <Database className="h-5 w-5 text-brand-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-base">Kho tri thức AI</p>
+              <p className="text-sm text-muted-foreground">
+                Nền tảng cho trợ lý AI Tra cứu và Trợ giúp công dân
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Văn bản tham chiếu", value: "272" },
+              { label: "Đoạn nội dung", value: "7.525" },
+              { label: "Độ tin cậy", value: "93%" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg bg-white border border-brand-100 p-3 text-center"
+              >
+                <p className="text-2xl font-bold text-brand-600">{item.value}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

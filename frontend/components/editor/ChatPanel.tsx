@@ -152,7 +152,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
       <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-blue-500" />
-          <span className="font-semibold text-sm">Trợ lý AI</span>
+          <span className="font-semibold text-base">Trợ lý AI</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -175,7 +175,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-sm text-gray-400 gap-3 py-8">
+          <div className="flex flex-col items-center justify-center h-full text-center text-base text-gray-400 gap-3 py-8">
             <Bot className="h-12 w-12 text-gray-200" />
             <p className="leading-relaxed">
               Hỏi về căn cứ pháp lý,<br />thể thức NĐ30, thủ tục hành chính...
@@ -189,7 +189,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
             className={`flex mb-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+              className={`max-w-[85%] rounded-2xl px-3 py-2 text-base ${
                 msg.role === "user"
                   ? "bg-blue-500 text-white rounded-tr-sm"
                   : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-sm"
@@ -218,7 +218,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
                   {msg.citations.map((c, i) => (
                     <div
                       key={i}
-                      className="text-xs bg-white dark:bg-gray-700 rounded px-2 py-1 border border-gray-200 dark:border-gray-600"
+                      className="text-sm bg-white dark:bg-gray-700 rounded px-2 py-1 border border-gray-200 dark:border-gray-600"
                     >
                       <span className="font-medium text-blue-600">[{i + 1}]</span>{" "}
                       {c.so_ki_hieu || c.document_title || "—"}
@@ -234,7 +234,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
               {!msg.isStreaming && msg.role === "assistant" && msg.content && (
                 <button
                   onClick={() => onInsertText(msg.content)}
-                  className="mt-2 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                  className="mt-2 text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1 transition-colors"
                 >
                   ↩ Chèn vào văn bản
                 </button>
@@ -255,7 +255,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
               inputRef.current?.focus();
             }}
             disabled={isStreaming}
-            className="text-xs px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 whitespace-nowrap"
+            className="text-sm px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 whitespace-nowrap"
           >
             {p.emoji} {p.label}
           </button>
@@ -277,7 +277,7 @@ export function ChatPanel({ isOpen, onClose, docId, getDocContext, onInsertText 
           placeholder="Hỏi về văn bản... (Ctrl+Enter)"
           disabled={isStreaming}
           rows={2}
-          className="flex-1 resize-none text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+          className="flex-1 resize-none text-base border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
         />
         <button
           onClick={handleSend}

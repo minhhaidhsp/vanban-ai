@@ -14,10 +14,11 @@ import {
  * No interactive elements — safe to render multiple times with translateY.
  */
 export function Nd30StaticContent({ data }: { data: Nd30Data }) {
-  const template    = getTemplateForType(data.loaiVanBan);
-  const showTenLoai = hasTenLoai(template);
-  const showKinhGui = hasKinhGui(template);
-  const vbInfo      = VAN_BAN_TYPES[data.loaiVanBan];
+  const isBlank     = !data.loaiVanBan;
+  const template    = isBlank ? null : getTemplateForType(data.loaiVanBan);
+  const showTenLoai = isBlank ? false : hasTenLoai(template!);
+  const showKinhGui = isBlank ? false : hasKinhGui(template!);
+  const vbInfo      = isBlank ? null : VAN_BAN_TYPES[data.loaiVanBan];
   const showDoMat   = data.doMat !== "Thường";
   const showDoKhan  = data.doKhan !== "Thường";
   const hasCanCu    = data.canCu && data.canCu !== "<p></p>" && data.canCu.trim() !== "";

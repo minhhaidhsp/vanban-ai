@@ -72,21 +72,21 @@ export function CanCuSuggestPanel({
 
         {/* Search box */}
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">
             🔍
           </span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm trong gợi ý..."
-            className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full pl-9 pr-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
         </div>
 
         {/* Suggestions list */}
         <div className="max-h-64 overflow-y-auto">
           {isLoading && (
-            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 py-4 text-base text-muted-foreground">
               <span className="animate-spin inline-block">⟳</span>
               Đang tìm căn cứ từ kho văn bản...
             </div>
@@ -94,7 +94,7 @@ export function CanCuSuggestPanel({
 
           {!isLoading && filteredSuggestions.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium uppercase text-muted-foreground tracking-wide mb-2">
+              <p className="text-sm font-medium uppercase text-muted-foreground tracking-wide mb-2">
                 Gợi ý ({filteredSuggestions.length}{search ? ` trong ${suggestions.length}` : ""})
               </p>
               {filteredSuggestions.map((item, i) => (
@@ -110,7 +110,7 @@ export function CanCuSuggestPanel({
                   />
                   <div className="flex-1 min-w-0 overflow-hidden">
                     <p
-                      className="text-sm"
+                      className="text-base"
                       style={{
                         display: "-webkit-box",
                         WebkitLineClamp: 2,
@@ -122,7 +122,7 @@ export function CanCuSuggestPanel({
                     >
                       {item.text}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    <p className="text-sm text-muted-foreground mt-0.5 truncate">
                       {item.source_doc}
                       {item.so_ki_hieu && ` · ${item.so_ki_hieu}`}
                       {" · "}
@@ -137,13 +137,13 @@ export function CanCuSuggestPanel({
           )}
 
           {!isLoading && filteredSuggestions.length === 0 && search && (
-            <p className="text-sm text-muted-foreground text-center py-3">
+            <p className="text-base text-muted-foreground text-center py-3">
               Không tìm thấy căn cứ phù hợp với &ldquo;{search}&rdquo;
             </p>
           )}
 
           {!isLoading && suggestions.length === 0 && !search && (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <p className="text-base text-muted-foreground text-center py-4">
               Không tìm thấy căn cứ phù hợp trong kho.
               <br />
               Thêm văn bản vào kho để có gợi ý tốt hơn.
@@ -154,7 +154,7 @@ export function CanCuSuggestPanel({
         {/* Selected items */}
         {selected.length > 0 && (
           <div className="border-t pt-3">
-            <p className="text-xs font-medium uppercase text-muted-foreground tracking-wide mb-2">
+            <p className="text-sm font-medium uppercase text-muted-foreground tracking-wide mb-2">
               Đã chọn ({selected.length})
             </p>
             <div className="space-y-1">
@@ -163,9 +163,9 @@ export function CanCuSuggestPanel({
                   key={i}
                   className="flex items-center gap-2 p-2 bg-purple-50 border border-purple-100 rounded-lg overflow-hidden"
                 >
-                  <span className="text-xs text-purple-400 flex-shrink-0 w-4">{i + 1}.</span>
+                  <span className="text-sm text-purple-400 flex-shrink-0 w-4">{i + 1}.</span>
                   <span
-                    className="flex-1 text-sm"
+                    className="flex-1 text-base"
                     style={{
                       wordBreak: "break-word",
                       whiteSpace: "normal",
@@ -177,7 +177,7 @@ export function CanCuSuggestPanel({
                   <button
                     type="button"
                     onClick={() => toggleItem(text)}
-                    className="text-red-400 hover:text-red-600 flex-shrink-0 text-xs px-1"
+                    className="text-red-400 hover:text-red-600 flex-shrink-0 text-sm px-1"
                   >
                     ✕
                   </button>
