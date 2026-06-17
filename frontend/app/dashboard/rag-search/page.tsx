@@ -5,7 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowUp, BookOpen, Mic, Sparkles, Wifi, WifiOff, X,
   Plus, PanelLeftClose, PanelLeftOpen, Trash2,
+  Copy, Check, Volume2, VolumeX, ThumbsUp, ThumbsDown,
 } from "lucide-react";
+import { ResizeHandle } from "@/components/editor/ResizeHandle";
 import { cn } from "@/lib/utils";
 import {
   ragApi, ragSessionsApi,
@@ -134,18 +136,14 @@ function renderAnswerWithCitations(
     flushList();
 
     const trimmed = line.trim();
-    if (trimmed.startsWith("## ")) {
-      elements.push(
-        <h4 key={i} className="text-base font-semibold text-brand-700 mt-3 mb-1 first:mt-0">
-          {trimmed.slice(3)}
-        </h4>
-      );
-    } else if (trimmed === "") {
+    // Strip "## " prefix (no longer render as heading) — fall through to paragraph
+    const displayLine = trimmed.startsWith("## ") ? trimmed.slice(3) : line;
+    if (trimmed === "") {
       return;
     } else {
       elements.push(
         <p key={i} className="mb-1.5 last:mb-0">
-          {parseInline(line, `p-${i}`)}
+          {parseInline(displayLine, `p-${i}`)}
         </p>
       );
     }
@@ -277,6 +275,9 @@ export default function RAGSearchPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalMsg[]>([]);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const [historyWidth, setHistoryWidth] = useState(220);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(true);
 
   const { setCollapsed } = useSidebar();
@@ -509,10 +510,13 @@ export default function RAGSearchPage() {
     <div className="flex h-full overflow-hidden">
 
       {/* ── History panel ──────────────────────────────────────────────────── */}
-      <div className={cn(
-        "border-r bg-card flex flex-col transition-all duration-200 shrink-0",
-        historyCollapsed ? "w-0 overflow-hidden" : "w-[220px]"
-      )}>
+      <div
+        className={cn(
+          "border-r bg-card flex flex-col transition-all duration-200 shrink-0",
+          historyCollapsed ? "w-0 overflow-hidden" : ""
+        )}
+        style={historyCollapsed ? undefined : { width: historyWidth }}
+      >
         <div className="flex items-center justify-between p-3 border-b shrink-0">
           <span className="text-base font-medium truncate">Lịch sử tra cứu</span>
           <button
@@ -545,7 +549,7 @@ export default function RAGSearchPage() {
                 key={s.id}
                 onClick={() => handleSelectSession(s.id)}
                 className={cn(
-                  "group flex items-center justify-between gap-1 px-3 py-2 rounded-md text-base cursor-pointer",
+                  "group flex items-center justify-between gap-1 px-3 py-2 rounded-md text-sm cursor-pointer",
                   s.id === currentSessionId
                     ? "bg-muted font-medium"
                     : "hover:bg-muted/50"
@@ -564,6 +568,14 @@ export default function RAGSearchPage() {
           )}
         </div>
       </div>
+
+      {/* ── Resize handle for history panel ─────────────────────────────────── */}
+      {!historyCollapsed && (
+        <ResizeHandle
+          direction="right"
+          onResize={(d) => setHistoryWidth((w) => Math.min(400, Math.max(160, w + d)))}
+        />
+      )}
 
       {/* ── Collapsed toggle ────────────────────────────────────────────────── */}
       {historyCollapsed && (
@@ -633,7 +645,7 @@ export default function RAGSearchPage() {
                 </div>
               </div>
             ) : (
-              <div key={msg.id} className="flex justify-start">
+              <div key={msg.id} className="group flex justify-start flex-col">
                 <div className="max-w-[85%] w-full rounded-lg border bg-card p-4 text-base leading-relaxed space-y-3">
 
                   {/* Confidence + copy — only when metadata available (new messages) */}
@@ -693,6 +705,59 @@ export default function RAGSearchPage() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                {/* Action bar */}
+                <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity px-1 max-w-[85%]">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(msg.content);
+                      setCopiedId(msg.id);
+                      setTimeout(() => setCopiedId(null), 2000);
+                    }}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Sao chép"
+                  >
+                    {copiedId === msg.id
+                      ? <Check className="h-3.5 w-3.5 text-brand-600" />
+                      : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (speakingId === msg.id) {
+                        window.speechSynthesis.cancel();
+                        setSpeakingId(null);
+                      } else {
+                        window.speechSynthesis.cancel();
+                        const utt = new SpeechSynthesisUtterance(
+                          msg.content.replace(/\[\d+\]/g, "").replace(/##\s*/g, "")
+                        );
+                        utt.lang = "vi-VN";
+                        utt.onend = () => setSpeakingId(null);
+                        window.speechSynthesis.speak(utt);
+                        setSpeakingId(msg.id);
+                      }
+                    }}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title={speakingId === msg.id ? "Dừng đọc" : "Đọc to"}
+                  >
+                    {speakingId === msg.id
+                      ? <VolumeX className="h-3.5 w-3.5 text-brand-600" />
+                      : <Volume2 className="h-3.5 w-3.5" />}
+                  </button>
+                  <div className="w-px h-3 bg-border mx-0.5" />
+                  <button
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-green-600 transition-colors"
+                    title="Hữu ích"
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors"
+                    title="Chưa hữu ích"
+                  >
+                    <ThumbsDown className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             )
