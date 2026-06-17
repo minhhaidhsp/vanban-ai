@@ -136,9 +136,8 @@ async def process_reference_background(
             co_quan  = _notnull(meta.get("co_quan_ban_hanh"))
             ngay     = _parse_date(meta.get("ngay_ban_hanh"))
 
-            # title = trich_yeu (preferred) or so_ky or keep original filename
-            best_title = trich_yeu or so_ky or filename
-            doc.title = best_title
+            # Giữ filename gốc làm title — LLM metadata lưu vào field riêng
+            # doc.title đã được set = filename khi tạo, không ghi đè
 
             if so_ky:
                 doc.so_ki_hieu = so_ky
