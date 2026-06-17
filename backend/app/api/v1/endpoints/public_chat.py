@@ -124,6 +124,11 @@ async def public_chat_stream(
     session_id = body.session_id or "anonymous"
 
     async def _generate():
+        from app.services.embedding_service import is_available
+        if not is_available():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Hệ thống AI đang khởi động, vui lòng thử lại sau 30 giây'}, ensure_ascii=False)}\n\n"
+            return
+
         full_answer = ""
         chunks_used: list[dict] = []
 

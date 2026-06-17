@@ -133,7 +133,7 @@ export function DocumentList() {
             onClick={() => setBatchUploadOpen(true)}
           >
             <Upload className="h-4 w-4" />
-            Upload hàng loạt
+            Upload
           </Button>
           <Button
             size="sm"

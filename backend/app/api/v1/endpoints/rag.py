@@ -296,6 +296,11 @@ async def chat_stream(
                 "Vui lòng thử lại hoặc liên hệ quản trị viên.")
 
     async def _generate():
+        from app.services.embedding_service import is_available
+        if not is_available():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Hệ thống AI đang khởi động, vui lòng thử lại sau 30 giây'}, ensure_ascii=False)}\n\n"
+            return
+
         full_answer = ""
         chunks_used: list[dict] = []
 

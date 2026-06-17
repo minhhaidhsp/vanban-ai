@@ -157,6 +157,12 @@ export function DocumentEditor({
   const [docId, setDocId] = useState(documentId);
   const isNew = !documentId;
   const [showAiBanner, setShowAiBanner] = useState(() => isAiGenerated(initialContent));
+  useEffect(() => {
+    if (!showAiBanner) return;
+    const timer = setTimeout(() => setShowAiBanner(false), 5000);
+    return () => clearTimeout(timer);
+  }, [showAiBanner]);
+
   const [documentTitle, setDocumentTitle] = useState(initialTitle || "Văn bản mới");
   const [editingTitle, setEditingTitle] = useState(false);
 

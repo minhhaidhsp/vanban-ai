@@ -356,7 +356,7 @@ async def upload_ref_batch(
     files: List[UploadFile] = File(...),
     visibility: str = Form(default="private"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload nhiều file cùng lúc. AI tự trích xuất metadata. Trả 202 ngay."""
     settings = get_settings()

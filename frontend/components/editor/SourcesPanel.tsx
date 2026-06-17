@@ -321,7 +321,7 @@ export function SourcesPanel({ documentId, onSourcesChange, onRegisterUploader }
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800 truncate leading-tight"
                  title={src.title}>
-                {src.so_ki_hieu || src.title}
+                {src.title}
               </p>
               {src.loai_van_ban && (
                 <span className="inline-block text-[10px] bg-brand-50 text-brand-700 rounded px-1 mt-0.5">
