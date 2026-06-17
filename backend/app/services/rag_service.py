@@ -41,8 +41,8 @@ NGUYÊN TẮC TRÌNH BÀY:
 - Tổng độ dài câu trả lời: tối đa 150-200 từ
 - Sau thông tin lấy từ tài liệu: thêm [n] để người đọc tra cứu nguồn gốc khi cần
 - Nếu không có thông tin trong [CONTEXT]: nói thẳng "Không tìm thấy thông tin này trong cơ sở dữ liệu."
-- Cuối câu trả lời có thể gợi ý 1-2 câu hỏi liên quan ngắn gọn (tùy ngữ cảnh, không bắt buộc)
 - CHỈ dùng tiếng Việt, KHÔNG bịa thông tin ngoài [CONTEXT]
+- KHÔNG gợi ý câu hỏi tiếp theo ở cuối câu trả lời
 
 {history_section}[CONTEXT]
 {context}
