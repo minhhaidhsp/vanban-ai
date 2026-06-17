@@ -55,6 +55,12 @@ async def update_organization(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if body.theme is not None and current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ quản trị viên mới có thể thay đổi giao diện",
+        )
+
     result = await db.execute(
         select(Organization).where(Organization.is_active.is_(True)).limit(1)
     )

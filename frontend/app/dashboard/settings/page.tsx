@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { organizationApi } from "@/lib/api";
+import { organizationApi, userApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,13 @@ export default function SettingsPage() {
     queryKey: ["organization"],
     queryFn: organizationApi.getCurrent,
   });
+
+  const { data: me } = useQuery({
+    queryKey: ["me"],
+    queryFn: userApi.getMe,
+  });
+
+  const isAdmin = me?.role === "admin";
 
   const [orgForm, setOrgForm] = useState({
     ten_chu_quan: "",
@@ -173,8 +180,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* ── Giao diện ────────────────────────────────────────── */}
-      <Card>
+      {/* ── Giao diện (chỉ admin) ───────────────────────────── */}
+      {isAdmin && <Card>
         <CardHeader>
           <CardTitle>Giao diện</CardTitle>
           <CardDescription>
@@ -223,7 +230,7 @@ export default function SettingsPage() {
             })}
           </div>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

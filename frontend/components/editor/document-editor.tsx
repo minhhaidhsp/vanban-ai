@@ -25,7 +25,6 @@ import type { Nd30Data } from "@/lib/nd30";
 import { defaultNd30Data, VAN_BAN_TYPES } from "@/lib/nd30";
 import type { Editor } from "@tiptap/react";
 import type { ReviewChange } from "@/lib/api";
-import { refDocApi, documentSourcesApi } from "@/lib/api";
 
 
 
@@ -160,6 +159,8 @@ export function DocumentEditor({
   const [showAiBanner, setShowAiBanner] = useState(() => isAiGenerated(initialContent));
   const [documentTitle, setDocumentTitle] = useState(initialTitle || "Văn bản mới");
   const [editingTitle, setEditingTitle] = useState(false);
+
+  const uploadToSourcesRef = useRef<((files: File[]) => void) | null>(null);
 
   // Welcome panel state (shown when navigated from modal with ?new=true)
   const wasNewDoc = useRef(false);
@@ -429,36 +430,6 @@ export function DocumentEditor({
     }
   }, [docId, sourceIds, toast]);
 
-  const handleAddReferenceFile = useCallback(async (file: File, _extractedText: string) => {
-    if (!docId || docId === "new-doc") return;
-    try {
-      const batchRes = await refDocApi.uploadBatch([file], "private");
-      const job = batchRes.jobs[0];
-      if (!job) return;
-      const MAX_WAIT = 120_000;
-      const started = Date.now();
-      await new Promise<void>((resolve) => {
-        const tick = async () => {
-          if (Date.now() - started > MAX_WAIT) { resolve(); return; }
-          const s = await refDocApi.getJobStatus(job.job_id).catch(() => null);
-          if (!s) { setTimeout(tick, 2500); return; }
-          if (s.status === "done" && s.doc_id) {
-            await documentSourcesApi.add(docId, s.doc_id).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: ["document-sources", docId] });
-            resolve();
-          } else if (s.status === "failed") {
-            resolve();
-          } else {
-            setTimeout(tick, 2500);
-          }
-        };
-        setTimeout(tick, 2500);
-      });
-    } catch {
-      // best-effort: silent fail
-    }
-  }, [docId, queryClient]);
-
   // Autosave
   const saveMutation = useMutation({
     mutationFn: async (data: Nd30Data) => {
@@ -703,6 +674,7 @@ export function DocumentEditor({
           <SourcesPanel
             documentId={docId || "new-doc"}
             onSourcesChange={handleSourcesChange}
+            onRegisterUploader={(fn) => { uploadToSourcesRef.current = fn; }}
           />
         </div>
 
@@ -722,7 +694,7 @@ export function DocumentEditor({
               onSelectBlank={onSelectBlank}
               onSelectBlankWithContent={onSelectBlankWithContent}
               onGenerate={handleGenerate}
-              onAddReferenceFile={handleAddReferenceFile}
+              onAddReferenceFile={(file) => uploadToSourcesRef.current?.([file])}
               isGenerating={generatingAi}
             />
           ) : (

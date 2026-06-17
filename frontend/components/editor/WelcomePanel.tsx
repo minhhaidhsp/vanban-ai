@@ -24,7 +24,7 @@ export interface WelcomePanelProps {
   onSelectBlank: () => void;
   onSelectBlankWithContent: (text: string, filename: string) => void;
   onGenerate: (yeuCau: string, loai: string) => void;
-  onAddReferenceFile?: (file: File, extractedText: string) => void;
+  onAddReferenceFile?: (file: File) => void;
   isGenerating?: boolean;
 }
 
@@ -178,10 +178,12 @@ export function WelcomePanel({
     setCreateProgress(0);
     try {
       if (attachedFile) {
+        // Upload lên SourcesPanel ngay (fire-and-forget — SourcesPanel tự hiện spinner)
+        onAddReferenceFile?.(attachedFile);
+        // OCR để AI có context file
         const text = await runOcr(attachedFile, setCreateProgress);
         const enriched = `${yeuCau}\n\n[Tài liệu tham chiếu:]\n${text}`;
         await onGenerate(enriched, selectedLoai);
-        onAddReferenceFile?.(attachedFile, text);
       } else {
         await onGenerate(yeuCau, selectedLoai);
       }
@@ -217,9 +219,10 @@ export function WelcomePanel({
     setIsOcrLoading(true);
     setOcrProgress(0);
     try {
+      // Upload lên SourcesPanel ngay (fire-and-forget — SourcesPanel tự hiện spinner)
+      onAddReferenceFile?.(editFile);
       const text = await runOcr(editFile, setOcrProgress);
       onSelectBlankWithContent(text, editFile.name);
-      onAddReferenceFile?.(editFile, text);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Lỗi xử lý file";
       toast({

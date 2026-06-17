@@ -125,9 +125,10 @@ interface PendingUpload { filename: string; status: PendingStatus; }
 interface SourcesPanelProps {
   documentId: string;
   onSourcesChange: (ids: string[]) => void;
+  onRegisterUploader?: (uploadFn: (files: File[]) => void) => void;
 }
 
-export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps) {
+export function SourcesPanel({ documentId, onSourcesChange, onRegisterUploader }: SourcesPanelProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -165,7 +166,7 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
     onSuccess: invalidate,
   });
 
-  const handleStartUpload = (files: File[]) => {
+  const handleStartUpload = useCallback((files: File[]) => {
     if (isNewDoc) {
       toast({ title: "Vui lòng tạo hoặc mở văn bản trước", variant: "destructive" });
       return;
@@ -227,7 +228,11 @@ export function SourcesPanel({ documentId, onSourcesChange }: SourcesPanelProps)
         setTimeout(() => setPendingUploads([]), 3000);
       }
     })();
-  };
+  }, [isNewDoc, documentId, queryClient, toast]);
+
+  useEffect(() => {
+    onRegisterUploader?.((files) => handleStartUpload(files));
+  }, [handleStartUpload, onRegisterUploader]);
 
   const handleAdded = () => {
     invalidate();
