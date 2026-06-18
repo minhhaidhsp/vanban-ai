@@ -119,11 +119,6 @@ function TypeSelector({ value, onChange }: { value: string; onChange: (v: string
         </select>
         <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none text-muted-foreground" />
       </div>
-      {value && (
-        <span className="text-sm text-muted-foreground">
-          Mẫu {getTemplateForType(value).code}: {getTemplateForType(value).name}
-        </span>
-      )}
     </div>
   );
 }
@@ -248,6 +243,8 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
   const handleEditorReady = useCallback((fieldId: string, editor: Editor) => {
     editorRefs.current.set(fieldId, editor);
     if (editorMapRef) editorMapRef.current = editorRefs.current;
+    // Show toolbar immediately when any editor initializes (if none active yet)
+    setActiveEditor((prev) => prev ?? editor);
   }, [editorMapRef]);
 
   // Sync indent markers from active editor selection
@@ -402,7 +399,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
   const showDoKhan = data.doKhan !== "Thường";
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col h-full">
 
       {/* ── Top toolbar — sticky at top of scroll container ─── */}
       <div className="sticky top-0 z-40 flex items-center gap-4 px-4 py-2 border-b bg-white shadow-sm print:hidden">
@@ -442,44 +439,26 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         </div>
         )}
 
-        {/* AI Gợi ý */}
+        {/* AI Gợi ý — grouped select */}
         {!isBlank && (
-        <div className="ml-auto flex items-center gap-1 border-l pl-3">
-          <span className="text-sm text-muted-foreground whitespace-nowrap">AI:</span>
-
-          {/* Trích yếu */}
-          <button
-            type="button"
-            onClick={handleSuggestTrichYeu}
-            title="AI gợi ý trích yếu"
-            className="flex items-center gap-1 px-2 py-1 text-sm rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
-          >
-            ✨ Trích yếu
-          </button>
-
-          {/* Số/KH */}
-          <button
-            type="button"
-            onClick={handleSuggestSoKyHieu}
+        <div className="ml-auto border-l pl-3">
+          <select
+            className="h-7 pl-2 pr-6 text-sm rounded border border-purple-200 bg-purple-50 text-purple-700 cursor-pointer hover:bg-purple-100 transition-colors appearance-none focus:outline-none focus:ring-1 focus:ring-purple-400"
+            defaultValue=""
             disabled={soKySuggesting}
-            title="AI gợi ý số/ký hiệu theo NĐ30"
-            className="flex items-center gap-1 px-2 py-1 text-sm rounded text-purple-600 hover:bg-purple-50 disabled:opacity-40 transition-colors whitespace-nowrap"
+            onChange={(e) => {
+              const v = e.target.value;
+              e.target.value = "";
+              if (v === "trich_yeu") handleSuggestTrichYeu();
+              else if (v === "so_kh")  handleSuggestSoKyHieu();
+              else if (v === "can_cu") setCanCuPanelOpen(true);
+            }}
           >
-            <span className={soKySuggesting ? "animate-spin inline-block" : ""}>
-              {soKySuggesting ? "⟳" : "✨"}
-            </span>
-            Số/KH
-          </button>
-
-          {/* Căn cứ */}
-          <button
-            type="button"
-            onClick={() => setCanCuPanelOpen(true)}
-            title="Gợi ý căn cứ pháp lý từ kho văn bản"
-            className="flex items-center gap-1 px-2 py-1 text-sm rounded text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap"
-          >
-            ✨ Căn cứ
-          </button>
+            <option value="" disabled>{soKySuggesting ? "⟳ Đang xử lý..." : "✨ AI"}</option>
+            <option value="trich_yeu">✨ Trích yếu</option>
+            <option value="so_kh">✨ Số / Ký hiệu</option>
+            <option value="can_cu">✨ Căn cứ</option>
+          </select>
         </div>
         )}
       </div>
@@ -498,7 +477,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
           <EditorToolbar editor={activeEditor} />
         </div>
 
-        {!isBlank && (
+        {activeEditor && (
           <EditorRuler
             leftMarginMm={30}
             rightMarginMm={20}
@@ -525,7 +504,8 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         </div>
       )}
 
-      {/* ── A4 area — middle column scrolls, no inner scroll ─── */}
+      {/* ── A4 area — inner scroll so sticky toolbars don't scroll ─── */}
+      <div className="flex-1 overflow-y-auto min-h-0">
       <div
         className="bg-[#e5e7eb] py-6 print:bg-white print:p-0"
       >
@@ -569,10 +549,12 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
               minHeight="240mm"
               onEditorReady={(editor) => {
                 editorMapRef?.current.set("noiDung", editor);
+                setActiveEditor(editor);   // show toolbar immediately on init
                 editor.commands.focus("start");
               }}
               onEditorFocused={(editor) => {
                 editorMapRef?.current.set("noiDung", editor);
+                handleEditorFocused("noiDung", editor);  // keep toolbar in sync on re-focus
               }}
             />
           ) : (
@@ -729,6 +711,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
 
         </div>
       </div>
+      </div>{/* end flex-1 overflow-y-auto scroll wrapper */}
 
       <TrichYeuSuggestPanel
         isOpen={trichYeuPanelOpen}

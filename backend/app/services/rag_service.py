@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # ── Constants ────────────────────────────────────────────────────────────────
 
 DEFAULT_TOP_K = 10
-DEFAULT_MIN_SCORE = 0.35
+DEFAULT_MIN_SCORE = 0.28
 DEFAULT_TOP_N_RERANK = 5
 MAX_CONTEXT_CHARS = 2500  # ~1500 tokens (Vietnamese ~1.5 chars/token), an toàn với model 4096 ctx
 
@@ -81,6 +81,45 @@ def _chunk_row(c: dict) -> dict:
 # ── Service ──────────────────────────────────────────────────────────────────
 
 class RAGService:
+
+    async def retrieve_qa(
+        self,
+        query: str,
+        db: AsyncSession,
+        top_k: int = 3,
+        min_score: float = 0.5,
+    ) -> list[dict]:
+        """
+        Tìm Q&A pairs phù hợp nhất với query bằng cosine similarity trên question_embedding.
+        Ngưỡng cao hơn retrieve() vì Q&A chính xác hơn reference chunks.
+        """
+        from app.services.embedding_service import embed_text
+        from sqlalchemy import text as sa_text
+
+        query_vector = await asyncio.to_thread(embed_text, query)
+        vec_str = str(query_vector)
+
+        result = await db.execute(
+            sa_text("""
+                SELECT id, question, answer, can_cu, category,
+                       1 - (question_embedding <=> CAST(:vec AS vector)) AS score
+                FROM qa_pairs
+                WHERE is_active = true
+                  AND visibility = 'system'
+                  AND 1 - (question_embedding <=> CAST(:vec AS vector)) > :min_score
+                ORDER BY question_embedding <=> CAST(:vec AS vector)
+                LIMIT :top_k
+            """),
+            {"vec": vec_str, "min_score": min_score, "top_k": top_k},
+        )
+        rows = result.fetchall()
+        return [
+            {
+                "id": r[0], "question": r[1], "answer": r[2],
+                "can_cu": r[3], "category": r[4], "score": float(r[5]),
+            }
+            for r in rows
+        ]
 
     async def retrieve(
         self,

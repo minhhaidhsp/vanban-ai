@@ -373,17 +373,22 @@ export function DocumentEditor({
         if (!ok) return;
       }
 
+      const isHtml = (s: string) =>
+        /<(h[1-6]|p|table|ul|ol|li|strong|em|tr|td|th)\b/i.test(s);
+
       const newData: Nd30Data = {
         ...defaultNd30Data(""),
         loaiVanBan: "",
-        noiDung: `<p>${text
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .split("\n")
-          .filter((l) => l.trim())
-          .join("</p><p>")
-        }</p>`,
+        noiDung: isHtml(text)
+          ? text  // HTML từ DOCX: dùng trực tiếp
+          : `<p>${text
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .split("\n")
+              .filter((l) => l.trim())
+              .join("</p><p>")
+            }</p>`,  // plain text (PDF/ảnh): wrap từng dòng
       };
       dataRef.current = newData;
       setBlankInitialData(newData);
@@ -693,7 +698,7 @@ export function DocumentEditor({
         </div>
 
         {/* Middle: WelcomePanel or Editor */}
-        <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           {showWelcome ? (
             <WelcomePanel
               onSelectTemplate={onSelectTemplate}

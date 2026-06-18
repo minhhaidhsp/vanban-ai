@@ -547,6 +547,13 @@ async def test_docx_export(current_user: User = Depends(get_current_user)):
     )
 
 
+def _doc_access(document_id: str, user: "User"):
+    """Admin truy cập mọi document; user thường chỉ truy cập document của mình."""
+    if user.role == "admin":
+        return Document.id == document_id
+    return (Document.id == document_id) & (Document.owner_id == user.id)
+
+
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: str,
@@ -554,9 +561,7 @@ async def get_document(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Document).where(
-            Document.id == document_id, Document.owner_id == current_user.id
-        )
+        select(Document).where(_doc_access(document_id, current_user))
     )
     document = result.scalar_one_or_none()
     if not document:
@@ -572,9 +577,7 @@ async def update_document(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Document).where(
-            Document.id == document_id, Document.owner_id == current_user.id
-        )
+        select(Document).where(_doc_access(document_id, current_user))
     )
     document = result.scalar_one_or_none()
     if not document:
@@ -596,9 +599,7 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Document).where(
-            Document.id == document_id, Document.owner_id == current_user.id
-        )
+        select(Document).where(_doc_access(document_id, current_user))
     )
     document = result.scalar_one_or_none()
     if not document:
@@ -613,9 +614,7 @@ async def export_document_pdf(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Document).where(
-            Document.id == document_id, Document.owner_id == current_user.id
-        )
+        select(Document).where(_doc_access(document_id, current_user))
     )
     document = result.scalar_one_or_none()
     if not document:
@@ -649,9 +648,7 @@ async def export_document_docx(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Document).where(
-            Document.id == document_id, Document.owner_id == current_user.id
-        )
+        select(Document).where(_doc_access(document_id, current_user))
     )
     document = result.scalar_one_or_none()
     if not document:

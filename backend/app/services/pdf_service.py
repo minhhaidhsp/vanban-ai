@@ -250,6 +250,9 @@ i, em     {{ font-family: '{font}-Italic', serif; }}
 .can-cu li, .noi-dung li {{ margin: 0.1em 0; }}
 .can-cu h1, .can-cu h2, .can-cu h3,
 .noi-dung h1, .noi-dung h2, .noi-dung h3 {{ font-weight: bold; margin: 0.3em 0; }}
+.noi-dung table {{ width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11pt; }}
+.noi-dung table td, .noi-dung table th {{ border: 1px solid #333; padding: 3px 6px; vertical-align: top; }}
+.noi-dung table th {{ font-weight: bold; text-align: center; background-color: #f0f0f0; }}
 
 /* ── Footer: Nơi nhận + Chữ ký ──────────────────────────────── */
 .ftr  {{ width: 100%; border-collapse: collapse; margin-top: 4mm; }}
@@ -293,7 +296,18 @@ def _noi_nhan_html(items: list) -> str:
 
 
 def _build_body(data: dict[str, Any]) -> str:
-    loai            = data.get("loaiVanBan", "QĐ")
+    loai = data.get("loaiVanBan", "")
+
+    # Blank / upload mode — chỉ render noiDung, không có NĐ30 header
+    if not loai or not loai.strip():
+        noi_dung = data.get("noiDung", "")
+        return (
+            '<div style="font-family:\'Times New Roman\',serif;'
+            'font-size:14pt;line-height:1.6;text-align:justify;">'
+            f'<div class="noi-dung">{noi_dung or ""}</div>'
+            '</div>'
+        )
+
     full_name, has_type_name, has_kinh_gui = _VB.get(loai, ("Văn bản", True, False))
     cq_chu_quan     = data.get("coQuanChuQuan", "")
     cq_ban_hanh     = data.get("coQuanBanHanh", "")
