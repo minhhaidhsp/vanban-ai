@@ -152,6 +152,38 @@ def _process_block(
                 font_size=default_size,
             )
 
+    elif tag == "table":
+        # Determine number of columns (use max across all rows for safety)
+        all_rows = element.findall(".//tr")
+        if all_rows:
+            num_cols = max(
+                len([c for c in row if getattr(c, "tag", None) in ("td", "th")])
+                for row in all_rows
+            ) or 1
+            tbl = doc.add_table(rows=0, cols=num_cols)
+            try:
+                tbl.style = "Table Grid"
+            except Exception:
+                pass
+
+            for row_el in all_rows:
+                cell_els = [c for c in row_el if getattr(c, "tag", None) in ("td", "th")]
+                if not cell_els:
+                    continue
+                row = tbl.add_row()
+                for i, cell_el in enumerate(cell_els):
+                    if i >= num_cols:
+                        break
+                    cell_text = "".join(cell_el.itertext()).strip()
+                    row.cells[i].text = cell_text
+                    if cell_el.tag == "th":
+                        for para in row.cells[i].paragraphs:
+                            for run in para.runs:
+                                run.bold = True
+                                run.font.name = "Times New Roman"
+                                run.font.size = Pt(13.0)
+            doc.add_paragraph()  # blank line after table
+
     else:
         # Recurse into unknown block containers (div, blockquote, …)
         for child in element:

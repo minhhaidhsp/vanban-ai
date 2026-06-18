@@ -250,6 +250,9 @@ i, em     {{ font-family: '{font}-Italic', serif; }}
 .can-cu li, .noi-dung li {{ margin: 0.1em 0; }}
 .can-cu h1, .can-cu h2, .can-cu h3,
 .noi-dung h1, .noi-dung h2, .noi-dung h3 {{ font-weight: bold; margin: 0.3em 0; }}
+.noi-dung table {{ width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11pt; }}
+.noi-dung table td, .noi-dung table th {{ border: 1px solid #333; padding: 3px 6px; vertical-align: top; }}
+.noi-dung table th {{ font-weight: bold; text-align: center; background-color: #f0f0f0; }}
 
 /* ── Footer: Nơi nhận + Chữ ký ──────────────────────────────── */
 .ftr  {{ width: 100%; border-collapse: collapse; margin-top: 4mm; }}

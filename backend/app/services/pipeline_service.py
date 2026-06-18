@@ -68,7 +68,6 @@ def _ocr_pdf(file_path: str) -> str:
 
 
 def _extract_pdf(data: bytes) -> str:
-    # Write bytes to a temp file so pdf2image can use it when OCR is needed
     import tempfile, os
 
     tmp_path: Optional[str] = None
@@ -77,16 +76,63 @@ def _extract_pdf(data: bytes) -> str:
             tmp.write(data)
             tmp_path = tmp.name
 
-        # Step 1: try pdfplumber (fast, works for text PDFs)
+        # Step 1: pdfplumber — extract text + tables per page
         try:
             import pdfplumber
+            pages_text: list[str] = []
             with pdfplumber.open(io.BytesIO(data)) as pdf:
-                pages = []
                 for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        pages.append(text)
-                result = "\n\n".join(pages)
+                    page_parts: list[str] = []
+
+                    # Extract tables first, convert to pipe-delimited text
+                    try:
+                        tables = page.extract_tables() or []
+                        finder = page.find_tables()
+                    except Exception:
+                        tables, finder = [], []
+
+                    table_bboxes: list[tuple] = []
+                    for idx, table in enumerate(tables):
+                        if not table:
+                            continue
+                        rows_text = []
+                        for row in table:
+                            cells = [(c or "").strip().replace("\n", " ") for c in row]
+                            rows_text.append(" | ".join(cells))
+                        page_parts.append("\n".join(rows_text))
+                        try:
+                            table_bboxes.append(finder[idx].bbox)
+                        except Exception:
+                            pass
+
+                    # Extract text outside table bounding boxes
+                    if table_bboxes:
+                        # Text above first table
+                        try:
+                            above = page.crop((0, 0, page.width, table_bboxes[0][1]))
+                            t = (above.extract_text() or "").strip()
+                            if t:
+                                page_parts.insert(0, t)
+                        except Exception:
+                            pass
+                        # Text below last table
+                        try:
+                            below = page.crop((0, table_bboxes[-1][3], page.width, page.height))
+                            t = (below.extract_text() or "").strip()
+                            if t:
+                                page_parts.append(t)
+                        except Exception:
+                            pass
+                    else:
+                        t = (page.extract_text() or "").strip()
+                        if t:
+                            page_parts.append(t)
+
+                    combined = "\n\n".join(p for p in page_parts if p.strip())
+                    if combined.strip():
+                        pages_text.append(combined)
+
+            result = "\n\n---\n\n".join(pages_text)
         except Exception as exc:
             logger.warning(f"pdfplumber extraction failed: {exc}")
             result = ""
