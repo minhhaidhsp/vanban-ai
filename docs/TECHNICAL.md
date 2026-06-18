@@ -5,6 +5,190 @@
 
 ---
 
+## 0. Hướng dẫn cho New Chat Session (AI Onboarding)
+
+> **Đọc section này trước tiên** nếu bạn là Claude AI chat mới được mở để hỗ trợ dự án này.
+
+### 0.1 Dự án là gì?
+
+**VănBản.AI (CivicAI)** — ứng dụng web hỗ trợ cán bộ hành chính công soạn thảo, quản lý và tra cứu văn bản hành chính theo chuẩn **Nghị định 30/2020/NĐ-CP** của Việt Nam.
+
+- **Frontend:** Next.js 14 + TipTap editor (soạn thảo A4 NĐ30) + TanStack Query
+- **Backend:** FastAPI + PostgreSQL + pgvector (RAG semantic search) + Redis
+- **AI:** BAAI/bge-m3 embedding (1024 dim) + Groq API (llama-3.3-70b) + CrossEncoder rerank
+- **Storage:** Cloudflare R2 (object storage) + Supabase PostgreSQL (cloud DB)
+- **Deploy:** Railway (backend) + Vercel (frontend)
+- **Repo:** `D:\Projects\vanban-ai\` — branch chính: `dev` → merge vào `main` để deploy
+
+### 0.2 Cấu trúc thư mục chính
+
+```
+D:\Projects\vanban-ai\
+├── frontend/                    # Next.js app
+│   ├── app/
+│   │   ├── (auth)/              # Login, Register
+│   │   ├── dashboard/           # Các trang dashboard
+│   │   │   ├── documents/       # Tạo/soạn thảo văn bản (editor chính)
+│   │   │   ├── rag-search/      # Tra cứu AI
+│   │   │   ├── reference-docs/  # Kho văn bản tham chiếu
+│   │   │   ├── ocr/             # OCR văn bản
+│   │   │   └── settings/        # Cài đặt (admin-only theme)
+│   │   └── page.tsx             # Landing page
+│   ├── components/
+│   │   ├── editor/              # DocumentEditor, Nd30Document, WelcomePanel, RightPanel...
+│   │   ├── dashboard/           # Sidebar, document-list...
+│   │   └── public/              # ChatWidget (landing)
+│   └── lib/api.ts               # Axios client + tất cả API calls
+├── backend/
+│   ├── app/
+│   │   ├── api/v1/endpoints/    # FastAPI routers (auth, documents, rag, ocr, reference_docs...)
+│   │   ├── services/            # Business logic (rag_service, pdf_service, docx_service, embedding_service...)
+│   │   ├── models/              # SQLAlchemy ORM models
+│   │   └── core/                # Config, database, redis, storage
+│   └── scripts/                 # Utility scripts (import_json, seed_demo_users, transform_table...)
+├── data/                        # JSON data files (TTHC dichvucong, khai_sinh...)
+└── docs/
+    └── TECHNICAL.md             # File này
+```
+
+### 0.3 Tài khoản demo local (port 5433, DB: vanban_ai)
+
+| Email | Password | Role |
+|---|---|---|
+| `minhhaidhsp@gmail.com` | (từ .env) | admin |
+| `demo@civicai.vn` | `Demo@2026` | staff |
+| `canbo@civicai.vn` | `Demo@2026` | staff |
+| `lanhdao@civicai.vn` | `Demo@2026` | leader |
+| `quantri@civicai.vn` | `Demo@2026` | admin |
+
+**Kết nối DB local:** `host=localhost port=5433 user=postgres password=postgres123 dbname=vanban_ai`
+
+**Backend local:** `http://localhost:8000` | **Frontend local:** `http://localhost:3000`
+
+### 0.4 Quy tắc làm việc với user
+
+#### Quy tắc tuyệt đối
+1. **KHÔNG commit/push** khi chưa được user xác nhận — luôn hỏi "Bạn muốn commit không?" hoặc chờ lệnh rõ ràng
+2. **KHÔNG push trực tiếp lên `main`** — chỉ push `dev`, user sẽ quyết định merge
+3. **Git workflow:** làm việc trên branch `dev` → user review → merge vào `main` → Railway auto-deploy
+4. **Sau khi merge main:** luôn `git checkout dev` để về branch làm việc
+
+#### Cách user viết prompt task
+User thường viết prompt theo format:
+```
+══════════════════════════════════════════════════════════
+PROMPT — TÊN TASK
+══════════════════════════════════════════════════════════
+
+PHẦN 1 — MÔ TẢ
+[Chi tiết bước 1, bước 2...]
+
+PHẦN 2 — CODE CẦN SỬA
+file/path/to/file.py — tên hàm/class:
+// TRƯỚC:
+old code
+
+// SAU:
+new code
+
+KIỂM TRA:
+[Điều kiện pass/fail]
+
+BÁO CÁO:
+[Những gì cần in ra]
+
+KHÔNG commit — để tôi xem qua trước.
+══════════════════════════════════════════════════════════
+```
+
+#### Cách AI nên phản hồi
+- **Đọc code trước khi sửa** — dùng Grep/Read để xác nhận đúng vị trí
+- **Sửa chính xác** — không sửa thêm những thứ không được yêu cầu
+- **Báo cáo ngắn gọn** — kết quả test, không lặp lại code đã sửa
+- **Nếu không chắc** — đọc thêm file liên quan, hỏi user trước khi sửa
+- **Build check** trước khi báo cáo pass: `npx next build` (frontend) hoặc `python -c "import app"` (backend)
+
+### 0.5 Cách debug và tìm lỗi
+
+#### Debug Frontend
+```bash
+# Build check TypeScript
+cd frontend && npx next build
+
+# Playwright screenshot test (production build port 3008)
+# Xem scripts/verify-*.js
+
+# Kiểm tra DB content
+python backend/scripts/check_db.py
+```
+
+#### Debug Backend
+```bash
+# Test API endpoint
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -d "username=canbo@civicai.vn&password=Demo@2026"
+
+# Test service trực tiếp
+cd backend
+venv\Scripts\python.exe -c "
+import asyncio, sys
+sys.path.insert(0, '.')
+# ... test code
+asyncio.run(main())
+"
+
+# Query DB
+$env:PGPASSWORD='postgres123'
+& 'C:\Program Files\PostgreSQL\16\bin\psql.exe' -h localhost -p 5433 -U postgres -d vanban_ai -c "SELECT ..."
+```
+
+#### Debug RAG Pipeline
+- Embedding model cần ~60-120s để load sau restart
+- `is_available()` = False → guard trả 503 trước khi model ready
+- Test retrieve: gọi `svc.retrieve(query, db, top_k=5, min_score=0.2)`
+
+#### Xử lý lỗi thường gặp
+| Lỗi | Nguyên nhân | Fix |
+|---|---|---|
+| Dev server stale chunk | New file added, hot-reload cache broken | Restart: `Ctrl+C → npm run dev` |
+| `Database error: Executor shutdown` | DB connection pool expired | Restart backend |
+| `Cannot find module './682.js'` | Build artifact corrupted | `rm -rf .next && npx next build` |
+| Port 3008 server failed | `.next` không tồn tại | Build trước: `$env:NEXT_PUBLIC_API_URL=...; npx next build` |
+| `embedding model not ready` | BAAI/bge-m3 chưa load xong | Đợi 60-120s sau startup |
+| CORS error port 3008 | `allowed_origins` chỉ có `localhost:3000` | Test với dev server port 3000 |
+
+### 0.6 Luồng thực hiện task thông thường
+
+```
+1. User gửi prompt mô tả task
+2. AI đọc code liên quan (Grep/Read) để hiểu context
+3. AI thực hiện thay đổi (Edit/Write)
+4. AI chạy build check hoặc test API để verify
+5. AI báo cáo kết quả + screenshot nếu cần
+6. User review → "OK commit" hoặc yêu cầu sửa thêm
+7. AI commit với message chuẩn: "feat/fix: mô tả ngắn"
+8. User quyết định push + merge main khi cần deploy
+```
+
+### 0.7 Các file quan trọng nhất cần biết
+
+| File | Mục đích |
+|---|---|
+| `frontend/components/editor/document-editor.tsx` | Wrapper chính của editor, quản lý state toàn bộ |
+| `frontend/components/editor/nd30-document.tsx` | Render form A4 NĐ30, toolbar, ruler |
+| `frontend/components/editor/WelcomePanel.tsx` | Màn hình chào khi tạo văn bản mới |
+| `frontend/lib/api.ts` | Tất cả API client functions |
+| `backend/app/services/rag_service.py` | RAG pipeline: retrieve → rerank → generate |
+| `backend/app/services/pdf_service.py` | Export PDF (xhtml2pdf) |
+| `backend/app/services/docx_service.py` | Export DOCX (python-docx + lxml) |
+| `backend/app/services/pipeline_service.py` | Embedding pipeline + `_extract_docx()` + `_extract_pdf()` |
+| `backend/app/api/v1/endpoints/documents.py` | CRUD documents + export + admin bypass |
+| `backend/app/api/v1/endpoints/rag.py` | RAG chat endpoints |
+| `frontend/app/globals.css` | Global CSS (ProseMirror, nd30-preview, table styles) |
+| `frontend/components/editor/extensions.ts` | TipTap extensions registry |
+
+---
+
 ## 1. Tổng quan hệ thống
 
 ### Mục đích
