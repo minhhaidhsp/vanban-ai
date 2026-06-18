@@ -296,7 +296,18 @@ def _noi_nhan_html(items: list) -> str:
 
 
 def _build_body(data: dict[str, Any]) -> str:
-    loai            = data.get("loaiVanBan", "QĐ")
+    loai = data.get("loaiVanBan", "")
+
+    # Blank / upload mode — chỉ render noiDung, không có NĐ30 header
+    if not loai or not loai.strip():
+        noi_dung = data.get("noiDung", "")
+        return (
+            '<div style="font-family:\'Times New Roman\',serif;'
+            'font-size:14pt;line-height:1.6;text-align:justify;">'
+            f'<div class="noi-dung">{noi_dung or ""}</div>'
+            '</div>'
+        )
+
     full_name, has_type_name, has_kinh_gui = _VB.get(loai, ("Văn bản", True, False))
     cq_chu_quan     = data.get("coQuanChuQuan", "")
     cq_ban_hanh     = data.get("coQuanBanHanh", "")

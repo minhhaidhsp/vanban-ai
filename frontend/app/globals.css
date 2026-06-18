@@ -203,3 +203,23 @@
 .ProseMirror table tr:nth-child(even) td {
   background-color: #fafafa;
 }
+
+/* Preview (nd30-static-content) table styles */
+.nd30-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 14pt;
+}
+.nd30-preview table td,
+.nd30-preview table th {
+  border: 1px solid #333;
+  padding: 4px 8px;
+  vertical-align: top;
+  word-wrap: break-word;
+}
+.nd30-preview table th {
+  font-weight: bold;
+  background-color: #f5f5f5;
+  text-align: center;
+}

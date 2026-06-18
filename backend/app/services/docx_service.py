@@ -274,7 +274,19 @@ def _build_docx_impl(data: dict[str, Any]) -> bytes:
     style.paragraph_format.space_before = Pt(0)
     style.paragraph_format.space_after  = Pt(0)
 
-    loai          = data.get("loaiVanBan", "QĐ")
+    loai          = data.get("loaiVanBan", "")
+
+    # Blank / upload mode — chỉ render noiDung, không có NĐ30 header/footer
+    if not loai or not loai.strip():
+        section.left_margin  = Cm(2.5)  # wider margins for plain doc
+        section.right_margin = Cm(2.5)
+        noi_dung_html = data.get("noiDung", "")
+        if noi_dung_html:
+            _html_section(doc, noi_dung_html)
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
     cq_chu_quan   = data.get("coQuanChuQuan", "")
     cq_ban_hanh   = data.get("coQuanBanHanh", "")
     so_ky_hieu    = data.get("soKyHieu", "")
