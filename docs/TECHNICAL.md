@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-18
-> Phiên bản: Tuần 14++ (landing redesign Gradient+Glow + WelcomePanel mới 2-option + sidebar 3 nhóm + user card + RAG Q&A pairs + import TTHC dichvucong.gov.vn + transform table format + admin bypass documents + role-based theme + show/hide password + resize history panel + action bar tra cứu + RAG threshold 0.28)
+> Cập nhật: 2026-06-19
+> Phiên bản: Tuần 15 (DOCX/PDF table export + blank mode export + TipTap table extension + preview table CSS + PDF pdfplumber table extract + toolbar/ruler hiện ngay + AI dropdown + _extract_docx HTML formatting + debug upload pipeline)
 
 ---
 
@@ -100,13 +100,22 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 15 | **Import TTHC từ dichvucong.gov.vn**: script `import_json_to_refdb.py` — load 2 file JSON (TTHC.json 472 records, khai_sinh_normalized.json 337 records), group by URL, filter noise > 80 chars, insert 18 ReferenceDocuments + 623 chunks với embedding; script `transform_table.py` — detect 2 loại table dichvucong (`Tên giấy tờ \| Mẫu đơn` và `Hình thức nộp \| Thời hạn`), strip boilerplate, convert sang plain text, re-embed 80 chunks cải thiện RAG quality |
 | 15 | **Q&A Knowledge Base**: bảng `qa_pairs` mới (id, question, answer, can_cu, category, question_embedding vector(1024), answer_embedding vector(1024), visibility, created_by, is_active); script `import_qa_pairs.py` — 49 cặp Q&A hành chính công (7 danh mục: ho_tich/cu_tru/chung_thuc/dat_dai/kinh_doanh/xa_hoi/thuc_te) với embedding; `RAGService.retrieve_qa()` — cosine search trên question_embedding, ngưỡng 0.5 (score > 0.9 cho câu hỏi gần giống) |
 | 15 | **Seed tài khoản demo**: script `seed_demo_users.py` — 3 tài khoản: canbo@civicai.vn (staff), lanhdao@civicai.vn (leader), quantri@civicai.vn (admin) — password Demo@2026 |
+| 15b | **DOCX upload → editor giữ định dạng**: `_extract_docx()` rewrite dùng lxml XML traversal — extract HTML có bold/italic/heading/table thay vì plain text; detect merged cells bằng `id(cell._tc)` dedup trong cùng row; cell content dùng `_runs_to_html()` giữ formatting; `onSelectBlankWithContent()` detect HTML via regex → dùng trực tiếp không escape; OCR DOCX bypass LLM reformat (lưu HTML gốc vào `formatted_text`) |
+| 15b | **TipTap table extension**: install `@tiptap/extension-table/row/header/cell`; thêm vào `sharedExtensions` với `Table.configure({ resizable:false })`; CSS `.ProseMirror table` + `.nd30-preview table` trong `globals.css` — border, padding, `th` background #f5f5f5 |
+| 15b | **DOCX export: xử lý `<table>`**: `_process_block()` trong `docx_service.py` thêm `elif tag == "table"` — `doc.add_table(rows=0, cols=num_cols)` với `Table Grid` style; detect `<th>` → bold; `itertext()` lấy nội dung có `<p>` bên trong cell; `num_cols = max(...)` từ tất cả rows để handle merged cells |
+| 15b | **PDF export CSS table**: `_build_css()` thêm rules cho `.noi-dung table` — border-collapse, border 1px solid #333, padding, `th` font-weight bold + background #f0f0f0 |
+| 15b | **PDF + DOCX blank/upload mode**: `_build_body()` và `_build_docx_impl()` thêm check `if not loai` → render chỉ `noiDung` HTML không có NĐ30 header/footer; trước đây blank mode render full NĐ30 template với `loai="QĐ"` default |
+| 15b | **pdfplumber table extract**: `_extract_pdf()` rewrite — `page.extract_tables()` → pipe-delimited text `A \| B \| C`; `page.find_tables()[i].bbox` → crop vùng text ngoài table; fallback OCR nếu kết quả < 50 chars; page separator `---` giữa các trang |
+| 15b | **Toolbar + ruler hiện ngay**: `handleEditorReady` thêm `setActiveEditor((prev) => prev ?? editor)` → toolbar hiện khi TipTap init mà không cần user click; blank mode SectionEditor `onEditorReady` cũng gọi `setActiveEditor`; `{activeEditor && <EditorRuler>}` thay vì `{!isBlank && <EditorRuler>}` |
+| 15b | **Editor scroll fix**: middle column đổi từ `overflow-y-auto` → `flex flex-col min-h-0`; `nd30-document` outer div `min-h-full` → `h-full`; A4 content wrap trong `<div className="flex-1 overflow-y-auto min-h-0">` → sticky toolbar bám đúng trong scroll container nội bộ |
+| 15b | **AI dropdown**: 3 nút AI riêng lẻ (Trích yếu/Số KH/Căn cứ) → 1 `<select>` dropdown "✨ AI"; reset về placeholder sau mỗi lần chọn; xóa label "Mẫu 1.5: Công văn" khỏi TypeSelector |
 
 ### Tech stack thực tế
 
 **Frontend:**
 - Next.js 14.2.18 (App Router, SSR/SSG)
 - React 18, TypeScript 5
-- TipTap 3.23.6 (editor phong phú: StarterKit, Underline, TextAlign, Highlight, Placeholder)
+- TipTap 3.23.6 (editor phong phú: StarterKit, Underline, TextAlign, Highlight, Placeholder, **Table/TableRow/TableHeader/TableCell** — thêm Tuần 15b)
 - TanStack Query 5.62.11 (data fetching và caching)
 - Axios 1.7.9 (HTTP client)
 - fetch ReadableStream API (SSE client cho streaming chat — thay axios)
@@ -132,7 +141,8 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 - FastAPI `StreamingResponse` (SSE streaming — built-in, không cần sse-starlette)
 - pdfplumber ≥0.11.0 (trích xuất text từ PDF)
 - pdf2image ≥1.16.0 + pytesseract ≥0.3.10 (OCR fallback cho scanned PDF; yêu cầu system: `tesseract-ocr`, `tesseract-ocr-vie`, `poppler-utils`)
-- python-docx ≥1.1.0 (trích xuất text từ DOCX)
+- python-docx ≥1.1.0 (trích xuất text từ DOCX; export DOCX với `_process_block()` handle table/heading/list/bold/italic — Tuần 15b)
+- lxml (HTML parser cho DOCX export — parse TipTap HTML → python-docx elements)
 - xhtml2pdf ≥0.2.0 + ReportLab (xuất PDF phía backend)
 - Pydantic 2.10.3 + pydantic-settings 2.6.1
 
@@ -321,7 +331,8 @@ backend/
 │   │   ├── embedding_service.py # BAAI/bge-m3 singleton, embed_text(), embed_batch()
 │   │   ├── chunking_service.py  # chunk_document() — Điều/Khoản/Mục + sliding window
 │   │   ├── pipeline_service.py  # process_document_embedding() BackgroundTask
-│   │   ├── pdf_service.py       # generate_pdf() — xhtml2pdf + DejaVu Serif
+│   │   ├── pdf_service.py       # generate_pdf() — xhtml2pdf + DejaVu Serif; blank mode chỉ render noiDung; CSS table trong _build_css()
+│   │   ├── docx_service.py     # generate_docx() — python-docx + lxml; _process_block() handle table/heading/list/bold; blank mode chỉ render noiDung
 │   │   ├── llm_service.py       # LLMService singleton — chat(), chat_stream(), health_check(), update_base_url()
 │   │   ├── metadata_extraction_service.py  # extract_metadata(), save/get_metadata_preview()
 │   │   ├── rag_service.py       # RAGService — retrieve, rerank, build_context, generate, query
