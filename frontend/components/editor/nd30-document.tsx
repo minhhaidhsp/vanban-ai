@@ -243,6 +243,8 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
   const handleEditorReady = useCallback((fieldId: string, editor: Editor) => {
     editorRefs.current.set(fieldId, editor);
     if (editorMapRef) editorMapRef.current = editorRefs.current;
+    // Show toolbar immediately when any editor initializes (if none active yet)
+    setActiveEditor((prev) => prev ?? editor);
   }, [editorMapRef]);
 
   // Sync indent markers from active editor selection
@@ -547,10 +549,12 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
               minHeight="240mm"
               onEditorReady={(editor) => {
                 editorMapRef?.current.set("noiDung", editor);
+                setActiveEditor(editor);   // show toolbar immediately on init
                 editor.commands.focus("start");
               }}
               onEditorFocused={(editor) => {
                 editorMapRef?.current.set("noiDung", editor);
+                handleEditorFocused("noiDung", editor);  // keep toolbar in sync on re-focus
               }}
             />
           ) : (
