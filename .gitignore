@@ -67,6 +67,23 @@ backend/*.sql
 notes.txt
 backend/scripts/clear_all_data.py
 backend/scripts/seed_demo_users.py
+
+# Data files (large JSON, local only)
+data/
+
+# E2E screenshots (local only)
+e2e/mobile-survey/
+e2e/redesign/
+e2e/responsive/
+e2e/responsive-v2/
+
+# Playwright/verify scripts (local only)
+scripts/check-panel-style.js
+scripts/survey-mobile.ts
+scripts/verify-backdrop.js
+scripts/verify-redesign.js
+scripts/verify-responsive.js
+scripts/verify-responsive.ts
 backend/check_db.py
 backend/migrate_v3.py
 backend/run_migration.py
