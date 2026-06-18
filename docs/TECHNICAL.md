@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-11
-> Phiên bản: Tuần 14+ (pdf2docx export + filter/sort OCR/ref-docs/documents + server-side pagination documents + Railway deploy fixes + OCR textarea fallback + Railway timeout 900s + torch full + transformers/accelerate pinned + uuid prepared stmt fix + public chat widget citizen portal + AI Review TipTap inject + editorMapRef pattern + Review panel accept/reject + scrollToAndHighlight + RightPanel 9-tool redesign + ReviewPanelContent sidebar migration + sanitize_json_string + Gemini API compat)
+> Cập nhật: 2026-06-18
+> Phiên bản: Tuần 14++ (landing redesign Gradient+Glow + WelcomePanel mới 2-option + sidebar 3 nhóm + user card + RAG Q&A pairs + import TTHC dichvucong.gov.vn + transform table format + admin bypass documents + role-based theme + show/hide password + resize history panel + action bar tra cứu + RAG threshold 0.28)
 
 ---
 
@@ -91,6 +91,15 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 14+ | **`sanitize_json_string()` — 3-step LLM JSON cleanup** (`documents.py`): bước 1 strip control chars `\x00-\x08\x0b\x0c\x0e-\x1f\x7f`; bước 2 extract `{...}` từ markdown fence bằng `re.search(r'\{.*\}', s, re.DOTALL)`; bước 3 char-by-char parser `fix_newlines_in_strings()` escape literal `\n\r\t` bên trong JSON string values thành `\\n\\r\\t` — dùng trong `review_document` endpoint và `generate` endpoint (thay `json.loads(raw)` → `json.loads(sanitize_json_string(raw))`) |
 | 14+ | **Gemini API compat** (`llm_service.py`): detect `"generativelanguage.googleapis.com" in self._base_url` → skip `repetition_penalty` (không hỗ trợ) và `response_format: {"type": "json_object"}` (không hỗ trợ) khi build payload; cùng with Groq check `"groq.com" in self._base_url` cho `repetition_penalty`; thêm log `logger.error("[llm] status=%d body=%s", resp.status_code, resp.text[:500])` trước `raise_for_status()` để debug response |
 | 14+ | **generate endpoint max_tokens** (`documents.py`): tăng từ `max_tokens=1500` → `max_tokens=4000` để cho phép soạn thảo văn bản dài hơn; thêm `sanitize_json_string` trước `json.loads` trong endpoint `/documents/generate` |
+| 15 | **Landing page redesign Phương án B (Gradient+Glow navy)**: header fixed semi-transparent `rgba(4,44,83,0.95)` + backdrop-blur; hero 100vh `#042C53` với glow radial + HeroPattern animated dots; stats ghim đáy viewport; sections D-H alternating navy/white; `ChatWidget` bọc trong `<div className={themeClass}>` để theme cascade đúng; footer `#021D38`; nút header đổi thành "Đăng nhập" (href=/login), hero giữ "Dùng thử ngay" (href=/login) |
+| 15 | **WelcomePanel tách file** (`WelcomePanel.tsx`): 2 option — "Tạo văn bản mới" (AI + file tham chiếu + mic + pills gợi ý) và "Chỉnh sửa file có sẵn" (OCR upload); option A gửi file qua `onAddReferenceFile(file)` → `SourcesPanel.handleStartUpload` (spinner ngay trong cột trái); speech recognition vi-VN; `SourcesPanel` expose `handleStartUpload` qua `onRegisterUploader` prop; xóa inline WelcomePanel khỏi `document-editor.tsx` |
+| 15 | **Sidebar 3 nhóm + User card**: NGHIỆP VỤ (Tổng quan/Tạo văn bản/Tra cứu/Kho/OCR), CÔNG CỤ (Speech to Text/Tạo hình ảnh/Nhắc hẹn), QUẢN TRỊ (Cài đặt/Quản lý User admin-only); User card đáy (avatar tròn brand-600 + tên + role label + ChevronRight → /profile); xóa "Tài khoản" khỏi menu |
+| 15 | **RAG tra cứu UX**: resize cột lịch sử (min 160px, max 400px) qua ResizeHandle; bỏ 5 tiêu mục cố định khỏi `_SYSTEM_PROMPT` (trả lời tự nhiên 150-200 từ, không heading cứng); action bar hover (Copy/TTS vi-VN/Like/Dislike); `DEFAULT_MIN_SCORE` 0.35 → 0.28 (catch query không dấu score ~0.34) |
+| 15 | **Role-based permissions**: admin-only theme (frontend `{isAdmin && <Card>}` + backend 403 khi staff PUT theme); `_doc_access()` helper trong `documents.py` — admin bypass `owner_id` filter cho get/update/delete/export; `upload-batch` reference_docs đổi từ `get_admin_user` → `get_current_user` (staff được upload) |
+| 15 | **UX nhỏ**: show/hide password login + register (Eye/EyeOff icon); flash banner "AI đã tạo mẫu" auto-hide 5s; tên file gốc giữ nguyên sau pipeline (không bị LLM ghi đè title); SourcesPanel hiển thị `src.title` thay vì `src.so_ki_hieu \|\| src.title`; "Upload hàng loạt" → "Upload"; embedding guard `is_available()` cho `/rag/chat/stream` và `/public/chat/stream` |
+| 15 | **Import TTHC từ dichvucong.gov.vn**: script `import_json_to_refdb.py` — load 2 file JSON (TTHC.json 472 records, khai_sinh_normalized.json 337 records), group by URL, filter noise > 80 chars, insert 18 ReferenceDocuments + 623 chunks với embedding; script `transform_table.py` — detect 2 loại table dichvucong (`Tên giấy tờ \| Mẫu đơn` và `Hình thức nộp \| Thời hạn`), strip boilerplate, convert sang plain text, re-embed 80 chunks cải thiện RAG quality |
+| 15 | **Q&A Knowledge Base**: bảng `qa_pairs` mới (id, question, answer, can_cu, category, question_embedding vector(1024), answer_embedding vector(1024), visibility, created_by, is_active); script `import_qa_pairs.py` — 49 cặp Q&A hành chính công (7 danh mục: ho_tich/cu_tru/chung_thuc/dat_dai/kinh_doanh/xa_hoi/thuc_te) với embedding; `RAGService.retrieve_qa()` — cosine search trên question_embedding, ngưỡng 0.5 (score > 0.9 cho câu hỏi gần giống) |
+| 15 | **Seed tài khoản demo**: script `seed_demo_users.py` — 3 tài khoản: canbo@civicai.vn (staff), lanhdao@civicai.vn (leader), quantri@civicai.vn (admin) — password Demo@2026 |
 
 ### Tech stack thực tế
 
@@ -348,6 +357,7 @@ backend/
 | `hashed_password` | VARCHAR(255) | bcrypt hash |
 | `is_active` | BOOLEAN | Tài khoản còn hoạt động (default true) |
 | `is_superuser` | BOOLEAN | Quyền admin (default false) |
+| `role` | VARCHAR(20) | `"staff"` / `"leader"` / `"admin"` (default "staff") — phân quyền theme settings và document access |
 | `created_at` | TIMESTAMPTZ | Thời điểm tạo |
 | `updated_at` | TIMESTAMPTZ | Thời điểm cập nhật |
 
@@ -475,6 +485,26 @@ backend/
 - `ocr_file:{job_id}`: file bytes base64 TTL 1h — chỉ dùng cho scanned_pdf/image
 - `ocr_progress:{job_id}`: `{current_page, total_pages}` TTL 1h — chỉ có khi đang OCR scan, tự xóa sau khi xong
 
+### Bảng `qa_pairs`
+
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| `id` | VARCHAR PK | UUID v4 (gen_random_uuid()) |
+| `question` | TEXT NOT NULL | Câu hỏi tiếng Việt |
+| `answer` | TEXT NOT NULL | Câu trả lời đầy đủ |
+| `can_cu` | TEXT | Căn cứ pháp lý (vd: "Nghị định 82/2020/NĐ-CP Điều 28") |
+| `category` | VARCHAR(100) | Danh mục: `ho_tich` / `cu_tru` / `chung_thuc` / `dat_dai` / `kinh_doanh` / `xa_hoi` / `thuc_te` |
+| `question_embedding` | vector(1024) | Embedding câu hỏi (BAAI/bge-m3) |
+| `answer_embedding` | vector(1024) | Embedding câu trả lời |
+| `visibility` | VARCHAR | `"system"` (default) — hiển thị cho tất cả |
+| `created_by` | VARCHAR FK → users.id | Người tạo |
+| `created_at` | TIMESTAMPTZ | |
+| `is_active` | BOOLEAN | Kích hoạt/vô hiệu hóa (default true) |
+
+**Index:** `qa_question_embedding_idx` — IVFFlat cosine lists=10 trên `question_embedding`; `qa_category_idx` — btree trên `(category, is_active)`.
+
+**Sử dụng:** `RAGService.retrieve_qa(query, db, top_k=3, min_score=0.5)` — cosine search trên `question_embedding`, ngưỡng cao hơn `retrieve()` vì Q&A chính xác hơn reference chunks. Score > 0.9 cho câu hỏi gần giống, > 0.7 cho câu hỏi liên quan.
+
 ### Quan hệ giữa các bảng
 
 ```
@@ -504,6 +534,9 @@ reference_documents (1) ──< reference_doc_chunks (N) [document_id → refere
 | `0014` | Thêm `file_type VARCHAR(20) nullable` + `file_path VARCHAR(1000) nullable` vào `ocr_jobs` |
 | `0015` | Tăng `documents.file_path` từ VARCHAR(50) → TEXT — tránh truncation object path dài |
 | `0016` | Tăng `documents.file_type` từ VARCHAR(50) → TEXT — tránh truncation MIME type |
+| `0017` | Thêm cột `role VARCHAR(20)` vào `users` (default "staff") — migration 0017_add_role_to_users |
+| `0018` | Thêm cột `theme VARCHAR(20)` vào `organizations` — migration 0018/0019 |
+| `qa_pairs` | Tạo thủ công (không qua alembic): bảng `qa_pairs` + 2 index (IVFFlat + btree) |
 
 ---
 
@@ -761,11 +794,12 @@ _process_ocr_job (scanned_pdf/image, 3 phases):
 **Mô tả:** Orchestrator RAG pipeline — kết hợp pgvector retrieval, CrossEncoder rerank, LLM generation và hallucination guard. Phiên bản Tuần 10 thêm hybrid search, fallback chain và system prompt v2.
 
 **Hằng số:**
-- `DEFAULT_TOP_K = 10`, `DEFAULT_MIN_SCORE = 0.35`, `DEFAULT_TOP_N_RERANK = 5`
+- `DEFAULT_TOP_K = 10`, `DEFAULT_MIN_SCORE = 0.28` (hạ từ 0.35 để catch query không dấu score ~0.34), `DEFAULT_TOP_N_RERANK = 5`
 - `MAX_CONTEXT_CHARS = 2500` (~1500 token Vietnamese, an toàn với Qwen2.5-3B max_model_len=4096)
 
 **Các phương thức:**
-- `retrieve(query, db, top_k=10, min_score=0.35) -> list[dict]`: Embed query bằng BAAI/bge-m3 → pgvector cosine distance ≤ `(1-min_score)` → JOIN `reference_documents` → **filter `WHERE hieu_luc != 'het_hieu_luc'`** (chỉ search văn bản còn hiệu lực hoặc chưa xác định) → **SELECT thêm `hieu_luc`** vào kết quả → trả danh sách chunk với `score`, `so_ki_hieu`, `document_title`, `dieu_khoan`, `hieu_luc`.
+- `retrieve(query, db, top_k=10, min_score=0.28) -> list[dict]`: Embed query bằng BAAI/bge-m3 → pgvector cosine distance ≤ `(1-min_score)` → JOIN `reference_documents` → **filter `WHERE hieu_luc != 'het_hieu_luc'`** (chỉ search văn bản còn hiệu lực hoặc chưa xác định) → **SELECT thêm `hieu_luc`** vào kết quả → trả danh sách chunk với `score`, `so_ki_hieu`, `document_title`, `dieu_khoan`, `hieu_luc`.
+- `retrieve_qa(query, db, top_k=3, min_score=0.5) -> list[dict]`: Tìm Q&A pairs phù hợp trong bảng `qa_pairs` bằng cosine similarity trên `question_embedding`. Ngưỡng 0.5 cao hơn `retrieve()` vì Q&A chính xác hơn chunks. Trả `[{id, question, answer, can_cu, category, score}]`.
 - `hybrid_search(query, db, top_k=5) -> list[dict]`: Kết hợp semantic search (min_score=0.2, top_k*2 chunk) với FTS rank ở cấp văn bản. Merge theo `hybrid_score = 0.7×semantic_score + 0.3×fts_rank`. Trả top_k chunk theo hybrid_score.
 - `rerank(query, chunks, top_n=5) -> list[dict]`: CrossEncoder `ms-marco-MiniLM-L-6-v2` (lazy-load), predict scores → sort descending → top_n chunks với field `rerank_score`. Fallback về pgvector order nếu model chưa load.
 - `build_context(chunks) -> str`: Format `[1] Nguồn: {so_ki_hieu} — {title}\n{dieu_khoan}:\n{content}` → cắt tại `MAX_CONTEXT_CHARS`.
