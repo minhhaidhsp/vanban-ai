@@ -109,11 +109,99 @@ def _extract_pdf(data: bytes) -> str:
 
 
 def _extract_docx(data: bytes) -> str:
+    """Extract DOCX → HTML with bold/italic/heading/table/list preserved."""
     try:
-        from docx import Document
-        doc = Document(io.BytesIO(data))
-        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-        return "\n".join(paragraphs)
+        from docx import Document as _DocxDocument
+
+        doc = _DocxDocument(io.BytesIO(data))
+
+        def _esc(s: str) -> str:
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        def _runs_to_html(paragraph) -> str:
+            out = ""
+            for run in paragraph.runs:
+                t = _esc(run.text)
+                if not t:
+                    continue
+                if run.bold and run.italic:
+                    t = f"<strong><em>{t}</em></strong>"
+                elif run.bold:
+                    t = f"<strong>{t}</strong>"
+                elif run.italic:
+                    t = f"<em>{t}</em>"
+                if run.underline:
+                    t = f"<u>{t}</u>"
+                out += t
+            return out
+
+        _HEADING_MAP = {
+            "Heading 1": "h1", "Heading 2": "h2",
+            "Heading 3": "h3", "Heading 4": "h4",
+            "Tiêu đề 1": "h1", "Tiêu đề 2": "h2", "Tiêu đề 3": "h3",
+        }
+
+        def _para_to_html(p) -> str:
+            style = p.style.name if p.style else ""
+            inner = _runs_to_html(p)
+            if not inner.strip():
+                return ""
+            for sname, tag in _HEADING_MAP.items():
+                if sname in style:
+                    return f"<{tag}>{inner}</{tag}>"
+            if "List" in style or "Bullet" in style or "Number" in style:
+                return f"<li>{inner}</li>"
+            return f"<p>{inner}</p>"
+
+        def _table_to_html(table) -> str:
+            rows = []
+            for idx, row in enumerate(table.rows):
+                cells = []
+                seen_tc: set[int] = set()   # dedup merged cells (same _tc → same id)
+                for cell in row.cells:
+                    tc_id = id(cell._tc)
+                    if tc_id in seen_tc:
+                        continue
+                    seen_tc.add(tc_id)
+
+                    # Use _runs_to_html to preserve bold/italic inside cells
+                    cell_parts = []
+                    for p in cell.paragraphs:
+                        para_html = _runs_to_html(p)
+                        if para_html.strip():
+                            cell_parts.append(para_html)
+                    cell_html = "<br>".join(cell_parts) if cell_parts else "&nbsp;"
+
+                    tag = "th" if idx == 0 else "td"
+                    cells.append(
+                        f"<{tag} style='border:1px solid #ccc;padding:4px 8px'>"
+                        f"{cell_html}</{tag}>"
+                    )
+                if cells:
+                    rows.append(f"<tr>{''.join(cells)}</tr>")
+            return (
+                "<table style='border-collapse:collapse;width:100%;"
+                "margin:8px 0;font-size:14px'>"
+                + "".join(rows)
+                + "</table>"
+            )
+
+        parts: list[str] = []
+        i_para = i_tbl = 0
+        for child in doc.element.body:
+            local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+            if local == "p":
+                if i_para < len(doc.paragraphs):
+                    h = _para_to_html(doc.paragraphs[i_para])
+                    if h:
+                        parts.append(h)
+                    i_para += 1
+            elif local == "tbl":
+                if i_tbl < len(doc.tables):
+                    parts.append(_table_to_html(doc.tables[i_tbl]))
+                    i_tbl += 1
+
+        return "\n".join(parts) if parts else ""
     except Exception as exc:
         logger.warning(f"python-docx extraction failed: {exc}")
         return ""

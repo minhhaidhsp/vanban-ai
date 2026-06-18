@@ -453,19 +453,16 @@ async def _process_text_docx(job_id: str, content: bytes) -> None:
         logger.exception("[text_docx] %s failed to mark processing: %s", job_id, exc)
         return
 
-    # Phase 2: extract text + LLM format
+    # Phase 2: extract HTML (giữ formatting) — không qua LLM reformat
     try:
-        from docx import Document as DocxDocument
+        from app.services.pipeline_service import _extract_docx
 
-        def extract_docx():
-            doc = DocxDocument(io.BytesIO(content))
-            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-            return "\n\n".join(paragraphs)
-
-        extracted_text = await asyncio.to_thread(extract_docx)
+        extracted_html = await asyncio.to_thread(_extract_docx, content)
         page_count = 1  # DOCX không có concept trang rõ ràng
-        formatted = await _format_ocr_text(extracted_text, filename)
-        logger.info("[text_docx] %s done: %d chars", job_id, len(extracted_text))
+        # DOCX → HTML trực tiếp, KHÔNG qua LLM (sẽ mất HTML tags)
+        extracted_text = extracted_html
+        formatted = extracted_html
+        logger.info("[text_docx] %s done: %d chars (HTML)", job_id, len(extracted_html))
 
         # Generate PDF for unified viewer (best-effort)
         pdf_path = await _create_pdf_from_text(formatted or extracted_text, filename, job_id)
