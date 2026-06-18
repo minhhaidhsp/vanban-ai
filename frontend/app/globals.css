@@ -177,3 +177,29 @@
   animation: pulse-dot 3.5s ease-in-out infinite;
   opacity: 0.15;
 }
+
+/* ── TipTap table styles ─────────────────────────────────────────────────── */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  table-layout: fixed;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  min-width: 60px;
+  vertical-align: top;
+  word-wrap: break-word;
+}
+
+.ProseMirror table th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+.ProseMirror table tr:nth-child(even) td {
+  background-color: #fafafa;
+}

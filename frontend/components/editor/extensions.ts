@@ -5,6 +5,10 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Highlight from "@tiptap/extension-highlight";
 import CharacterCount from "@tiptap/extension-character-count";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
 
 // TextStyle extended with fontSize — registers textStyle mark + adds fontSize attr
 export const FontSizeExtension = TextStyle.extend({
@@ -112,4 +116,8 @@ export const sharedExtensions = [
   TextAlign.configure({ types: ["heading", "paragraph"] }),
   Highlight,
   CharacterCount,
+  Table.configure({ resizable: false }),
+  TableRow,
+  TableHeader,
+  TableCell,
 ];
