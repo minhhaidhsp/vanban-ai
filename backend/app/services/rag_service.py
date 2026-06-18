@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # ── Constants ────────────────────────────────────────────────────────────────
 
 DEFAULT_TOP_K = 10
-DEFAULT_MIN_SCORE = 0.35
+DEFAULT_MIN_SCORE = 0.28
 DEFAULT_TOP_N_RERANK = 5
 MAX_CONTEXT_CHARS = 2500  # ~1500 tokens (Vietnamese ~1.5 chars/token), an toàn với model 4096 ctx
 

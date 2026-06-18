@@ -79,8 +79,64 @@ def _clean_item(raw: str) -> str:
 
 
 def _is_dichvucong_table(text: str) -> bool:
-    """True if content matches dichvucong Thành phần hồ sơ format."""
-    return bool(re.match(r'Tên giấy tờ\s*\|\s*Mẫu đơn', text.strip(), re.IGNORECASE))
+    """True if content matches dichvucong table format (both types)."""
+    t = text.strip()
+    return bool(
+        re.match(r'Tên giấy tờ\s*\|\s*Mẫu đơn', t, re.IGNORECASE) or
+        re.match(r'Hình thức nộp\s*\|\s*Thời hạn', t, re.IGNORECASE)
+    )
+
+
+def _transform_cach_thuc(raw: str, hierarchy: str = "") -> str:
+    """Transform 'Cách thức thực hiện' pipe-table → plain text."""
+    section = hierarchy.split('>')[-1].strip() if hierarchy else "Cách thức thực hiện"
+
+    # Split rows: each row ends with \n or is separated by pipe-groups
+    # Header line: "Hình thức nộp | Thời hạn | Phí, lệ phí | Mô tả\n---|---|...\n"
+    # Strip header + separator
+    body = re.sub(r'^Hình thức nộp[^\n]*\n?', '', raw.strip(), flags=re.IGNORECASE)
+    body = re.sub(r'^-{3,}[|\-\s]+\n?', '', body, flags=re.MULTILINE)
+
+    # Each row: "Trực tiếp | Thời hạn | Lệ phí | Mô tả"
+    # Rows separated by newlines (or inline via \n)
+    rows = []
+    for line in body.split('\n'):
+        line = line.strip()
+        if not line or line == '---':
+            continue
+        parts = [p.strip() for p in line.split('|')]
+        if len(parts) < 2:
+            continue
+
+        hinh_thuc = parts[0].strip(' \\-+') if parts else ""
+        tgian = parts[1] if len(parts) > 1 else ""
+        lephi = parts[2] if len(parts) > 2 else ""
+        mota  = parts[3] if len(parts) > 3 else ""
+
+        # Clean Lệ phí: remove "Xem chi tiết" noise
+        lephi = re.sub(r'Xem chi tiết.*', '', lephi).strip()
+        lephi = re.sub(r'\* ', '', lephi).strip()
+
+        if not hinh_thuc or hinh_thuc.lower() in ('---', ''):
+            continue
+
+        row_parts = []
+        if hinh_thuc:
+            row_parts.append(f"Hình thức: {hinh_thuc}")
+        if tgian.strip():
+            row_parts.append(f"Thời hạn: {tgian.strip()}")
+        if lephi.strip():
+            row_parts.append(f"Lệ phí: {lephi.strip()}")
+        if mota.strip():
+            row_parts.append(f"Mô tả: {mota.strip()[:200]}")
+
+        if row_parts:
+            rows.append("- " + "; ".join(row_parts))
+
+    if not rows:
+        return raw  # fallback
+
+    return f"{section}:\n" + "\n".join(rows)
 
 
 def transform_content(raw: str, hierarchy: str = "") -> str:
@@ -91,7 +147,11 @@ def transform_content(raw: str, hierarchy: str = "") -> str:
     if not _is_dichvucong_table(raw):
         return raw
 
-    # Split into items on \- markers
+    # Dispatch based on table type
+    if re.match(r'Hình thức nộp\s*\|\s*Thời hạn', raw.strip(), re.IGNORECASE):
+        return _transform_cach_thuc(raw, hierarchy)
+
+    # Split into items on \- markers — "Thành phần hồ sơ" type
     # The format is: header ---|---|--- \- item1 \- item2 ...
     # Strip everything up to and including the separator
     body = re.sub(r'^Tên giấy tờ[^\-]+---[^\\]*', '', raw, flags=re.IGNORECASE | re.DOTALL)
