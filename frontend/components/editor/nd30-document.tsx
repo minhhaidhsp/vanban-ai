@@ -402,7 +402,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
   const showDoKhan = data.doKhan !== "Thường";
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col h-full">
 
       {/* ── Top toolbar — sticky at top of scroll container ─── */}
       <div className="sticky top-0 z-40 flex items-center gap-4 px-4 py-2 border-b bg-white shadow-sm print:hidden">
@@ -498,7 +498,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
           <EditorToolbar editor={activeEditor} />
         </div>
 
-        {!isBlank && (
+        {activeEditor && (
           <EditorRuler
             leftMarginMm={30}
             rightMarginMm={20}
@@ -525,7 +525,8 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
         </div>
       )}
 
-      {/* ── A4 area — middle column scrolls, no inner scroll ─── */}
+      {/* ── A4 area — inner scroll so sticky toolbars don't scroll ─── */}
+      <div className="flex-1 overflow-y-auto min-h-0">
       <div
         className="bg-[#e5e7eb] py-6 print:bg-white print:p-0"
       >
@@ -729,6 +730,7 @@ export function Nd30Document({ initialData, onChange, isNew = false, editorMapRe
 
         </div>
       </div>
+      </div>{/* end flex-1 overflow-y-auto scroll wrapper */}
 
       <TrichYeuSuggestPanel
         isOpen={trichYeuPanelOpen}

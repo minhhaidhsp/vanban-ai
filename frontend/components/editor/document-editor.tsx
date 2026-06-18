@@ -698,7 +698,7 @@ export function DocumentEditor({
         </div>
 
         {/* Middle: WelcomePanel or Editor */}
-        <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           {showWelcome ? (
             <WelcomePanel
               onSelectTemplate={onSelectTemplate}
