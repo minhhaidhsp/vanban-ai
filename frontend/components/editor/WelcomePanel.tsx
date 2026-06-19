@@ -113,7 +113,7 @@ export function WelcomePanel({
   // ── Option A state ─────────────────────────────────────────────────────────
   const [yeuCau, setYeuCau] = useState("");
   const [selectedLoai, setSelectedLoai] = useState("");
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -195,15 +195,18 @@ export function WelcomePanel({
     setIsSubmitting(true);
     setCreateProgress(0);
     try {
-      if (attachedFile) {
-        // Upload lên SourcesPanel ngay (fire-and-forget — SourcesPanel tự hiện spinner)
-        onAddReferenceFile?.(attachedFile);
-        // OCR để AI có context file
-        const text = await runOcr(attachedFile, setCreateProgress);
-        // Limit context to 2000 chars to avoid backend 400 errors
-        const truncatedText = text ? text.slice(0, 2000) : "";
-        const enriched = truncatedText
-          ? `${yeuCau}\n\n[Tài liệu tham chiếu:]\n${truncatedText}`
+      if (attachedFiles.length > 0) {
+        // Upload tất cả lên SourcesPanel ngay (fire-and-forget)
+        attachedFiles.forEach(f => onAddReferenceFile?.(f));
+        // OCR song song tất cả file, lấy context
+        const texts = await Promise.all(
+          attachedFiles.map(async (f) => {
+            try { return await runOcr(f, setCreateProgress); } catch { return ""; }
+          })
+        );
+        const allText = texts.filter(Boolean).join("\n\n---\n\n").slice(0, 3000);
+        const enriched = allText
+          ? `${yeuCau}\n\n[Tài liệu tham chiếu:]\n${allText}`
           : yeuCau;
         await onGenerate(enriched, selectedLoai);
       } else {
@@ -222,7 +225,7 @@ export function WelcomePanel({
       setIsSubmitting(false);
       setCreateProgress(0);
     }
-  }, [yeuCau, attachedFile, selectedLoai, isSubmitting, isGenerating, onGenerate, onAddReferenceFile, toast]);
+  }, [yeuCau, attachedFiles, selectedLoai, isSubmitting, isGenerating, onGenerate, onAddReferenceFile, toast]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -274,7 +277,7 @@ export function WelcomePanel({
 
         {/* Header */}
         <h2 className="text-xl font-medium text-foreground text-center mb-5">
-          Bạn muốn làm gì?
+          Hôm nay bạn cần soạn gì?
         </h2>
 
         {/* Option toggle */}
@@ -339,24 +342,26 @@ export function WelcomePanel({
                   "border rounded-xl overflow-hidden transition-colors",
                   isListening ? "border-red-400" : "border-brand-300"
                 )}>
-                  {/* Attached file chip */}
-                  {attachedFile && (
-                    <div className="px-3 pt-2.5">
-                      <div className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-lg px-3 py-1.5 text-sm">
-                        {attachedFile.type.startsWith("image/") ? (
-                          <ImageIcon className="h-4 w-4 text-brand-600 shrink-0" />
-                        ) : (
-                          <FileText className="h-4 w-4 text-brand-600 shrink-0" />
-                        )}
-                        <span className="truncate max-w-[200px] text-brand-700 font-medium">{attachedFile.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setAttachedFile(null)}
-                          className="text-brand-400 hover:text-brand-600 transition-colors"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                  {/* Attached file chips */}
+                  {attachedFiles.length > 0 && (
+                    <div className="px-3 pt-2.5 flex flex-wrap gap-1.5">
+                      {attachedFiles.map((f, i) => (
+                        <div key={i} className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-lg px-3 py-1.5 text-sm">
+                          {f.type.startsWith("image/") ? (
+                            <ImageIcon className="h-3.5 w-3.5 text-brand-600 shrink-0" />
+                          ) : (
+                            <FileText className="h-3.5 w-3.5 text-brand-600 shrink-0" />
+                          )}
+                          <span className="truncate max-w-[150px] text-xs text-brand-700 font-medium">{f.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAttachedFiles(attachedFiles.filter((_, j) => j !== i))}
+                            className="text-brand-400 hover:text-brand-600 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -412,13 +417,25 @@ export function WelcomePanel({
                         type="file"
                         className="hidden"
                         accept=".pdf,.docx,.jpg,.jpeg,.png"
+                        multiple
                         onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (!f) return;
-                          const err = validateFile(f);
-                          if (err) { setFileError(err); e.target.value = ""; setShowPlusMenu(false); return; }
-                          setFileError(null);
-                          setAttachedFile(f);
+                          const files = Array.from(e.target.files || []);
+                          const valid: File[] = [];
+                          const errs: string[] = [];
+                          for (const f of files) {
+                            const err = validateFile(f);
+                            if (err) { errs.push(err); continue; }
+                            valid.push(f);
+                          }
+                          const combined = [...attachedFiles, ...valid].slice(0, 5);
+                          if (combined.length === attachedFiles.length && valid.length > 0) {
+                            setFileError("Tối đa 5 file đính kèm.");
+                          } else if (errs.length > 0) {
+                            setFileError(errs[0]);
+                          } else {
+                            setFileError(null);
+                          }
+                          setAttachedFiles(combined);
                           setShowPlusMenu(false);
                           e.target.value = "";
                         }}
