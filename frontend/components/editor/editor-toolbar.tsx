@@ -166,7 +166,7 @@ interface EditorToolbarProps {
 }
 
 export function EditorToolbar({ editor }: EditorToolbarProps) {
-  if (!editor) return null;
+  if (!editor || editor.isDestroyed) return null;
 
   const hasTextStyle = !!(
     editor?.schema?.marks?.["textStyle"]
@@ -187,7 +187,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {/* Undo / Redo */}
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
-        disabled={!editor.can().undo()}
+        disabled={editor.isDestroyed || !editor.can().undo()}
         title="Hoàn tác"
       >
         <Undo className="h-3.5 w-3.5" />

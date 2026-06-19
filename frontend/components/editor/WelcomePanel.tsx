@@ -16,7 +16,6 @@ const DOC_PILLS = [
   { label: "Thông báo",  abbr: "TB"  },
   { label: "Báo cáo",    abbr: "BC"  },
   { label: "Kế hoạch",   abbr: "KH"  },
-  { label: "+ Khác",     abbr: ""    },
 ];
 
 export interface WelcomePanelProps {
@@ -182,13 +181,20 @@ export function WelcomePanel({
         onAddReferenceFile?.(attachedFile);
         // OCR để AI có context file
         const text = await runOcr(attachedFile, setCreateProgress);
-        const enriched = `${yeuCau}\n\n[Tài liệu tham chiếu:]\n${text}`;
+        // Limit context to 2000 chars to avoid backend 400 errors
+        const truncatedText = text ? text.slice(0, 2000) : "";
+        const enriched = truncatedText
+          ? `${yeuCau}\n\n[Tài liệu tham chiếu:]\n${truncatedText}`
+          : yeuCau;
         await onGenerate(enriched, selectedLoai);
       } else {
         await onGenerate(yeuCau, selectedLoai);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Lỗi xử lý";
+      const anyErr = err as any;
+      const detail = anyErr?.response?.data?.detail || anyErr?.message || "Lỗi xử lý";
+      console.error("[handleSubmitCreate] error:", anyErr?.response?.data || anyErr?.message);
+      const msg = detail;
       toast({
         title: msg === "Timeout" ? "Xử lý file quá lâu. Vui lòng thử lại." : `Lỗi: ${msg}`,
         variant: "destructive",
@@ -433,8 +439,7 @@ export function WelcomePanel({
                       key={abbr || "other"}
                       type="button"
                       onClick={() => {
-                        if (!abbr) { textareaRef.current?.focus(); return; }
-                        setYeuCau((prev) => prev + (prev.trim() ? " " : "") + `Soạn ${label} `);
+                        setYeuCau(`Soạn ${label} `);
                         setSelectedLoai(abbr);
                         textareaRef.current?.focus();
                       }}
@@ -450,16 +455,14 @@ export function WelcomePanel({
                   ))}
                 </div>
 
-                {/* Link: vào editor trống */}
-                <p className="text-center">
-                  <button
-                    type="button"
-                    onClick={onSelectBlank}
-                    className="text-sm text-muted-foreground hover:underline underline-offset-2 cursor-pointer"
-                  >
-                    Vào editor trống
-                  </button>
-                </p>
+                {/* Vào editor trống */}
+                <button
+                  type="button"
+                  onClick={onSelectBlank}
+                  className="w-full mt-2 py-2 px-4 text-sm font-medium border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-brand-300 hover:bg-brand-50/50 transition-colors"
+                >
+                  Vào editor trống
+                </button>
               </>
             )}
           </div>
