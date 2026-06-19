@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { documentSourcesApi, refDocApi, type RefDoc } from "@/lib/api";
-import { FileText, X, BookOpen, Loader2, Upload, Search, Check } from "lucide-react";
+import { FileText, X, BookOpen, Loader2, Upload, Search, Check, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SourcePickerModal } from "./SourcePickerModal";
 import {
@@ -166,6 +166,27 @@ export function SourcesPanel({ documentId, onSourcesChange, onRegisterUploader }
     onSuccess: invalidate,
   });
 
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      refDocApi.update(id, { title }),
+    onSuccess: () => {
+      invalidate();
+      setRenamingId(null);
+      setMenuOpenId(null);
+    },
+  });
+
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const handler = () => setMenuOpenId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuOpenId]);
+
   const handleStartUpload = useCallback((files: File[]) => {
     if (isNewDoc) {
       toast({ title: "Vui lòng tạo hoặc mở văn bản trước", variant: "destructive" });
@@ -315,26 +336,73 @@ export function SourcesPanel({ documentId, onSourcesChange, onRegisterUploader }
         {sources.map((src) => (
           <div
             key={src.id}
-            className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-brand-200 group transition-colors"
+            className="relative flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-brand-200 group transition-colors"
           >
             <FileText className="h-3.5 w-3.5 text-brand-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate leading-tight"
-                 title={src.title}>
-                {src.title}
-              </p>
+              {renamingId === src.id ? (
+                <input
+                  autoFocus
+                  className="w-full text-sm border border-brand-300 rounded px-1 py-0.5 outline-none focus:border-brand-500"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && renameValue.trim()) {
+                      renameMutation.mutate({ id: src.id, title: renameValue.trim() });
+                    }
+                    if (e.key === "Escape") { setRenamingId(null); setMenuOpenId(null); }
+                  }}
+                  onBlur={() => {
+                    if (renameValue.trim() && renameValue !== src.title) {
+                      renameMutation.mutate({ id: src.id, title: renameValue.trim() });
+                    } else { setRenamingId(null); }
+                  }}
+                />
+              ) : (
+                <p className="text-sm font-medium text-gray-800 truncate leading-tight" title={src.title}>
+                  {src.title}
+                </p>
+              )}
               {src.loai_van_ban && (
                 <span className="inline-block text-[10px] bg-brand-50 text-brand-700 rounded px-1 mt-0.5">
                   {src.loai_van_ban}
                 </span>
               )}
             </div>
-            <button
-              onClick={() => removeMutation.mutate(src.id)}
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all shrink-0"
-            >
-              <X className="h-3 w-3" />
-            </button>
+
+            {/* Nút 3 chấm dọc */}
+            {renamingId !== src.id && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === src.id ? null : src.id); }}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-opacity shrink-0"
+                title="Tùy chọn"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {/* Dropdown menu */}
+            {menuOpenId === src.id && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-8 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]"
+              >
+                <button
+                  onClick={() => { setRenamingId(src.id); setRenameValue(src.title); setMenuOpenId(null); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-brand-500" />
+                  Đổi tên
+                </button>
+                <button
+                  onClick={() => { removeMutation.mutate(src.id); setMenuOpenId(null); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Xóa tài liệu
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-19
-> Phiên bản: Tuần 15 (DOCX/PDF table export + blank mode export + TipTap table extension + preview table CSS + PDF pdfplumber table extract + toolbar/ruler hiện ngay + AI dropdown + _extract_docx HTML formatting + debug upload pipeline)
+> Phiên bản: Tuần 15c (WelcomePanel UX + SourcesPanel dropdown rename/delete + blank mode preview/PDF + file type validation + multi-file upload + editor.isDestroyed guard)
 
 ---
 
@@ -293,6 +293,13 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 15b | **Toolbar + ruler hiện ngay**: `handleEditorReady` thêm `setActiveEditor((prev) => prev ?? editor)` → toolbar hiện khi TipTap init mà không cần user click; blank mode SectionEditor `onEditorReady` cũng gọi `setActiveEditor`; `{activeEditor && <EditorRuler>}` thay vì `{!isBlank && <EditorRuler>}` |
 | 15b | **Editor scroll fix**: middle column đổi từ `overflow-y-auto` → `flex flex-col min-h-0`; `nd30-document` outer div `min-h-full` → `h-full`; A4 content wrap trong `<div className="flex-1 overflow-y-auto min-h-0">` → sticky toolbar bám đúng trong scroll container nội bộ |
 | 15b | **AI dropdown**: 3 nút AI riêng lẻ (Trích yếu/Số KH/Căn cứ) → 1 `<select>` dropdown "✨ AI"; reset về placeholder sau mỗi lần chọn; xóa label "Mẫu 1.5: Công văn" khỏi TypeSelector |
+| 15c | **Blank mode preview + PDF**: `Nd30StaticContent` và `DocumentPreview` thêm `isBlank = !loaiVanBan` check — khi blank chỉ render `noiDung` HTML, không có NĐ30 header/footer/chữ ký; PDF dùng Puppeteer render `/print/[id]` → `DocumentPreview` → fix đúng component; CSS `.blank-content table` trong `globals.css` cho bảng có border trong PDF |
+| 15c | **TipTap table version fix**: downgrade `@tiptap/extension-table/row/header/cell` từ `^3.27.0` → `^3.23.6` để khớp với `@tiptap/core` tránh peer conflict |
+| 15c | **`editor.isDestroyed` guard**: `EditorToolbar` thêm `if (!editor \|\| editor.isDestroyed) return null` + `disabled={editor.isDestroyed \|\| !editor.can().undo()}` — tránh crash khi đổi loại văn bản làm SectionEditor remount và destroy editor cũ |
+| 15c | **WelcomePanel UX**: heading "Bạn muốn làm gì?" → "Hôm nay bạn cần soạn gì?"; pill click **thay thế** text thay vì nối tiếp; xóa pill "+ Khác"; "Vào editor trống" → button outline rõ ràng hơn |
+| 15c | **WelcomePanel multi-file** (tối đa 5): `attachedFile` → `attachedFiles: File[]`; input `multiple`; chips hiện từng file với nút X riêng; OCR song song với `Promise.all`; context limit 3000 chars tổng; enriched text chỉ thêm khi có text thực |
+| 15c | **File type validation**: `validateFile(file)` kiểm tra MIME type + extension; loại `.doc` (Word 97) khỏi `accept` attribute; error inline với `<AlertCircle>` icon thay vì alert/toast; áp dụng cả Option A (upload kèm yêu cầu) và Option B (chỉnh sửa file) |
+| 15c | **SourcesPanel dropdown menu**: hover source item → icon `⋮` (`MoreVertical`); click → dropdown 2 option: ✏️ Đổi tên (inline input, Enter/Escape/onBlur) + 🗑️ Xóa tài liệu; `renameMutation` → `refDocApi.update(id, { title })` → PUT `/reference-docs/{id}`; click ra ngoài đóng dropdown qua `document.addEventListener("click")` |
 
 ### Tech stack thực tế
 

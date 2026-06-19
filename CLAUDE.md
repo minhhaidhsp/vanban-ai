@@ -71,6 +71,9 @@ $env:NEXT_PUBLIC_API_URL = 'http://localhost:8000'
 | `embedding model not ready` | Đợi 60-120s sau startup (BAAI/bge-m3 lazy load) |
 | Port 3008 CORS error | Test với dev server port 3000 (allowed_origins chỉ có 3000) |
 | `next build` NEXT_PUBLIC_API_URL sai | Set `$env:NEXT_PUBLIC_API_URL = 'http://localhost:8000'` trước build |
+| `editor.can() on null/destroyed` | Editor bị destroy khi đổi loại VB → đã fix `isDestroyed` guard |
+| Export PDF vẫn hiện NĐ30 template cho trang trắng | PDF dùng Puppeteer → `/print/[id]` → `DocumentPreview.tsx` (không phải `pdf_service.py`) |
+| Upload file .doc → lỗi không rõ | Chỉ hỗ trợ `.pdf .docx .jpg .jpeg .png` — `.doc` bị loại khỏi accept |
 
 ## File quan trọng nhất
 
@@ -95,6 +98,15 @@ backend/
     documents.py            # CRUD + _doc_access() admin bypass
     rag.py                  # RAG chat/stream endpoints
     reference_docs.py       # Upload/search reference docs
+
+frontend/
+  app/
+    print/[id]/
+      DocumentPreview.tsx   # ← PDF dùng Puppeteer render component NÀY (không phải pdf_service)
+      page.tsx              # Server component fetch doc → PrintPreview
+    api/export/pdf/route.ts # Puppeteer launch → GET /print/{id} → PDF
+  components/editor/
+    SourcesPanel.tsx        # Cột trái editor: upload, search, rename/delete dropdown
 ```
 
 ## Workflow thực hiện task
