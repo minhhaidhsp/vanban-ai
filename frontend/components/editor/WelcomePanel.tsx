@@ -3,11 +3,27 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   FileText, FilePen, Upload, Mic, ArrowUp, X, Plus,
-  HardDrive, Loader2, Image as ImageIcon,
+  HardDrive, Loader2, Image as ImageIcon, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ocrApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+
+const ALLOWED_TYPES: Record<string, string> = {
+  "application/pdf": "PDF",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word (.docx)",
+  "image/jpeg": "Ảnh JPEG",
+  "image/png": "Ảnh PNG",
+  "image/jpg": "Ảnh JPG",
+};
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".jpg", ".jpeg", ".png"];
+
+const validateFile = (file: File): string | null => {
+  if (ALLOWED_TYPES[file.type]) return null;
+  const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
+  if (ALLOWED_EXTENSIONS.includes(ext)) return null;
+  return `Định dạng "${file.name.split(".").pop()?.toUpperCase()}" không được hỗ trợ. Chọn file: ${ALLOWED_EXTENSIONS.join(", ")}`;
+};
 
 const DOC_PILLS = [
   { label: "Công văn",   abbr: "CV"  },
@@ -109,8 +125,11 @@ export function WelcomePanel({
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [fileError, setFileError] = useState<string | null>(null);
+
   // ── Option B state ─────────────────────────────────────────────────────────
   const [editFile, setEditFile] = useState<File | null>(null);
+  const [editFileError, setEditFileError] = useState<string | null>(null);
   const [editDragOver, setEditDragOver] = useState(false);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -213,10 +232,13 @@ export function WelcomePanel({
   };
 
   const handleEditFileSelect = (file: File) => {
+    const typeErr = validateFile(file);
+    if (typeErr) { setEditFileError(typeErr); return; }
     if (file.size > 20 * 1024 * 1024) {
-      toast({ title: "File quá lớn. Vui lòng chọn file nhỏ hơn 20MB.", variant: "destructive" });
+      setEditFileError("File quá lớn. Vui lòng chọn file nhỏ hơn 20MB.");
       return;
     }
+    setEditFileError(null);
     setEditFile(file);
   };
 
@@ -389,10 +411,15 @@ export function WelcomePanel({
                         ref={fileInputRef}
                         type="file"
                         className="hidden"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        accept=".pdf,.docx,.jpg,.jpeg,.png"
                         onChange={(e) => {
                           const f = e.target.files?.[0];
-                          if (f) setAttachedFile(f);
+                          if (!f) return;
+                          const err = validateFile(f);
+                          if (err) { setFileError(err); e.target.value = ""; setShowPlusMenu(false); return; }
+                          setFileError(null);
+                          setAttachedFile(f);
+                          setShowPlusMenu(false);
                           e.target.value = "";
                         }}
                       />
@@ -431,6 +458,14 @@ export function WelcomePanel({
                     </div>
                   </div>
                 </div>
+
+                {/* File type error — Option A */}
+                {fileError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {fileError}
+                  </p>
+                )}
 
                 {/* Quick pills */}
                 <div className="flex flex-wrap gap-2">
@@ -493,7 +528,7 @@ export function WelcomePanel({
                 ref={editFileInputRef}
                 type="file"
                 className="hidden"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                accept=".pdf,.docx,.jpg,.jpeg,.png"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handleEditFileSelect(f);
@@ -549,6 +584,14 @@ export function WelcomePanel({
                   Có thể mất 15–30 giây tùy kích thước file
                 </p>
               </div>
+            )}
+
+            {/* File type error — Option B */}
+            {editFileError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                {editFileError}
+              </p>
             )}
 
             {/* CTA */}
