@@ -12,9 +12,11 @@ import {
  * Pure static (read-only) rendering of an Nd30Data document.
  * Used in DocumentPreviewPaged and as page 2+ overflow in nd30-document.
  * No interactive elements — safe to render multiple times with translateY.
+ *
+ * Blank mode (loaiVanBan = ""): only renders noiDung HTML, no NĐ30 header/footer.
  */
 export function Nd30StaticContent({ data }: { data: Nd30Data }) {
-  const isBlank     = !data.loaiVanBan;
+  const isBlank     = !data.loaiVanBan || !data.loaiVanBan.trim();
   const template    = isBlank ? null : getTemplateForType(data.loaiVanBan);
   const showTenLoai = isBlank ? false : hasTenLoai(template!);
   const showKinhGui = isBlank ? false : hasKinhGui(template!);
@@ -24,6 +26,23 @@ export function Nd30StaticContent({ data }: { data: Nd30Data }) {
   const hasCanCu    = data.canCu && data.canCu !== "<p></p>" && data.canCu.trim() !== "";
   const noiDungHtml = data.noiDung || "";
 
+  // ── Blank mode: chỉ render noiDung, không có NĐ30 header/footer ──────────
+  if (isBlank) {
+    return (
+      <div
+        className="nd30-preview blank-content"
+        style={{
+          fontFamily: "'Times New Roman', Times, serif",
+          fontSize: "14pt",
+          lineHeight: 1.6,
+          textAlign: "justify",
+        }}
+        dangerouslySetInnerHTML={{ __html: noiDungHtml }}
+      />
+    );
+  }
+
+  // ── NĐ30 mode: render đầy đủ template ─────────────────────────────────────
   return (
     <>
       {/* ══ Header 2-cột ══════════════════════════════════════════════ */}
