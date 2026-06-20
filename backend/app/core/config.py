@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     upload_timeout_seconds: int = 300
     doc_job_ttl_seconds: int = 86400  # 24h
 
+    # Groq STT
+    groq_api_key: str = ""
+    groq_stt_model: str = "whisper-large-v3"
+
     # SendGrid
     sendgrid_api_key: str = ""
     sendgrid_from_email: str = "noreply@vanban.ai"

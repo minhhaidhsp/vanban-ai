@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Send, Loader2, Calendar } from "lucide-react";
 import { remindersApi, ReminderCreate } from "@/lib/api/reminders";
 import { documentApi, DocumentDto } from "@/lib/api";
 import EmailRecipientsInput from "./EmailRecipientsInput";
@@ -23,7 +24,6 @@ export default function ReminderForm({ onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Ref để auto-add email đang gõ dở trong EmailRecipientsInput khi submit
   const recipientsFlushRef = useRef<(() => string[]) | null>(null);
 
   useEffect(() => {
@@ -46,31 +46,20 @@ export default function ReminderForm({ onSuccess }: Props) {
     setError("");
     try {
       const remind_at = `${remindAt}:00+07:00`;
-
-      // Auto-add email đang gõ dở trước khi submit
-      // flush() trả về list cuối cùng (bao gồm cả email đang gõ nếu hợp lệ)
       const finalRecipients = recipientsFlushRef.current?.() ?? recipients;
-
-      const payload: ReminderCreate = {
-        title: title.trim(),
-        remind_at,
-        recipients: finalRecipients,
-      };
+      const payload: ReminderCreate = { title: title.trim(), remind_at, recipients: finalRecipients };
       if (description.trim()) payload.description = description.trim();
       if (documentId) payload.document_id = documentId;
 
       await remindersApi.createReminder(payload);
-      setTitle("");
-      setDescription("");
-      setRemindAt("");
-      setDocumentId("");
-      setRecipients([]);
+      setTitle(""); setDescription(""); setRemindAt("");
+      setDocumentId(""); setRecipients([]);
       onSuccess();
     } catch (err: unknown) {
-      const msg =
+      setError(
         (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail || "Có lỗi xảy ra, vui lòng thử lại.";
-      setError(msg);
+          ?.detail || "Có lỗi xảy ra, vui lòng thử lại."
+      );
     } finally {
       setLoading(false);
     }
@@ -78,55 +67,55 @@ export default function ReminderForm({ onSuccess }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="r-title">Tiêu đề *</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="r-title" className="text-sm font-medium">Tiêu đề *</Label>
         <Input
           id="r-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Ví dụ: Nộp báo cáo quý I"
           required
+          className="focus-visible:ring-2 focus-visible:ring-primary/20"
         />
       </div>
 
-      <div>
-        <Label htmlFor="r-desc">Ghi chú</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="r-desc" className="text-sm font-medium">Ghi chú</Label>
         <Textarea
           id="r-desc"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ghi chú thêm..."
-          rows={3}
+          rows={2}
+          className="resize-none focus-visible:ring-2 focus-visible:ring-primary/20"
         />
       </div>
 
-      <div>
-        <Label htmlFor="r-time">Thời gian nhắc *</Label>
-        <Input
-          id="r-time"
-          type="datetime-local"
-          value={remindAt}
-          onChange={(e) => setRemindAt(e.target.value)}
-          min={nowIso}
-          required
-        />
-        <p className="mt-1 text-xs text-muted-foreground">Giờ Việt Nam (GMT+7)</p>
+      <div className="space-y-1.5">
+        <Label htmlFor="r-time" className="text-sm font-medium">Thời gian nhắc *</Label>
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            id="r-time"
+            type="datetime-local"
+            value={remindAt}
+            onChange={(e) => setRemindAt(e.target.value)}
+            min={nowIso}
+            required
+            className="pl-9 focus-visible:ring-2 focus-visible:ring-primary/20"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">Giờ Việt Nam (GMT+7)</p>
       </div>
 
-      <div>
-        <Label>Gửi nhắc đến</Label>
-        <EmailRecipientsInput
-          value={recipients}
-          onChange={setRecipients}
-          onFlushRef={recipientsFlushRef}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Nhập email hoặc tìm người dùng trong hệ thống, nhấn Enter để thêm
-        </p>
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium">Gửi nhắc đến</Label>
+        <EmailRecipientsInput value={recipients} onChange={setRecipients} onFlushRef={recipientsFlushRef} />
+        <p className="text-xs text-muted-foreground">Nhấn Enter để thêm email</p>
       </div>
 
-      <div>
-        <Label htmlFor="r-doc">Gắn tài liệu (tuỳ chọn)</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="r-doc" className="text-sm font-medium">Gắn tài liệu</Label>
         <select
           id="r-doc"
           value={documentId}
@@ -135,16 +124,19 @@ export default function ReminderForm({ onSuccess }: Props) {
         >
           <option value="">— Không gắn tài liệu —</option>
           {documents.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.title}
-            </option>
+            <option key={d.id} value={d.id}>{d.title}</option>
           ))}
         </select>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="rounded-md bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading} className="h-10 w-full">
+        {loading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Send className="mr-2 h-4 w-4" />
+        )}
         {loading ? "Đang gửi..." : "Gửi lịch hẹn"}
       </Button>
     </form>
