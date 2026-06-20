@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, users, documents, constants, document_sources,
     organizations, recipient_suggestions, reference_docs,
-    llm, rag, rag_chat_sessions, suggest, ocr, form_template,
+    llm, rag, rag_chat_sessions, suggest, ocr, form_template, reminders, stt,
 )
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 
@@ -23,3 +23,5 @@ api_router.include_router(suggest.router, prefix="/suggest", tags=["Suggest"])
 api_router.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 api_router.include_router(public_chat_router, prefix="/public", tags=["public"])
 api_router.include_router(form_template.router, prefix="/forms", tags=["forms"])
+api_router.include_router(reminders.router, prefix="/reminders", tags=["reminders"])
+api_router.include_router(stt.router, prefix="/stt", tags=["stt"])
