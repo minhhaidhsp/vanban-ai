@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,9 @@ export default function ReminderForm({ onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Ref để auto-add email đang gõ dở trong EmailRecipientsInput khi submit
+  const recipientsFlushRef = useRef<(() => string[]) | null>(null);
+
   useEffect(() => {
     documentApi
       .list({ scope: "mine", limit: 20 })
@@ -43,10 +46,15 @@ export default function ReminderForm({ onSuccess }: Props) {
     setError("");
     try {
       const remind_at = `${remindAt}:00+07:00`;
+
+      // Auto-add email đang gõ dở trước khi submit
+      // flush() trả về list cuối cùng (bao gồm cả email đang gõ nếu hợp lệ)
+      const finalRecipients = recipientsFlushRef.current?.() ?? recipients;
+
       const payload: ReminderCreate = {
         title: title.trim(),
         remind_at,
-        recipients,
+        recipients: finalRecipients,
       };
       if (description.trim()) payload.description = description.trim();
       if (documentId) payload.document_id = documentId;
@@ -107,7 +115,11 @@ export default function ReminderForm({ onSuccess }: Props) {
 
       <div>
         <Label>Gửi nhắc đến</Label>
-        <EmailRecipientsInput value={recipients} onChange={setRecipients} />
+        <EmailRecipientsInput
+          value={recipients}
+          onChange={setRecipients}
+          onFlushRef={recipientsFlushRef}
+        />
         <p className="mt-1 text-xs text-muted-foreground">
           Nhập email hoặc tìm người dùng trong hệ thống, nhấn Enter để thêm
         </p>

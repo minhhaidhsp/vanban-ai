@@ -120,16 +120,17 @@ async def create_reminder(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    print("HELLO FROM CREATE_REMINDER", flush=True)
     reminder = Reminder(
         title=body.title,
         description=body.description,
         remind_at=body.remind_at,
         document_id=body.document_id or None,
-        recipients=json.dumps(body.recipients) if body.recipients else None,
+        recipients=json.dumps(body.recipients) if body.recipients is not None else None,
         owner_id=current_user.id,
     )
     db.add(reminder)
-    await db.flush()
+    await db.commit()
     await db.refresh(reminder)
 
     doc_title = None
@@ -140,10 +141,14 @@ async def create_reminder(
 
     out = _to_out(reminder, doc_title)
 
+    logger.info("DEBUG: recipients value = %r", out.recipients)
     if out.recipients:
-        background_tasks.add_task(
-            send_reminder_email, out, get_settings(), "https://vanban.ai"
-        )
+        logger.info("DEBUG: Calling send_reminder_email directly for %s", out.recipients)
+        try:
+            result = await send_reminder_email(out, get_settings(), "http://localhost:8000")
+            logger.info("DEBUG: send_reminder_email result = %s", result)
+        except Exception as e:
+            logger.info("DEBUG: send_reminder_email error = %s", e)
 
     return out
 

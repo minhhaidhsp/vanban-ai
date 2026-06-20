@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 from datetime import datetime, timezone
@@ -64,16 +65,25 @@ def _build_html(reminder: ReminderOut) -> str:
 </html>"""
 
 
+def _send_one(sg, message) -> int:
+    """Synchronous SendGrid send — runs in thread pool via asyncio.to_thread."""
+    response = sg.send(message)
+    return response.status_code
+
+
 async def send_reminder_email(
     reminder: ReminderOut,
     settings: Settings,
     base_url: str = "https://vanban.ai",
 ) -> bool:
     """Gửi email nhắc hẹn qua SendGrid với file .ics đính kèm."""
+    logger.debug("DEBUG: Sending email to %s", reminder.recipients)
+
     if not settings.sendgrid_api_key:
         logger.warning("[email] SendGrid API key chưa cấu hình — bỏ qua")
         return False
     if not reminder.recipients:
+        logger.debug("DEBUG: No recipients — skipping")
         return False
 
     try:
@@ -108,11 +118,16 @@ async def send_reminder_email(
                 Disposition("attachment"),
             )
             message.attachment = attachment
-            response = sg.send(message)
-            logger.info("[email] gửi đến %s → status %s", recipient, response.status_code)
-            if response.status_code >= 300:
+
+            # sg.send() là blocking I/O — chạy trong thread pool tránh block event loop
+            status_code = await asyncio.to_thread(_send_one, sg, message)
+            logger.debug("DEBUG: SendGrid response %s for %s", status_code, recipient)
+            logger.info("[email] gửi đến %s → status %s", recipient, status_code)
+            if status_code >= 300:
+                logger.error("[email] SendGrid trả lỗi %s cho %s", status_code, recipient)
                 success = False
         except Exception as exc:
+            logger.debug("DEBUG ERROR: %s", str(exc))
             logger.error("[email] lỗi khi gửi đến %s: %s", recipient, exc)
             success = False
 

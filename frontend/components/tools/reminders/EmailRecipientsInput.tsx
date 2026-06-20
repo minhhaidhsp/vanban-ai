@@ -7,11 +7,12 @@ import { remindersApi, UserSearchResult } from "@/lib/api/reminders";
 interface Props {
   value: string[];
   onChange: (emails: string[]) => void;
+  onFlushRef?: React.MutableRefObject<(() => string[]) | null>;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function EmailRecipientsInput({ value, onChange }: Props) {
+export default function EmailRecipientsInput({ value, onChange, onFlushRef }: Props) {
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<UserSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -50,6 +51,26 @@ export default function EmailRecipientsInput({ value, onChange }: Props) {
     },
     [value, onChange]
   );
+
+  // Expose flush function via ref so parent can auto-add pending inputValue on submit
+  useEffect(() => {
+    if (!onFlushRef) return;
+    onFlushRef.current = () => {
+      const trimmed = inputValue.trim().toLowerCase();
+      if (
+        trimmed &&
+        EMAIL_RE.test(trimmed) &&
+        !value.includes(trimmed) &&
+        value.length < 20
+      ) {
+        const newList = [...value, trimmed];
+        onChange(newList);
+        setInputValue("");
+        return newList;
+      }
+      return [...value];
+    };
+  }, [inputValue, value, onChange, onFlushRef]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
