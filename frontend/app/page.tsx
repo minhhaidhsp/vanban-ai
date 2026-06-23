@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   PenLine, ShieldCheck, Search, Users, BookOpen,
   BarChart3, ClipboardList, XCircle, CheckCircle2,
-  Server, Brain, Wallet, ChevronDown, Scale, Sparkles,
+  Server, Brain, Wallet, ChevronDown, Scale, Sparkles, Zap,
 } from "lucide-react";
 import ChatWidget from "@/components/public/ChatWidget";
 import { HeroPattern } from "@/components/landing/HeroPattern";
@@ -23,13 +23,14 @@ async function getOrgTheme(): Promise<string> {
 }
 
 const AGENTS = [
-  { Icon: PenLine,       name: "Soạn thảo văn bản",       desc: "Tạo văn bản đúng thể thức theo Nghị định 30" },
-  { Icon: ShieldCheck,   name: "Rà soát văn bản",          desc: "Phát hiện lỗi, đề xuất chỉnh sửa trực tiếp" },
-  { Icon: Search,        name: "Tra cứu pháp lý",          desc: "Trả lời kèm căn cứ, trích dẫn nguồn tin cậy" },
-  { Icon: Users,         name: "Trợ giúp công dân",        desc: "Giải đáp thủ tục 24/7 bằng ngôn ngữ dễ hiểu" },
-  { Icon: BookOpen,      name: "Biểu mẫu thường sử dụng",  desc: "Hỗ trợ tìm nhanh biểu mẫu thường sử dụng" },
-  { Icon: BarChart3,     name: "Tổng hợp & Báo cáo",       desc: "Tự động tổng hợp số liệu, lập báo cáo" },
-  { Icon: ClipboardList, name: "Quản lý công việc",        desc: "Theo dõi tiến độ, nhắc hạn xử lý hồ sơ" },
+  { Icon: PenLine,       name: "SOẠN THẢO VĂN BẢN",        desc: "Tạo văn bản đúng thể thức theo Nghị định 30" },
+  { Icon: ShieldCheck,   name: "RÀ SOÁT VĂN BẢN",           desc: "Phát hiện lỗi, đề xuất chỉnh sửa trực tiếp" },
+  { Icon: Search,        name: "TRA CỨU PHÁP LÝ",           desc: "Trả lời kèm căn cứ, trích dẫn nguồn tin cậy" },
+  { Icon: Users,         name: "TRỢ GIÚP CÔNG DÂN",         desc: "Giải đáp thủ tục 24/7 bằng ngôn ngữ dễ hiểu" },
+  { Icon: BookOpen,      name: "BIỂU MẪU THƯỜNG SỬ DỤNG",   desc: "Hỗ trợ tìm nhanh biểu mẫu thường sử dụng" },
+  { Icon: BarChart3,     name: "TỔNG HỢP & BÁO CÁO",        desc: "Tự động tổng hợp số liệu, lập báo cáo" },
+  { Icon: ClipboardList, name: "QUẢN LÝ CÔNG VIỆC",         desc: "Theo dõi tiến độ, nhắc hạn xử lý hồ sơ" },
+  { Icon: Zap,           name: "CÔNG CỤ HỖ TRỢ",            desc: "OCR nhận dạng văn bản, chuyển giọng nói thành văn bản và các tiện ích hỗ trợ khác" },
 ];
 
 const PROBLEMS = [
@@ -68,12 +69,12 @@ const COMPLIANCE = [
   {
     Icon: ShieldCheck,
     title: "Thông tư số 47/2026/TT-BCA",
-    subtitle: "Quy chuẩn kỹ thuật quốc gia về an ninh mạng cho hệ thống lưu trữ tài liệu điện tử.",
+    subtitle: "Quy chuẩn kỹ thuật quốc gia về an ninh mạng cho hệ thống thông tin lưu trữ tài liệu điện tử trong các cơ quan Đảng, Nhà nước",
   },
   {
     Icon: Server,
     title: "TCVN 14423:2025",
-    subtitle: "Yêu cầu an ninh mạng đối với hệ thống thông tin quan trọng.",
+    subtitle: "Tiêu chuẩn quốc gia về An ninh mạng - Yêu cầu đối với hệ thống thông tin quan trọng",
   },
 ];
 
@@ -159,10 +160,9 @@ export default async function HomePage() {
               <span>Trợ lý AI hành chính công</span>
             </div>
 
-            <h1 className="text-white font-bold text-4xl sm:text-5xl lg:text-6xl tracking-tight max-w-3xl mx-auto leading-tight">
-              Nâng cao năng suất
-              <br />
-              hành chính cấp cơ sở
+            <h1 className="text-white font-bold text-4xl sm:text-5xl lg:text-6xl tracking-normal max-w-4xl mx-auto">
+              <span className="block mb-4">NÂNG CAO NĂNG SUẤT</span>
+              <span className="block">HÀNH CHÍNH CẤP CƠ SỞ</span>
             </h1>
 
             <p
@@ -217,10 +217,10 @@ export default async function HomePage() {
         <div className="container">
           <div className="text-center mb-12">
             <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#378ADD" }}>
-              Điểm nghẽn thực tiễn
+              ĐIỂM NGHẼN THỰC TIỄN
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "#042C53" }}>
-              Giải quyết điểm nghẽn thực tiễn
+              GIẢI QUYẾT ĐIỂM NGHẼN THỰC TIỄN
             </h2>
             <p className="text-base text-muted-foreground mt-2">
               Được thiết kế dựa trên khảo sát 152 cán bộ tại 10 đơn vị cấp xã
@@ -238,7 +238,7 @@ export default async function HomePage() {
                 {PROBLEMS.map((p) => (
                   <li key={p} className="flex items-start gap-2">
                     <XCircle className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#E24B4A" }} />
-                    <span className="text-base" style={{ color: "#042C53" }}>{p}</span>
+                    <span className="text-sm" style={{ color: "#042C53" }}>{p}</span>
                   </li>
                 ))}
               </ul>
@@ -254,7 +254,7 @@ export default async function HomePage() {
                 {SOLUTIONS.map((s) => (
                   <li key={s} className="flex items-start gap-2">
                     <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#378ADD" }} />
-                    <span className="text-base" style={{ color: "#042C53" }}>{s}</span>
+                    <span className="text-sm" style={{ color: "#042C53" }}>{s}</span>
                   </li>
                 ))}
               </ul>
@@ -268,10 +268,10 @@ export default async function HomePage() {
         <div className="container">
           <div className="text-center mb-10">
             <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#378ADD" }}>
-              Pháp lý & An toàn
+              PHÁP LÝ & AN TOÀN
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "#042C53" }}>
-              Bảo mật &amp; Tuân thủ
+              BẢO MẬT &amp; TUÂN THỦ
             </h2>
             <p className="text-base text-muted-foreground mt-2">
               Đáp ứng đầy đủ quy định pháp lý về an toàn thông tin cho hệ thống hành chính công
@@ -310,10 +310,10 @@ export default async function HomePage() {
         <div className="container relative z-10">
           <div className="text-center mb-12">
             <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#85B7EB" }}>
-              Các trợ lý AI
+              CÁC TRỢ LÝ AI
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold text-white">
-              7 trợ lý AI chuyên biệt
+              7 TRỢ LÝ AI CHUYÊN BIỆT
             </h2>
             <p className="text-base mt-2" style={{ color: "#85B7EB" }}>
               Các trợ lý AI cộng tác với nhau, con người giữ quyền quyết định
@@ -349,10 +349,10 @@ export default async function HomePage() {
         <div className="container">
           <div className="text-center mb-10">
             <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#85B7EB" }}>
-              Hạ tầng
+              HẠ TẦNG
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold text-white">
-              Lưu trữ và Dữ liệu
+              LƯU TRỮ VÀ DỮ LIỆU
             </h2>
             <p className="text-base mt-2" style={{ color: "#85B7EB" }}>
               Toàn quyền kiểm soát dữ liệu trong hạ tầng của cơ quan
@@ -399,7 +399,7 @@ export default async function HomePage() {
 
         <div className="container relative z-10 flex flex-col items-center text-center gap-6">
           <h2 className="text-2xl sm:text-3xl font-bold text-white">
-            Bắt đầu trải nghiệm ngay hôm nay
+            BẮT ĐẦU TRẢI NGHIỆM NGAY HÔM NAY
           </h2>
           <p className="text-base max-w-xl" style={{ color: "#85B7EB" }}>
             Đăng ký miễn phí và trải nghiệm ngay sức mạnh của trợ lý AI hành chính.
