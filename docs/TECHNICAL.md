@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-19
-> Phiên bản: Tuần 15c (WelcomePanel UX + SourcesPanel dropdown rename/delete + blank mode preview/PDF + file type validation + multi-file upload + editor.isDestroyed guard)
+> Cập nhật: 2026-06-24
+> Phiên bản: Tuần 15d (Reminders + SendGrid .ics + Speech-to-Text Groq Whisper + UI/UX tools improvements + landing page redesign)
 
 ---
 
@@ -186,6 +186,16 @@ $env:PGPASSWORD='postgres123'
 | `backend/app/api/v1/endpoints/rag.py` | RAG chat endpoints |
 | `frontend/app/globals.css` | Global CSS (ProseMirror, nd30-preview, table styles) |
 | `frontend/components/editor/extensions.ts` | TipTap extensions registry |
+| `backend/app/services/email_service.py` | Gửi email qua SendGrid với .ics đính kèm |
+| `backend/app/services/ics_service.py` | Generate RFC 5545 .ics content |
+| `backend/app/services/stt_service.py` | Groq Whisper API transcription |
+| `backend/app/api/v1/endpoints/reminders.py` | CRUD reminders + /users/search + /resend |
+| `backend/app/api/v1/endpoints/stt.py` | POST /transcribe, /transcribe-realtime, GET /languages |
+| `frontend/lib/api/reminders.ts` | Reminders API client + types |
+| `frontend/lib/api/stt.ts` | STT API client + types |
+| `frontend/components/tools/reminders/` | ReminderForm, ReminderList, EmailRecipientsInput |
+| `frontend/components/tools/stt/` | AudioRecorder, LanguageSelector, TranscriptEditor |
+| `frontend/app/page.tsx` | Landing page CivicAI (server component) |
 
 ---
 
@@ -300,6 +310,13 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 15c | **WelcomePanel multi-file** (tối đa 5): `attachedFile` → `attachedFiles: File[]`; input `multiple`; chips hiện từng file với nút X riêng; OCR song song với `Promise.all`; context limit 3000 chars tổng; enriched text chỉ thêm khi có text thực |
 | 15c | **File type validation**: `validateFile(file)` kiểm tra MIME type + extension; loại `.doc` (Word 97) khỏi `accept` attribute; error inline với `<AlertCircle>` icon thay vì alert/toast; áp dụng cả Option A (upload kèm yêu cầu) và Option B (chỉnh sửa file) |
 | 15c | **SourcesPanel dropdown menu**: hover source item → icon `⋮` (`MoreVertical`); click → dropdown 2 option: ✏️ Đổi tên (inline input, Enter/Escape/onBlur) + 🗑️ Xóa tài liệu; `renameMutation` → `refDocApi.update(id, { title })` → PUT `/reference-docs/{id}`; click ra ngoài đóng dropdown qua `document.addEventListener("click")` |
+| 15c+ | **Reminders tool** (Tool 3): backend model `Reminder` (bảng `reminders`, migration 0020+0021); fields: `title`, `remind_at` (TIMESTAMPTZ), `channel`, `status`, `document_id` FK, `owner_id` FK, `recipients` (TEXT JSON array); `ics_service.py` generate RFC 5545 .ics với VALARM -PT30M; `email_service.py` gửi email qua SendGrid với .ics đính kèm (`text/calendar; method=REQUEST` → Gmail hiện nút "Add to Calendar"); `send_reminder_email` dùng `asyncio.to_thread()` cho `sg.send()` blocking I/O tránh block event loop; endpoints: `GET/POST /reminders/`, `GET/PATCH/DELETE /{id}`, `POST /{id}/resend`, `GET /upcoming`, `GET /users/search` |
+| 15c+ | **Reminders frontend**: `ReminderForm` với `EmailRecipientsInput` (tag input autocomplete từ `/users/search`, debounce 300ms, max 20, `onFlushRef` auto-add email đang gõ khi submit); `ReminderList` nhóm Sắp tới/Đã qua/Hoàn thành; `remindersApi` + `lib/api/reminders.ts`; recipients lưu dưới dạng JSON string trong DB, parse khi trả về `ReminderOut` |
+| 15c+ | **Reminders email flow fixes**: `db.flush()` → `db.commit()` trước khi gọi email; `if body.recipients is not None` thay vì `if body.recipients` (tránh bỏ qua empty list); `send_reminder_email` gọi `await` trực tiếp trong endpoint (không qua `BackgroundTasks` tạm thời để debug); `_get_groq_key()` dùng pool `llm_api_keys` cho STT thay vì field riêng |
+| 15d | **Speech-to-Text tool** (Tool 1): `stt_service.py` — gọi Groq Whisper API `POST https://api.groq.com/openai/v1/audio/transcriptions` qua `httpx.AsyncClient(timeout=60)`; multipart form: `file`, `model=whisper-large-v3`, `language`, `response_format=text`; endpoint `POST /stt/transcribe` (upload file) + `POST /stt/transcribe-realtime` (blob từ MediaRecorder) + `GET /stt/languages`; hỗ trợ mp3/mp4/m4a/wav/webm/ogg, max 25MB; `_get_groq_key()` random chọn từ `llm_api_keys` pool |
+| 15d | **STT frontend**: `AudioRecorder.tsx` — MediaRecorder API, gradient đỏ, sound wave 5 bars animation stagger, timer monospace MM:SS, auto-stop 300s, cleanup tracks khi unmount; `LanguageSelector.tsx` — pill tabs VI/EN; `TranscriptEditor.tsx` — textarea edit, copy feedback (Check icon 2s), char count, `CornerDownLeft` Chèn vào editor; `page.tsx` — 2 tabs (ghi âm/upload), dropzone kéo thả, toast fixed bottom-right, error dismissible |
+| 15d | **UI/UX improvements — Tools**: `ReminderList` border-left urgency (red <24h, orange overdue, blue >24h, green done), relative time với tooltip full date, avatar initials cho recipients, icon-only buttons; `ReminderForm` Calendar icon trong datetime input, `Send`/`Loader2` icons; `EmailRecipientsInput` rounded-full chips `bg-primary/10`, `AlertCircle` inline error; `reminders/page.tsx` badge pending count, accordion form on mobile; `LanguageSelector` pill style; `TranscriptEditor` copy feedback; `AudioRecorder` gradient + ring effect |
+| 15d | **Landing page update** (`app/page.tsx`): uppercase tất cả section headers (H1, h2, labels); thêm ô thứ 8 vào grid agents (`Zap` icon, "CÔNG CỤ HỖ TRỢ"); cập nhật subtitle 2 compliance cards (TT47, TCVN 14423); bullet text `text-base` → `text-sm`; H1 hero dùng `<span className="block mb-4">` thay `<br/>` để kiểm soát line-height rõ ràng hơn |
 
 ### Tech stack thực tế
 

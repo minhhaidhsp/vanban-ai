@@ -79,12 +79,28 @@ $env:NEXT_PUBLIC_API_URL = 'http://localhost:8000'
 
 ```
 frontend/
+  app/
+    page.tsx                # Landing page CivicAI (server component)
+    print/[id]/
+      DocumentPreview.tsx   # ← PDF dùng Puppeteer render component NÀY (không phải pdf_service)
+      page.tsx              # Server component fetch doc → PrintPreview
+    api/export/pdf/route.ts # Puppeteer launch → GET /print/{id} → PDF
+    dashboard/tools/
+      reminders/page.tsx    # Tool: Nhắc hẹn
+      speech-to-text/page.tsx  # Tool: Chuyển âm thanh thành văn bản
   components/editor/
     document-editor.tsx    # Wrapper chính, quản lý state editor
     nd30-document.tsx      # Form A4 NĐ30, toolbar, ruler
     WelcomePanel.tsx       # Màn hình chào khi tạo văn bản mới
     extensions.ts          # TipTap extensions registry
-  lib/api.ts               # Tất cả API client functions
+    SourcesPanel.tsx       # Cột trái editor: upload, search, rename/delete dropdown
+  components/tools/
+    reminders/             # ReminderForm, ReminderList, EmailRecipientsInput
+    stt/                   # AudioRecorder, LanguageSelector, TranscriptEditor
+  lib/
+    api.ts                 # Tất cả API calls chính
+    api/reminders.ts       # Reminders API client
+    api/stt.ts             # Speech-to-Text API client
   app/globals.css          # CSS: ProseMirror table, nd30-preview table
 
 backend/
@@ -94,19 +110,20 @@ backend/
     docx_service.py         # Export DOCX (python-docx + lxml); _process_block() table
     pipeline_service.py     # Embedding + _extract_docx() HTML + _extract_pdf() table
     embedding_service.py    # BAAI/bge-m3 singleton
+    email_service.py        # Gửi email qua SendGrid với file .ics đính kèm
+    ics_service.py          # Generate RFC 5545 .ics (VALARM -PT30M)
+    stt_service.py          # Groq Whisper API (httpx async, timeout 60s)
   app/api/v1/endpoints/
     documents.py            # CRUD + _doc_access() admin bypass
     rag.py                  # RAG chat/stream endpoints
     reference_docs.py       # Upload/search reference docs
-
-frontend/
-  app/
-    print/[id]/
-      DocumentPreview.tsx   # ← PDF dùng Puppeteer render component NÀY (không phải pdf_service)
-      page.tsx              # Server component fetch doc → PrintPreview
-    api/export/pdf/route.ts # Puppeteer launch → GET /print/{id} → PDF
-  components/editor/
-    SourcesPanel.tsx        # Cột trái editor: upload, search, rename/delete dropdown
+    reminders.py            # Reminders CRUD + /users/search + /resend
+    stt.py                  # /transcribe, /transcribe-realtime, /languages
+  app/models/
+    reminder.py             # Model bảng reminders (migration 0020)
+  alembic/versions/
+    0020_create_reminders_table.py
+    0021_add_recipients_to_reminders.py
 ```
 
 ## Workflow thực hiện task
