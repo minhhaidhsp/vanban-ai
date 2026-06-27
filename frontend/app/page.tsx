@@ -248,12 +248,12 @@ export default async function HomePage() {
               </ul>
             </div>
 
-            {/* Với CivicAI */}
+            {/* Với Trợ Lý Hành Chính */}
             <div
               className="rounded-lg p-5"
               style={{ background: "#EFF6FF", borderLeft: "4px solid var(--brand-500)" }}
             >
-              <p className="text-sm font-medium mb-4" style={{ color: "var(--brand-800)" }}>Với CivicAI</p>
+              <p className="text-sm font-medium mb-4" style={{ color: "var(--brand-800)" }}>Với Trợ Lý Hành Chính</p>
               <ul className="space-y-3">
                 {SOLUTIONS.map((s) => (
                   <li key={s} className="flex items-start gap-2">
@@ -425,7 +425,7 @@ export default async function HomePage() {
         style={{ background: "var(--brand-900)", borderColor: "rgba(255,255,255,0.1)" }}
       >
         <p className="text-center text-sm" style={{ color: "var(--brand-300)" }}>
-          © 2026 CivicAI · Sở KHCN TP. HCM
+          © 2026 Trợ Lý Hành Chính · Sở KHCN TP. HCM
         </p>
       </footer>
 

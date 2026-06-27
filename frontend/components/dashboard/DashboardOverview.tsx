@@ -119,7 +119,7 @@ export function DashboardOverview() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tổng quan</h1>
           <p className="text-muted-foreground text-base mt-0.5">
-            Thống kê và hoạt động của hệ thống CivicAI
+            Thống kê và hoạt động của hệ thống Trợ Lý Hành Chính
           </p>
         </div>
         <div className="text-right hidden sm:block">

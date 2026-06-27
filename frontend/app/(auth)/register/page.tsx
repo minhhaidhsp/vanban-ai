@@ -69,14 +69,7 @@ export default function RegisterPage() {
 
       {/* Header */}
       <div className="relative z-10 mb-4 text-center">
-        <div className="flex justify-center mb-3">
-          <img
-            src="/logo_civicai.jpg"
-            alt="CivicAI Logo"
-            className="h-24 w-24 object-contain"
-          />
-        </div>
-        <h1 className="text-3xl font-bold uppercase tracking-wide text-[var(--brand-600)] leading-snug whitespace-nowrap">
+<h1 className="text-3xl font-bold uppercase tracking-wide text-[var(--brand-600)] leading-snug whitespace-nowrap">
           HỆ THỐNG XỬ LÝ VĂN BẢN HÀNH CHÍNH ĐIỆN TỬ
         </h1>
       </div>
@@ -159,7 +152,7 @@ export default function RegisterPage() {
 
       {/* Footer */}
       <div className="absolute bottom-6 left-8 z-10 text-xs text-white space-y-0.5">
-        <div>© 2025 VănBản.AI — Bảo lưu mọi quyền</div>
+        <div>© 2025 Trợ Lý Hành Chính — Bảo lưu mọi quyền</div>
       </div>
     </div>
   );
