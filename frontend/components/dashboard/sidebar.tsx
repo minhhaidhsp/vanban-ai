@@ -6,7 +6,7 @@ import {
   Building2, LayoutDashboard, FilePlus, Search, BookOpen,
   ScanText, Settings, Users, LogOut,
   PanelLeftClose, PanelLeftOpen, ChevronRight,
-  Mic, ImagePlus, BellRing, type LucideIcon,
+  Mic, ImagePlus, BellRing, FolderOpen, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "NGHIỆP VỤ",
     items: [
-      { href: "/dashboard",                label: "Tổng quan",        icon: LayoutDashboard },
-      { href: "/dashboard/documents",      label: "Tạo văn bản",      icon: FilePlus        },
+      { href: "/dashboard",                label: "Tổng quan",          icon: LayoutDashboard },
+      { href: "/dashboard/ho-so",          label: "Hồ sơ hành chính",  icon: FolderOpen      },
+      { href: "/dashboard/documents",      label: "Tạo văn bản",        icon: FilePlus        },
       { href: "/dashboard/rag-search",     label: "Tra cứu văn bản",  icon: Search          },
       { href: "/dashboard/reference-docs", label: "Kho văn bản",      icon: BookOpen        },
     ],

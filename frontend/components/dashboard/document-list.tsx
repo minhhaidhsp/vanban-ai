@@ -191,37 +191,37 @@ export function DocumentList() {
       </div>
 
       {/* ── Table — always shown ───────────────────────────── */}
-      <div className="rounded-lg border overflow-hidden overflow-x-auto">
+      <div className="rounded-md border overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr className="border-b">
+          <thead className="bg-muted/50 border-b">
+            <tr>
               <th
-                className="text-left px-4 py-2.5 font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground w-full"
+                className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-foreground w-full"
                 onClick={() => handleSort("title")}
               >
                 Tên văn bản <SortIcon col="title" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
               <th
-                className="text-left px-4 py-2.5 font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground hidden sm:table-cell"
+                className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-foreground hidden sm:table-cell w-[160px]"
                 onClick={() => handleSort("loai_vb")}
               >
                 Loại <SortIcon col="loai_vb" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground whitespace-nowrap hidden md:table-cell">
+              <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap hidden md:table-cell w-[110px]">
                 Nguồn
               </th>
               <th
-                className="text-left px-4 py-2.5 font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground hidden md:table-cell"
+                className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-foreground hidden md:table-cell w-[150px]"
                 onClick={() => handleSort("created_at")}
               >
                 Ngày tạo <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
-              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">
+              <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap w-[90px]">
                 Thao tác
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody>
             {items.length === 0 ? (
               <tr>
                 <td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">
@@ -231,7 +231,7 @@ export function DocumentList() {
             ) : items.map((doc) => (
               <tr
                 key={doc.id}
-                className="hover:bg-brand-50/30 transition-colors group"
+                className="border-b last:border-0 hover:bg-muted/30 transition-colors group"
               >
                 {/* Tên */}
                 <td className="px-4 py-3">

@@ -268,26 +268,26 @@ export default function OcrPage() {
               <thead className="bg-muted/50 border-b">
                 <tr>
                   <th
-                    className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                    className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-foreground"
                     onClick={() => handleSort("filename")}
                   >
                     Tên file <SortIcon col="filename" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
                   <th
-                    className="px-4 py-3 text-left font-medium text-muted-foreground w-[90px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                    className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[90px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
                     onClick={() => handleSort("page_count")}
                   >
                     Số trang <SortIcon col="page_count" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px] whitespace-nowrap">Số ký tự</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px] whitespace-nowrap">Loại</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[110px] whitespace-nowrap">Số ký tự</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[130px] whitespace-nowrap">Loại</th>
                   <th
-                    className="px-4 py-3 text-left font-medium text-muted-foreground w-[150px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                    className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[150px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
                     onClick={() => handleSort("created_at")}
                   >
                     Ngày tạo <SortIcon col="created_at" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[130px] whitespace-nowrap">Trạng thái</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[130px] whitespace-nowrap">Trạng thái</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground w-[170px] whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>

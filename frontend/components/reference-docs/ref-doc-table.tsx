@@ -97,32 +97,32 @@ export function RefDocTable({ items, total, skip, limit, onPageChange, onEdit, s
           <thead className="bg-muted/50 border-b">
             <tr>
               <th
-                className="px-4 py-3 text-left font-medium text-muted-foreground w-[120px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[120px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
                 onClick={() => onSort?.("so_ki_hieu")}
               >
                 Số/Ký hiệu
                 <SortIcon col="so_ki_hieu" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Trích yếu</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Trích yếu</th>
               <th
-                className="px-4 py-3 text-left font-medium text-muted-foreground w-[120px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[120px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
                 onClick={() => onSort?.("loai_van_ban")}
               >
                 Loại VB
                 <SortIcon col="loai_van_ban" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[160px] whitespace-nowrap">Cơ quan</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[160px] whitespace-nowrap">Cơ quan</th>
               <th
-                className="px-4 py-3 text-left font-medium text-muted-foreground w-[110px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[110px] whitespace-nowrap cursor-pointer select-none hover:text-foreground"
                 onClick={() => onSort?.("ngay_ban_hanh")}
               >
                 Ngày BH
                 <SortIcon col="ngay_ban_hanh" sortBy={sortBy} sortOrder={sortOrder} />
               </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[140px] whitespace-nowrap">Hiệu lực</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground w-[100px] whitespace-nowrap hidden sm:table-cell">Phạm vi</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[140px] whitespace-nowrap">Hiệu lực</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px] whitespace-nowrap hidden sm:table-cell">Phạm vi</th>
               <th
-                className="px-4 py-3 text-left font-medium text-muted-foreground w-[145px] whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-foreground"
+                className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[145px] whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-foreground"
                 onClick={() => onSort?.("created_at")}
               >
                 Ngày upload

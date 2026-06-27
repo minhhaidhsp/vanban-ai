@@ -725,3 +725,142 @@ export const documentApi = {
     return data as ReviewResult & { doc_id: string };
   },
 };
+
+// ── Hồ sơ hành chính ────────────────────────────────────────────────────────
+
+export interface HoSoListItem {
+  id: string;
+  ma_ho_so: string;
+  loai_thu_tuc: string;
+  ten_chu_ho_so: string;
+  trang_thai: string;
+  han_xu_ly: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BuocOut {
+  id: string;
+  ho_so_id: string;
+  thu_tu: number;
+  ten_buoc: string;
+  mo_ta: string | null;
+  loai_hanh_dong: string;
+  trang_thai: string;
+  ket_qua: string | null;
+  document_id: string | null;
+  hoan_thanh_luc: string | null;
+}
+
+export interface FileOut {
+  id: string;
+  ho_so_id: string;
+  ten_file: string;
+  loai_file: string;
+  duong_dan: string | null;
+  kich_thuoc: number | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface HoSoOut {
+  id: string;
+  ma_ho_so: string;
+  loai_thu_tuc: string;
+  ten_chu_ho_so: string;
+  so_dien_thoai: string | null;
+  dia_chi: string | null;
+  mo_ta: string | null;
+  trang_thai: string;
+  nguon: string | null;
+  ma_dvc: string | null;
+  ly_do_bo_sung: string | null;
+  owner_id: string;
+  han_xu_ly: string | null;
+  created_at: string;
+  updated_at: string;
+  buoc: BuocOut[];
+  files: FileOut[];
+}
+
+export interface HoSoStats {
+  tong: number;
+  moi: number;
+  dang_xu_ly: number;
+  cho_bo_sung: number;
+  hoan_thanh: number;
+  qua_han: number;
+  hoan_thanh_thang_nay: number;
+}
+
+export interface HoSoCreate {
+  loai_thu_tuc: string;
+  ten_chu_ho_so: string;
+  so_dien_thoai?: string;
+  dia_chi?: string;
+  mo_ta?: string;
+  nguon?: string;
+  ma_dvc?: string;
+  han_xu_ly?: string;
+}
+
+export interface HoSoUpdate {
+  trang_thai?: string;
+  ly_do_bo_sung?: string;
+  han_xu_ly?: string;
+  mo_ta?: string;
+  so_dien_thoai?: string;
+  dia_chi?: string;
+}
+
+export interface BuocUpdate {
+  trang_thai?: string;
+  ket_qua?: string;
+  document_id?: string;
+}
+
+export const hoSoApi = {
+  list: async (trang_thai?: string) => {
+    const { data } = await api.get("/ho-so/", { params: trang_thai ? { trang_thai } : undefined });
+    return data as HoSoListItem[];
+  },
+
+  create: async (payload: HoSoCreate) => {
+    const { data } = await api.post("/ho-so/", payload);
+    return data as HoSoOut;
+  },
+
+  get: async (id: string) => {
+    const { data } = await api.get(`/ho-so/${id}`);
+    return data as HoSoOut;
+  },
+
+  update: async (id: string, payload: Partial<HoSoUpdate>) => {
+    const { data } = await api.patch(`/ho-so/${id}`, payload);
+    return data as HoSoOut;
+  },
+
+  updateBuoc: async (hoSoId: string, buocId: string, payload: BuocUpdate) => {
+    const { data } = await api.patch(`/ho-so/${hoSoId}/buoc/${buocId}`, payload);
+    return data as BuocOut;
+  },
+
+  uploadFile: async (hoSoId: string, file: File, loaiFile: string = "ho_so_goc") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("loai_file", loaiFile);
+    const { data } = await api.post(`/ho-so/${hoSoId}/files`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data as FileOut;
+  },
+
+  remove: async (id: string) => {
+    await api.delete(`/ho-so/${id}`);
+  },
+
+  stats: async () => {
+    const { data } = await api.get("/ho-so/stats");
+    return data as HoSoStats;
+  },
+};
