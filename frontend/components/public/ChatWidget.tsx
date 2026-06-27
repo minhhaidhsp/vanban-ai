@@ -480,16 +480,27 @@ export default function ChatWidget() {
         onClick={() => setIsOpen((o) => !o)}
         className="fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 transition-all duration-200 flex items-center justify-center hover:scale-105 active:scale-95"
         aria-label="Mở trợ lý AI"
+        style={{
+          boxShadow: "0 0 0 0 var(--brand-400)",
+          animation: !isOpen ? "chat-pulse 2s ease-in-out infinite" : "none",
+        }}
       >
         {isOpen ? (
           <X className="h-6 w-6" />
         ) : (
-          <MessageCircle className="h-6 w-6" />
+          <MessageCircle className="h-6 w-6 animate-bounce" style={{ animationDuration: "1.5s" }} />
         )}
         {!isOpen && unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
+        )}
+        {/* Ripple ring khi đóng */}
+        {!isOpen && (
+          <span
+            className="absolute inset-0 rounded-full bg-brand-500 opacity-0"
+            style={{ animation: "chat-ripple 2s ease-out infinite" }}
+          />
         )}
       </button>
     </>

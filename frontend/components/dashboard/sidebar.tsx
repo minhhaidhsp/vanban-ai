@@ -94,7 +94,7 @@ export function Sidebar() {
       )}>
         <div className={cn("flex items-center", collapsed ? "" : "gap-2")}>
           <Building2 className="h-5 w-5 text-[var(--brand-600)]" />
-          {!collapsed && <span className="font-bold text-lg text-[var(--brand-600)]">Trợ Lý Hành Chính</span>}
+          {!collapsed && <span className="font-bold text-base text-[var(--brand-600)] whitespace-nowrap">Trợ Lý Hành Chính</span>}
         </div>
         <button
           onClick={toggle}
