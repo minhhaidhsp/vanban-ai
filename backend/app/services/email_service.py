@@ -43,7 +43,7 @@ def _build_html(reminder: ReminderOut) -> str:
              style="background:#ffffff;border-radius:8px;border:1px solid #e5e7eb;padding:32px;">
         <tr><td>
           <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#6b7280;letter-spacing:1px;text-transform:uppercase;">
-            Nhắc hẹn từ VănBản.AI
+            Nhắc hẹn từ Trợ Lý Hành Chính
           </p>
           <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#111827;">
             {reminder.title}
@@ -60,7 +60,7 @@ def _build_html(reminder: ReminderOut) -> str:
           </p>
         </td></tr>
         <tr><td style="padding-top:24px;text-align:center;">
-          <p style="margin:0;font-size:11px;color:#d1d5db;">Gửi từ VănBản.AI</p>
+          <p style="margin:0;font-size:11px;color:#d1d5db;">Gửi từ Trợ Lý Hành Chính</p>
         </td></tr>
       </table>
     </td></tr>
@@ -186,7 +186,7 @@ async def send_reset_email(email: str, token: str, frontend_url: str) -> bool:
         <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
           <h2 style="color: #b9000e; font-size: 20px; margin-bottom: 16px;">Đặt lại mật khẩu</h2>
           <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-            Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản VănBản.AI.
+            Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản Trợ Lý Hành Chính.
           </p>
           <p style="color: #374151; font-size: 15px; line-height: 1.6;">
             Click vào nút bên dưới để tiếp tục. Link có hiệu lực trong <strong>1 giờ</strong>.
@@ -201,13 +201,13 @@ async def send_reset_email(email: str, token: str, frontend_url: str) -> bool:
             Nếu bạn không yêu cầu, hãy bỏ qua email này.
           </p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #9ca3af; font-size: 12px;">© 2025 VănBản.AI</p>
+          <p style="color: #9ca3af; font-size: 12px;">© 2025 Trợ Lý Hành Chính</p>
         </div>
         """
         message = Mail(
             from_email=(settings.sendgrid_from_email, settings.sendgrid_from_name),
             to_emails=email,
-            subject="[VănBản.AI] Đặt lại mật khẩu",
+            subject="[Trợ Lý Hành Chính] Đặt lại mật khẩu",
             html_content=html_content,
         )
         sg = SendGridAPIClient(settings.sendgrid_api_key)

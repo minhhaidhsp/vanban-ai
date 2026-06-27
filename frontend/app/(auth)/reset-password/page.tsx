@@ -141,7 +141,7 @@ function ResetPasswordForm() {
       </div>
 
       <div className="absolute bottom-6 left-8 z-10 text-xs text-white">
-        © 2025 VănBản.AI — Bảo lưu mọi quyền
+        © 2025 Trợ Lý Hành Chính — Bảo lưu mọi quyền
       </div>
     </div>
   );

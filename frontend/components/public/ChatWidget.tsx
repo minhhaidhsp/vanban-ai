@@ -27,7 +27,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WELCOME: Message = {
   role: "assistant",
   content:
-    "Xin chào! Tôi là trợ lý AI của CivicAI.\nTôi có thể giúp bạn tra cứu thủ tục hành chính, tìm hiểu các quy định pháp luật.\nBạn muốn hỏi gì?",
+    "Xin chào! Tôi là trợ lý AI của Trợ Lý Hành Chính.\nTôi có thể giúp bạn tra cứu thủ tục hành chính, tìm hiểu các quy định pháp luật.\nBạn muốn hỏi gì?",
 };
 
 function genSessionId() {
@@ -262,7 +262,7 @@ export default function ChatWidget() {
         <div className="flex items-center justify-between px-4 py-3 bg-brand-600 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-2 text-white">
             <Bot className="h-5 w-5 shrink-0" />
-            <span className="font-semibold text-sm">Trợ lý CivicAI</span>
+            <span className="font-semibold text-sm">Trợ lý Trợ Lý Hành Chính</span>
           </div>
           <button
             onClick={() => setIsOpen(false)}

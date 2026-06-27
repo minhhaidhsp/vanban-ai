@@ -149,7 +149,7 @@ export default function LoginPage() {
 
       {/* Footer */}
       <div className="absolute bottom-6 left-8 z-10 text-xs text-white space-y-0.5">
-        <div>© 2025 VănBản.AI — Bảo lưu mọi quyền</div>
+        <div>© 2025 Trợ Lý Hành Chính — Bảo lưu mọi quyền</div>
       </div>
     </div>
   );

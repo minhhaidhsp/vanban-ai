@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # App
-    app_name: str = "VănBản.AI"
+    app_name: str = "Trợ Lý Hành Chính"
     debug: bool = False
     secret_key: str = "change-this-in-production"
     allowed_origins: list[str] = ["http://localhost:3000"]
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # SendGrid
     sendgrid_api_key: str = ""
     sendgrid_from_email: str = "noreply@vanban.ai"
-    sendgrid_from_name: str = "VănBản.AI"
+    sendgrid_from_name: str = "Trợ Lý Hành Chính"
 
     # Admin bootstrap — email này tự động nhận role admin khi đăng ký
     admin_email: str = ""

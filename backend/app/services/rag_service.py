@@ -1,5 +1,5 @@
 """
-RAG (Retrieval-Augmented Generation) service cho VănBản.AI.
+RAG (Retrieval-Augmented Generation) service cho Trợ Lý Hành Chính.
 
 Pipeline: retrieve → rerank → build_context → generate → validate
 Fallback: khi LLM offline → trả chunks trực tiếp (không có LLM answer)

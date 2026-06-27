@@ -1,5 +1,5 @@
 """
-AI Suggest service cho VănBản.AI — Tuần 12.
+AI Suggest service cho Trợ Lý Hành Chính — Tuần 12.
 
 Gợi ý 3 yếu tố khi tạo văn bản mới:
   - suggest_can_cu()    : RAG tìm căn cứ pháp lý

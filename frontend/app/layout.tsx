@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CivicAI",
+  title: "Trợ Lý Hành Chính",
   description: "Hệ thống trợ lý AI hỗ trợ hành chính công cấp cơ sở",
 };
 
