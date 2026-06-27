@@ -74,6 +74,10 @@ $env:NEXT_PUBLIC_API_URL = 'http://localhost:8000'
 | `editor.can() on null/destroyed` | Editor bị destroy khi đổi loại VB → đã fix `isDestroyed` guard |
 | Export PDF vẫn hiện NĐ30 template cho trang trắng | PDF dùng Puppeteer → `/print/[id]` → `DocumentPreview.tsx` (không phải `pdf_service.py`) |
 | Upload file .doc → lỗi không rõ | Chỉ hỗ trợ `.pdf .docx .jpg .jpeg .png` — `.doc` bị loại khỏi accept |
+| `next build` lỗi `PageNotFoundError: /_document` | Xóa cả `.next` và `node_modules/.cache`, dùng `npm run build` thay vì `npx next build` |
+| Sidebar tối/sáng không đúng | Sidebar hardcode white (`bg-white`); không còn AppHeader riêng — dashboard dùng layout gốc |
+| Brand color trên app vẫn đỏ dù chưa chọn theme đỏ | `:root` mặc định là teal; theme đỏ chỉ khi org.theme = "red" → `ThemeProvider` add `.theme-red`; landing page mặc định `.theme-red` |
+| Landing page dùng màu teal thay vì đỏ | `getOrgTheme()` fallback và themeClass default đều là `"red"` → landing luôn dùng `.theme-red` |
 
 ## File quan trọng nhất
 
@@ -81,6 +85,15 @@ $env:NEXT_PUBLIC_API_URL = 'http://localhost:8000'
 frontend/
   app/
     page.tsx                # Landing page CivicAI (server component)
+    layout.tsx              # Root layout: Inter font + Providers
+    globals.css             # Brand colors (teal default), theme-red/blue/blue-red, base font
+    (auth)/
+      login/page.tsx        # Login — design đỏ, watermark SVG, wave
+      register/page.tsx     # Register — cùng design với login
+      forgot-password/page.tsx  # Quên mật khẩu — form email + DEV token
+      reset-password/page.tsx   # Đặt lại mật khẩu — form + Suspense
+    dashboard/
+      layout.tsx            # Sidebar + main bg-muted/10 (không còn AppHeader riêng)
     print/[id]/
       DocumentPreview.tsx   # ← PDF dùng Puppeteer render component NÀY (không phải pdf_service)
       page.tsx              # Server component fetch doc → PrintPreview
@@ -88,20 +101,22 @@ frontend/
     dashboard/tools/
       reminders/page.tsx    # Tool: Nhắc hẹn
       speech-to-text/page.tsx  # Tool: Chuyển âm thanh thành văn bản
-  components/editor/
-    document-editor.tsx    # Wrapper chính, quản lý state editor
-    nd30-document.tsx      # Form A4 NĐ30, toolbar, ruler
-    WelcomePanel.tsx       # Màn hình chào khi tạo văn bản mới
-    extensions.ts          # TipTap extensions registry
-    SourcesPanel.tsx       # Cột trái editor: upload, search, rename/delete dropdown
-  components/tools/
-    reminders/             # ReminderForm, ReminderList, EmailRecipientsInput
-    stt/                   # AudioRecorder, LanguageSelector, TranscriptEditor
+  components/
+    dashboard/sidebar.tsx   # Sidebar trắng, logo đỏ, nav items, user card
+    providers/ThemeProvider.tsx  # Fetch org theme → apply class lên <html>
+    editor/
+      document-editor.tsx   # Wrapper chính, quản lý state editor
+      nd30-document.tsx     # Form A4 NĐ30, toolbar, ruler
+      WelcomePanel.tsx      # Màn hình chào khi tạo văn bản mới
+      extensions.ts         # TipTap extensions registry
+      SourcesPanel.tsx      # Cột trái editor: upload, search, rename/delete dropdown
+    tools/
+      reminders/            # ReminderForm, ReminderList, EmailRecipientsInput
+      stt/                  # AudioRecorder, LanguageSelector, TranscriptEditor
   lib/
-    api.ts                 # Tất cả API calls chính
-    api/reminders.ts       # Reminders API client
-    api/stt.ts             # Speech-to-Text API client
-  app/globals.css          # CSS: ProseMirror table, nd30-preview table
+    api.ts                  # Tất cả API calls chính (authApi có forgotPassword/resetPassword)
+    api/reminders.ts        # Reminders API client
+    api/stt.ts              # Speech-to-Text API client
 
 backend/
   app/services/
@@ -110,10 +125,11 @@ backend/
     docx_service.py         # Export DOCX (python-docx + lxml); _process_block() table
     pipeline_service.py     # Embedding + _extract_docx() HTML + _extract_pdf() table
     embedding_service.py    # BAAI/bge-m3 singleton
-    email_service.py        # Gửi email qua SendGrid với file .ics đính kèm
+    email_service.py        # SendGrid: gửi .ics nhắc hẹn + gửi email reset password
     ics_service.py          # Generate RFC 5545 .ics (VALARM -PT30M)
     stt_service.py          # Groq Whisper API (httpx async, timeout 60s)
   app/api/v1/endpoints/
+    auth.py                 # Login, Register, /forgot-password, /reset-password
     documents.py            # CRUD + _doc_access() admin bypass
     rag.py                  # RAG chat/stream endpoints
     reference_docs.py       # Upload/search reference docs
@@ -121,9 +137,11 @@ backend/
     stt.py                  # /transcribe, /transcribe-realtime, /languages
   app/models/
     reminder.py             # Model bảng reminders (migration 0020)
+    password_reset_token.py # Model bảng password_reset_tokens (migration 0022)
   alembic/versions/
     0020_create_reminders_table.py
     0021_add_recipients_to_reminders.py
+    0022_add_password_reset_tokens.py
 ```
 
 ## Workflow thực hiện task

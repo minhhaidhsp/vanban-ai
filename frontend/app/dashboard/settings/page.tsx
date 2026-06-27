@@ -13,9 +13,15 @@ import { cn } from "@/lib/utils";
 
 const THEMES = [
   {
+    id: "red",
+    label: "Đỏ hành chính",
+    sublabel: "Mặc định",
+    swatches: ["#fef2f2", "#f87171", "#dc2626", "#b9000e"],
+  },
+  {
     id: "teal",
     label: "Xanh ngọc",
-    sublabel: "Mặc định",
+    sublabel: "",
     swatches: ["#f0fdfa", "#2dd4bf", "#0d9488", "#115e59"],
   },
   {
@@ -57,7 +63,7 @@ export default function SettingsPage() {
     dia_danh: "",
   });
 
-  const [selectedTheme, setSelectedTheme] = useState<ThemeId>("teal");
+  const [selectedTheme, setSelectedTheme] = useState<ThemeId>("red");
 
   useEffect(() => {
     if (org) {
@@ -67,7 +73,7 @@ export default function SettingsPage() {
         viet_tat:     org.viet_tat     ?? "",
         dia_danh:     org.dia_danh     ?? "",
       });
-      setSelectedTheme((org.theme as ThemeId) ?? "teal");
+      setSelectedTheme((org.theme as ThemeId) ?? "red");
     }
   }, [org]);
 
@@ -97,7 +103,7 @@ export default function SettingsPage() {
           window.location.reload();
         },
         onError: () => {
-          setSelectedTheme((org?.theme as ThemeId) ?? "teal");
+          setSelectedTheme((org?.theme as ThemeId) ?? "red");
           toast({ title: "Lưu thất bại", variant: "destructive" });
         },
       }

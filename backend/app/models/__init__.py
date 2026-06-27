@@ -8,5 +8,6 @@ from app.models.trich_yeu_history import TrichYeuHistory
 from app.models.ocr_job import OcrJob
 from app.models.rag_chat import RagChatSession, RagChatMessage
 from app.models.reminder import Reminder
+from app.models.password_reset_token import PasswordResetToken
 
-__all__ = ["User", "Document", "Organization", "RecipientSuggestion", "ReferenceDocument", "ReferenceDocChunk", "TrichYeuHistory", "OcrJob", "RagChatSession", "RagChatMessage", "Reminder"]
+__all__ = ["User", "Document", "Organization", "RecipientSuggestion", "ReferenceDocument", "ReferenceDocChunk", "TrichYeuHistory", "OcrJob", "RagChatSession", "RagChatMessage", "Reminder", "PasswordResetToken"]

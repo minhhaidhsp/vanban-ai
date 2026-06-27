@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(netstat -ano *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(tasklist *)"
+    ]
+  }
+}

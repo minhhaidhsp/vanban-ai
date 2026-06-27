@@ -1,10 +1,14 @@
 import asyncio
 import base64
 import logging
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.schemas.reminder import ReminderOut
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.services.ics_service import generate_ics
 
 logger = logging.getLogger(__name__)
@@ -132,3 +136,85 @@ async def send_reminder_email(
             success = False
 
     return success
+
+
+# ── Password reset helpers ────────────────────────────────────────────────────
+
+def generate_reset_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+async def create_reset_token(user_id: str, db: AsyncSession) -> str:
+    from app.models.password_reset_token import PasswordResetToken
+
+    old = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used == False,  # noqa: E712
+        )
+    )
+    for t in old.scalars().all():
+        await db.delete(t)
+
+    token_str = generate_reset_token()
+    token = PasswordResetToken(
+        user_id=user_id,
+        token=token_str,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        used=False,
+    )
+    db.add(token)
+    await db.flush()
+    return token_str
+
+
+async def send_reset_email(email: str, token: str, frontend_url: str) -> bool:
+    settings = get_settings()
+    if not settings.sendgrid_api_key:
+        logger.warning(
+            "[email] SendGrid chưa config. DEV TOKEN: %s | Link: %s/reset-password?token=%s",
+            token, frontend_url, token,
+        )
+        return False
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+        html_content = f"""
+        <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+          <h2 style="color: #b9000e; font-size: 20px; margin-bottom: 16px;">Đặt lại mật khẩu</h2>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+            Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản VănBản.AI.
+          </p>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+            Click vào nút bên dưới để tiếp tục. Link có hiệu lực trong <strong>1 giờ</strong>.
+          </p>
+          <a href="{reset_link}"
+             style="display:inline-block; margin: 24px 0; padding: 12px 28px;
+                    background: #b9000e; color: #fff; border-radius: 6px;
+                    font-weight: 600; text-decoration: none; font-size: 15px;">
+            Đặt lại mật khẩu
+          </a>
+          <p style="color: #9ca3af; font-size: 13px;">
+            Nếu bạn không yêu cầu, hãy bỏ qua email này.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+          <p style="color: #9ca3af; font-size: 12px;">© 2025 VănBản.AI</p>
+        </div>
+        """
+        message = Mail(
+            from_email=(settings.sendgrid_from_email, settings.sendgrid_from_name),
+            to_emails=email,
+            subject="[VănBản.AI] Đặt lại mật khẩu",
+            html_content=html_content,
+        )
+        sg = SendGridAPIClient(settings.sendgrid_api_key)
+        response = sg.send(message)
+        logger.info("[email] Reset email sent to %s, status: %s", email, response.status_code)
+        return True
+
+    except Exception as e:
+        logger.error("[email] SendGrid error: %s", e)
+        return False

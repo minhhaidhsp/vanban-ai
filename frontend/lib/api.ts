@@ -47,6 +47,16 @@ export const authApi = {
     const { data } = await api.get("/users/me");
     return data;
   },
+
+  forgotPassword: async (email: string) => {
+    const { data } = await api.post("/auth/forgot-password", { email });
+    return data as { message: string; dev_token?: string };
+  },
+
+  resetPassword: async (token: string, new_password: string) => {
+    const { data } = await api.post("/auth/reset-password", { token, new_password });
+    return data as { message: string };
+  },
 };
 
 export interface OrganizationDto {
