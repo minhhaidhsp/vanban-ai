@@ -18,7 +18,7 @@
 1. **KHÔNG commit/push** khi chưa được user xác nhận rõ ràng
 2. **KHÔNG push lên `main`** — chỉ push `dev`, user quyết định merge
 3. **Sau khi merge main:** luôn `git checkout dev`
-4. **Build check** trước khi báo cáo: `cd frontend && npx next build`
+4. **Build check** trước khi báo cáo: `cd frontend && npm run build` (KHÔNG dùng `npx next build` — lỗi cache)
 5. **Đọc code trước khi sửa** — Grep/Read để xác nhận đúng vị trí
 
 ## Môi trường local
@@ -67,6 +67,9 @@ $env:NEXT_PUBLIC_API_URL = 'http://localhost:8000'
 | Lỗi | Fix |
 |---|---|
 | Dev server `Cannot find module './682.js'` | `rm -rf .next && npm run dev` (stale chunk) |
+| `cho_bo_sung` không có `ly_do_bo_sung` → 422 | PATCH `/ho-so/{id}` yêu cầu `ly_do_bo_sung` khi đổi sang `cho_bo_sung` |
+| Hoàn thành bước sau khi `hoan_thanh` → 409 | State machine chặn: không update bước sau khi hồ sơ đã hoàn thành |
+| Pytest backend: `asyncio.run()` hai lần → EventLoop closed | Gộp thành `asyncio.run(_main())` duy nhất thay vì 2 lần `asyncio.run()` |
 | `Database error: Executor shutdown` | Restart backend |
 | `embedding model not ready` | Đợi 60-120s sau startup (BAAI/bge-m3 lazy load) |
 | Port 3008 CORS error | Test với dev server port 3000 (allowed_origins chỉ có 3000) |
@@ -94,6 +97,10 @@ frontend/
       reset-password/page.tsx   # Đặt lại mật khẩu — form + Suspense
     dashboard/
       layout.tsx            # Sidebar + main bg-muted/10 (không còn AppHeader riêng)
+      ho-so/
+        page.tsx            # Danh sách hồ sơ: filter/sort/pagination/stats bar
+        new/page.tsx        # Form tạo hồ sơ mới (Shadcn components, drag & drop)
+        [id]/page.tsx       # Chi tiết 2 cột: thông tin + stepper 5 bước
     print/[id]/
       DocumentPreview.tsx   # ← PDF dùng Puppeteer render component NÀY (không phải pdf_service)
       page.tsx              # Server component fetch doc → PrintPreview
@@ -135,13 +142,21 @@ backend/
     reference_docs.py       # Upload/search reference docs
     reminders.py            # Reminders CRUD + /users/search + /resend
     stt.py                  # /transcribe, /transcribe-realtime, /languages
+    ho_so.py                # Hồ sơ hành chính CRUD + stats + 5-bước workflow
   app/models/
     reminder.py             # Model bảng reminders (migration 0020)
     password_reset_token.py # Model bảng password_reset_tokens (migration 0022)
+    ho_so.py                # HoSo, HoSoBuoc, HoSoFile (migration 0023)
+  app/schemas/
+    ho_so.py                # HoSoCreate/Update/Out, BuocUpdate/Out, FileOut, HoSoStats
   alembic/versions/
     0020_create_reminders_table.py
     0021_add_recipients_to_reminders.py
     0022_add_password_reset_tokens.py
+    0023_add_ho_so_tables.py
+  tests/
+    conftest.py             # ASGI fixtures: http, staff_token, admin_token, hs_factory
+    test_ho_so.py           # 34 pytest cases cho toàn bộ ho-so endpoints
 ```
 
 ## Workflow thực hiện task

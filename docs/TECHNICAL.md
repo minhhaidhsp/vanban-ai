@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
 > Cập nhật: 2026-06-27
-> Phiên bản: Tuần 15e (Auth redesign đỏ + Forgot/Reset Password + Theme red + Landing page CSS vars + Sidebar OCR di chuyển)
+> Phiên bản: Tuần 15f (Hồ sơ hành chính + Stats + 34 pytest + table typography sync)
 
 ---
 
@@ -29,6 +29,7 @@ D:\Projects\vanban-ai\
 │   │   ├── (auth)/              # Login, Register
 │   │   ├── dashboard/           # Các trang dashboard
 │   │   │   ├── documents/       # Tạo/soạn thảo văn bản (editor chính)
+│   │   │   ├── ho-so/           # Hồ sơ hành chính (list/new/[id])
 │   │   │   ├── rag-search/      # Tra cứu AI
 │   │   │   ├── reference-docs/  # Kho văn bản tham chiếu
 │   │   │   ├── ocr/             # OCR văn bản
@@ -196,6 +197,16 @@ $env:PGPASSWORD='postgres123'
 | `frontend/components/tools/reminders/` | ReminderForm, ReminderList, EmailRecipientsInput |
 | `frontend/components/tools/stt/` | AudioRecorder, LanguageSelector, TranscriptEditor |
 | `frontend/app/page.tsx` | Landing page CivicAI (server component) |
+| `frontend/app/dashboard/ho-so/page.tsx` | Danh sách hồ sơ: filter/sort/pagination/stats bar |
+| `frontend/app/dashboard/ho-so/new/page.tsx` | Form tạo hồ sơ mới (Shadcn components + drag & drop) |
+| `frontend/app/dashboard/ho-so/[id]/page.tsx` | Chi tiết 2 cột: thông tin + stepper 5 bước |
+| `backend/app/api/v1/endpoints/ho_so.py` | CRUD hồ sơ + stats + 5-bước workflow + state machine guards |
+| `backend/app/models/ho_so.py` | HoSo, HoSoBuoc, HoSoFile models |
+| `backend/app/schemas/ho_so.py` | Pydantic schemas + HoSoStats |
+| `backend/alembic/versions/0023_add_ho_so_tables.py` | Migration: ho_so, ho_so_buoc, ho_so_file |
+| `backend/tests/test_ho_so.py` | 34 pytest cases (ASGI + real DB) |
+| `backend/tests/conftest.py` | Fixtures: http, staff_token, admin_token, hs_factory |
+| `e2e/10_ho-so.spec.ts` | 10 Playwright E2E cases |
 
 ---
 
@@ -294,6 +305,11 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 15 | **Import TTHC từ dichvucong.gov.vn**: script `import_json_to_refdb.py` — load 2 file JSON (TTHC.json 472 records, khai_sinh_normalized.json 337 records), group by URL, filter noise > 80 chars, insert 18 ReferenceDocuments + 623 chunks với embedding; script `transform_table.py` — detect 2 loại table dichvucong (`Tên giấy tờ \| Mẫu đơn` và `Hình thức nộp \| Thời hạn`), strip boilerplate, convert sang plain text, re-embed 80 chunks cải thiện RAG quality |
 | 15 | **Q&A Knowledge Base**: bảng `qa_pairs` mới (id, question, answer, can_cu, category, question_embedding vector(1024), answer_embedding vector(1024), visibility, created_by, is_active); script `import_qa_pairs.py` — 49 cặp Q&A hành chính công (7 danh mục: ho_tich/cu_tru/chung_thuc/dat_dai/kinh_doanh/xa_hoi/thuc_te) với embedding; `RAGService.retrieve_qa()` — cosine search trên question_embedding, ngưỡng 0.5 (score > 0.9 cho câu hỏi gần giống) |
 | 15 | **Seed tài khoản demo**: script `seed_demo_users.py` — 3 tài khoản: canbo@civicai.vn (staff), lanhdao@civicai.vn (leader), quantri@civicai.vn (admin) — password Demo@2026 |
+| 15f | **Hồ sơ hành chính** (migration 0023): bảng `ho_so`, `ho_so_buoc`, `ho_so_file`; flow 5 bước (tiếp nhận → tra cứu → soạn thảo → trình ký → trả kết quả); tự động tạo 5 bước khi tạo hồ sơ; liên kết document NĐ30 vào bước soạn thảo/trình ký; seed 2 hồ sơ demo + 2 document NĐ30 |
+| 15f | **Hồ sơ hành chính — State machine guards**: 409 khi update bước sau `hoan_thanh`; 409 khi revert trang_thai từ `hoan_thanh`; 422 khi `cho_bo_sung` thiếu `ly_do_bo_sung`; 404 khi `document_id` không tồn tại (thay vì 500); 409 khi hoàn thành bước không đúng thứ tự |
+| 15f | **Hồ sơ hành chính — Frontend**: danh sách với filter (search + loại thủ tục)/sort (4 cột)/pagination (10/20/50)/stats bar 6 metric; form tạo mới dùng Shadcn Input/Select/Textarea/Label, drag & drop upload PDF; trang chi tiết 2 cột (thông tin + stepper 5 bước); đồng bộ typography `text-xs uppercase tracking-wider` cho tất cả table headers |
+| 15f | **Stats endpoint** `GET /ho-so/stats`: tổng hợp theo trang_thai (moi/dang_xu_ly/cho_bo_sung/hoan_thanh) + quá hạn + hoàn thành tháng này; admin thấy tất cả, staff thấy của mình; stats bar 6 cards trên trang danh sách với skeleton loading |
+| 15f | **Test infrastructure**: pytest + pytest-asyncio (asyncio_mode=auto); 34 test cases (tăng từ 0) với ASGI client + real DB; conftest: fixtures http/staff_token/admin_token/hs_factory; coverage: happy path, state machine, security, edge cases, stats; 10 E2E Playwright cases |
 | 15b | **DOCX upload → editor giữ định dạng**: `_extract_docx()` rewrite dùng lxml XML traversal — extract HTML có bold/italic/heading/table thay vì plain text; detect merged cells bằng `id(cell._tc)` dedup trong cùng row; cell content dùng `_runs_to_html()` giữ formatting; `onSelectBlankWithContent()` detect HTML via regex → dùng trực tiếp không escape; OCR DOCX bypass LLM reformat (lưu HTML gốc vào `formatted_text`) |
 | 15b | **TipTap table extension**: install `@tiptap/extension-table/row/header/cell`; thêm vào `sharedExtensions` với `Table.configure({ resizable:false })`; CSS `.ProseMirror table` + `.nd30-preview table` trong `globals.css` — border, padding, `th` background #f5f5f5 |
 | 15b | **DOCX export: xử lý `<table>`**: `_process_block()` trong `docx_service.py` thêm `elif tag == "table"` — `doc.add_table(rows=0, cols=num_cols)` với `Table Grid` style; detect `<th>` → bold; `itertext()` lấy nội dung có `<p>` bên trong cell; `num_cols = max(...)` từ tất cả rows để handle merged cells |
