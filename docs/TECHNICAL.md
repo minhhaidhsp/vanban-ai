@@ -1,7 +1,7 @@
 # VănBản.AI — Tài liệu Kỹ thuật
 
-> Cập nhật: 2026-06-19
-> Phiên bản: Tuần 15c (WelcomePanel UX + SourcesPanel dropdown rename/delete + blank mode preview/PDF + file type validation + multi-file upload + editor.isDestroyed guard)
+> Cập nhật: 2026-06-27
+> Phiên bản: Tuần 15e (Auth redesign đỏ + Forgot/Reset Password + Theme red + Landing page CSS vars + Sidebar OCR di chuyển)
 
 ---
 
@@ -186,6 +186,16 @@ $env:PGPASSWORD='postgres123'
 | `backend/app/api/v1/endpoints/rag.py` | RAG chat endpoints |
 | `frontend/app/globals.css` | Global CSS (ProseMirror, nd30-preview, table styles) |
 | `frontend/components/editor/extensions.ts` | TipTap extensions registry |
+| `backend/app/services/email_service.py` | Gửi email qua SendGrid với .ics đính kèm |
+| `backend/app/services/ics_service.py` | Generate RFC 5545 .ics content |
+| `backend/app/services/stt_service.py` | Groq Whisper API transcription |
+| `backend/app/api/v1/endpoints/reminders.py` | CRUD reminders + /users/search + /resend |
+| `backend/app/api/v1/endpoints/stt.py` | POST /transcribe, /transcribe-realtime, GET /languages |
+| `frontend/lib/api/reminders.ts` | Reminders API client + types |
+| `frontend/lib/api/stt.ts` | STT API client + types |
+| `frontend/components/tools/reminders/` | ReminderForm, ReminderList, EmailRecipientsInput |
+| `frontend/components/tools/stt/` | AudioRecorder, LanguageSelector, TranscriptEditor |
+| `frontend/app/page.tsx` | Landing page CivicAI (server component) |
 
 ---
 
@@ -300,6 +310,22 @@ Cán bộ, nhân viên văn phòng tại các cơ quan nhà nước, tổ chức
 | 15c | **WelcomePanel multi-file** (tối đa 5): `attachedFile` → `attachedFiles: File[]`; input `multiple`; chips hiện từng file với nút X riêng; OCR song song với `Promise.all`; context limit 3000 chars tổng; enriched text chỉ thêm khi có text thực |
 | 15c | **File type validation**: `validateFile(file)` kiểm tra MIME type + extension; loại `.doc` (Word 97) khỏi `accept` attribute; error inline với `<AlertCircle>` icon thay vì alert/toast; áp dụng cả Option A (upload kèm yêu cầu) và Option B (chỉnh sửa file) |
 | 15c | **SourcesPanel dropdown menu**: hover source item → icon `⋮` (`MoreVertical`); click → dropdown 2 option: ✏️ Đổi tên (inline input, Enter/Escape/onBlur) + 🗑️ Xóa tài liệu; `renameMutation` → `refDocApi.update(id, { title })` → PUT `/reference-docs/{id}`; click ra ngoài đóng dropdown qua `document.addEventListener("click")` |
+| 15c+ | **Reminders tool** (Tool 3): backend model `Reminder` (bảng `reminders`, migration 0020+0021); fields: `title`, `remind_at` (TIMESTAMPTZ), `channel`, `status`, `document_id` FK, `owner_id` FK, `recipients` (TEXT JSON array); `ics_service.py` generate RFC 5545 .ics với VALARM -PT30M; `email_service.py` gửi email qua SendGrid với .ics đính kèm (`text/calendar; method=REQUEST` → Gmail hiện nút "Add to Calendar"); `send_reminder_email` dùng `asyncio.to_thread()` cho `sg.send()` blocking I/O tránh block event loop; endpoints: `GET/POST /reminders/`, `GET/PATCH/DELETE /{id}`, `POST /{id}/resend`, `GET /upcoming`, `GET /users/search` |
+| 15c+ | **Reminders frontend**: `ReminderForm` với `EmailRecipientsInput` (tag input autocomplete từ `/users/search`, debounce 300ms, max 20, `onFlushRef` auto-add email đang gõ khi submit); `ReminderList` nhóm Sắp tới/Đã qua/Hoàn thành; `remindersApi` + `lib/api/reminders.ts`; recipients lưu dưới dạng JSON string trong DB, parse khi trả về `ReminderOut` |
+| 15c+ | **Reminders email flow fixes**: `db.flush()` → `db.commit()` trước khi gọi email; `if body.recipients is not None` thay vì `if body.recipients` (tránh bỏ qua empty list); `send_reminder_email` gọi `await` trực tiếp trong endpoint (không qua `BackgroundTasks` tạm thời để debug); `_get_groq_key()` dùng pool `llm_api_keys` cho STT thay vì field riêng |
+| 15d | **Speech-to-Text tool** (Tool 1): `stt_service.py` — gọi Groq Whisper API `POST https://api.groq.com/openai/v1/audio/transcriptions` qua `httpx.AsyncClient(timeout=60)`; multipart form: `file`, `model=whisper-large-v3`, `language`, `response_format=text`; endpoint `POST /stt/transcribe` (upload file) + `POST /stt/transcribe-realtime` (blob từ MediaRecorder) + `GET /stt/languages`; hỗ trợ mp3/mp4/m4a/wav/webm/ogg, max 25MB; `_get_groq_key()` random chọn từ `llm_api_keys` pool |
+| 15d | **STT frontend**: `AudioRecorder.tsx` — MediaRecorder API, gradient đỏ, sound wave 5 bars animation stagger, timer monospace MM:SS, auto-stop 300s, cleanup tracks khi unmount; `LanguageSelector.tsx` — pill tabs VI/EN; `TranscriptEditor.tsx` — textarea edit, copy feedback (Check icon 2s), char count, `CornerDownLeft` Chèn vào editor; `page.tsx` — 2 tabs (ghi âm/upload), dropzone kéo thả, toast fixed bottom-right, error dismissible |
+| 15d | **UI/UX improvements — Tools**: `ReminderList` border-left urgency (red <24h, orange overdue, blue >24h, green done), relative time với tooltip full date, avatar initials cho recipients, icon-only buttons; `ReminderForm` Calendar icon trong datetime input, `Send`/`Loader2` icons; `EmailRecipientsInput` rounded-full chips `bg-primary/10`, `AlertCircle` inline error; `reminders/page.tsx` badge pending count, accordion form on mobile; `LanguageSelector` pill style; `TranscriptEditor` copy feedback; `AudioRecorder` gradient + ring effect |
+| 15d | **Landing page update** (`app/page.tsx`): uppercase tất cả section headers (H1, h2, labels); thêm ô thứ 8 vào grid agents (`Zap` icon, "CÔNG CỤ HỖ TRỢ"); cập nhật subtitle 2 compliance cards (TT47, TCVN 14423); bullet text `text-base` → `text-sm`; H1 hero dùng `<span className="block mb-4">` thay `<br/>` để kiểm soát line-height rõ ràng hơn |
+| 15e | **Theme system — red default**: `globals.css` brand ramp mặc định khôi phục lại teal; thêm class `.theme-red` với brand đỏ `#b9000e` + `--primary: 0 74% 42%`; `ThemeProvider.tsx` thêm `"theme-red"` vào `THEME_CLASSES`; `settings/page.tsx` thêm theme "Đỏ hành chính" làm mặc định (sublabel "Mặc định"), xóa sublabel của "teal"; `page.tsx` landing thêm `theme === "red" ? "theme-red"` vào `themeClass` |
+| 15e | **Dashboard layout — AppHeader**: `layout.tsx` thêm `AppHeader` component inline — gradient đỏ `#b9000e → #dc2626 → #7a0008`, logo ★ VănBản.AI, Bell icon, user pill; layout đổi từ `flex h-screen` → `flex flex-col h-screen`: AppHeader cố định trên cùng, `flex flex-1` chứa Sidebar + main; main bg đổi `bg-muted/10` → `bg-[#f3f4f6]`; import `useCurrentUser` |
+| 15e | **Sidebar redesign — white**: sidebar đổi từ dark `#111827` → white `bg-white`; border `border-gray-200`; logo icon + text → `text-[#b9000e]`; nav inactive `text-gray-600 hover:bg-gray-100`; active item giữ `bg-[#b9000e] text-white`; user name `text-gray-900`, role `text-gray-500`; separator `bg-gray-200`; logout `text-gray-500 hover:text-red-600`; civic vars `--civic-sidebar-bg/active/hover` giữ trong CSS cho tương lai |
+| 15e | **Sidebar nav groups**: "OCR Văn bản" di chuyển từ nhóm NGHIỆP VỤ sang đầu nhóm CÔNG CỤ — nhóm CÔNG CỤ giờ gồm: OCR Văn bản, Speech to Text, Tạo hình ảnh, Đặt lịch nhắc hẹn |
+| 15e | **Auth pages redesign** (`login/page.tsx`, `register/page.tsx`): thay layout 2 cột cũ bằng design mới — nền trắng, watermark SVG ngôi sao + vòng tròn đỏ opacity 4%, wave SVG đỏ ghim đáy trang; header text đỏ uppercase "HỆ THỐNG XỬ LÝ VĂN BẢN HÀNH CHÍNH ĐIỆN TỬ" `text-3xl whitespace-nowrap`; card trắng `shadow-[0_4px_32px_rgba(0,0,0,0.12)]` max-w-[460px]; input `h-12 border-[#ccd0d7] focus-visible:ring-[#dc2626]`; button `bg-[#b9000e] py-3.5 font-bold tracking-wide`; font base: Inter weight 400/500/600/700 + `display: swap`; `globals.css` thêm `@layer base` html/body với antialiasing |
+| 15e | **Landing page — CSS variables** (`app/page.tsx`): thay toàn bộ hardcode colors bằng CSS vars — `#042C53` → `var(--brand-900)`, `#378ADD` → `var(--brand-500)`, `#85B7EB` → `var(--brand-300)` v.v.; `rgba(...)` → `color-mix(in srgb, var(--brand-X) Y%, transparent)`; gradient `linear-gradient(... #378ADD ...)` → CSS vars; `getOrgTheme()` fallback đổi `"teal"` → `"red"`; themeClass default `""` → `"theme-red"` — landing page tự apply theme đỏ khi chưa chọn gì |
+| 15e | **dashboard/layout.tsx**: revert AppHeader (xóa component gradient đỏ + Bell + user pill); layout trở về `flex h-screen` gốc với Sidebar + main `bg-muted/10` — dashboard không còn header bar riêng |
+| 15e | **Forgot Password / Reset Password** (migration 0022): bảng `password_reset_tokens` (id, user_id FK→users CASCADE, token String(64) unique+index, expires_at TIMESTAMPTZ, used Boolean, created_at); model `PasswordResetToken`; schema `ForgotPasswordRequest`, `ResetPasswordRequest`, `ForgotPasswordResponse` (dev_token field); `email_service.py` thêm `generate_reset_token()` + `create_reset_token()` (xóa token cũ, tạo token mới TTL 1h) + `send_reset_email()` (SendGrid HTML email với reset link); endpoints `POST /auth/forgot-password` (anti-enumeration: luôn 200, dev_token trong response khi chưa có SendGrid) + `POST /auth/reset-password` (validate token → hash mật khẩu → mark used) |
+| 15e | **Forgot/Reset frontend**: `authApi.forgotPassword()` + `authApi.resetPassword()` trong `lib/api.ts`; `app/(auth)/forgot-password/page.tsx` — form email, success state với DEV token display + link đặt lại ngay; `app/(auth)/reset-password/page.tsx` — form mật khẩu mới + xác nhận, `Suspense` wrapper cho `useSearchParams()`, auto-redirect login sau 3s thành công; cả 2 page cùng design đỏ với watermark SVG + wave |
 
 ### Tech stack thực tế
 

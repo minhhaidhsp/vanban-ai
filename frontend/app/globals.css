@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html {
+    font-size: 16px;
+  }
+  body {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #111827;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
 @import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 @import "react-pdf/dist/esm/Page/TextLayer.css";
 
@@ -102,6 +115,13 @@
     --brand-700: #0f766e;
     --brand-800: #115e59;
     --brand-900: #134e4a;
+
+    /* ── Civic sidebar/header tokens ── */
+    --civic-sidebar-bg:     #111827;
+    --civic-sidebar-active: #b9000e;
+    --civic-sidebar-hover:  #1f2937;
+    --civic-header-from:    #b9000e;
+    --civic-header-to:      #7a0008;
   }
 
   .dark {
@@ -158,6 +178,37 @@
   --primary: 210 82% 27%;
   --ring:    210 82% 27%;
   --accent-danger: #e24b4a;
+}
+
+.theme-red {
+  --brand-50:  #fef2f2;
+  --brand-100: #fee2e2;
+  --brand-200: #fecaca;
+  --brand-300: #fca5a5;
+  --brand-400: #f87171;
+  --brand-500: #dc2626;
+  --brand-600: #b9000e;
+  --brand-700: #a60002;
+  --brand-800: #950002;
+  --brand-900: #740001;
+  --primary: 0 74% 42%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 0 74% 42%;
+}
+
+.theme-teal {
+  --brand-50:  #f0fdfa;
+  --brand-100: #ccfbf1;
+  --brand-200: #99f6e4;
+  --brand-300: #5eead4;
+  --brand-400: #2dd4bf;
+  --brand-500: #14b8a6;
+  --brand-600: #0d9488;
+  --brand-700: #0f766e;
+  --brand-800: #115e59;
+  --brand-900: #134e4a;
+  --primary: 174.7 83.9% 31.6%;
+  --ring: 174.7 83.9% 31.6%;
 }
 
 @layer base {

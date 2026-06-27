@@ -14,11 +14,11 @@ async function getOrgTheme(): Promise<string> {
     const res = await fetch(`${API_URL}/api/v1/organizations/public-theme`, {
       cache: "no-store",
     });
-    if (!res.ok) return "teal";
+    if (!res.ok) return "red";
     const data = await res.json();
-    return data.theme ?? "teal";
+    return data.theme ?? "red";
   } catch {
-    return "teal";
+    return "red";
   }
 }
 
@@ -80,7 +80,11 @@ const COMPLIANCE = [
 
 export default async function HomePage() {
   const theme = await getOrgTheme();
-  const themeClass = theme === "blue" ? "theme-blue" : theme === "blue-red" ? "theme-blue-red" : "";
+  const themeClass = theme === "blue"     ? "theme-blue"
+    : theme === "blue-red" ? "theme-blue-red"
+    : theme === "red"      ? "theme-red"
+    : theme === "teal"     ? "theme-teal"
+    : "theme-red";
 
   return (
     <div className={themeClass || undefined}>
@@ -89,26 +93,26 @@ export default async function HomePage() {
       {/* ── A. HEADER ── */}
       <header
         className="fixed top-0 left-0 right-0 z-50 border-b border-white/10"
-        style={{ background: "rgba(4,44,83,0.95)", backdropFilter: "blur(8px)" }}
+        style={{ background: "color-mix(in srgb, var(--brand-900) 95%, transparent)", backdropFilter: "blur(8px)" }}
       >
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div
               className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg, #378ADD 0%, #7F77DD 100%)" }}
+              style={{ background: "linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 100%)" }}
             >
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <span className="font-bold text-xl text-white">
               Civic
-              <span className="bg-gradient-to-r from-[#378ADD] to-[#AFA9EC] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[var(--brand-500)] to-[#AFA9EC] bg-clip-text text-transparent">
                 AI
               </span>
             </span>
           </div>
           <Link
             href="/login"
-            className="text-sm px-5 py-2 rounded-full font-medium transition-colors border border-[#378ADD]/50 text-[#85B7EB] hover:bg-[#378ADD]/20"
+            className="text-sm px-5 py-2 rounded-full font-medium transition-colors border border-[var(--brand-500)]/50 text-[var(--brand-300)] hover:bg-[var(--brand-500)]/20"
           >
             Đăng nhập
           </Link>
@@ -118,7 +122,7 @@ export default async function HomePage() {
       {/* ── B. HERO + STATS (100vh) ── */}
       <section
         className="relative overflow-hidden flex flex-col min-h-screen pt-16"
-        style={{ background: "#042C53" }}
+        style={{ background: "var(--brand-900)" }}
       >
         {/* Glow 1 — top right */}
         <div
@@ -127,7 +131,7 @@ export default async function HomePage() {
             top: "-80px", right: "-80px",
             width: "300px", height: "300px",
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(56,138,221,0.3) 0%, transparent 70%)",
+            background: "radial-gradient(circle, color-mix(in srgb, var(--brand-500) 30%, transparent) 0%, transparent 70%)",
           }}
         />
         {/* Glow 2 — bottom left */}
@@ -151,9 +155,9 @@ export default async function HomePage() {
             <div
               className="inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1 mb-5"
               style={{
-                color: "#85B7EB",
-                background: "rgba(55,138,221,0.15)",
-                border: "1px solid rgba(55,138,221,0.3)",
+                color: "var(--brand-300)",
+                background: "color-mix(in srgb, var(--brand-500) 15%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--brand-500) 30%, transparent)",
               }}
             >
               <span>✦</span>
@@ -167,7 +171,7 @@ export default async function HomePage() {
 
             <p
               className="text-base sm:text-lg max-w-2xl mx-auto mt-4 mb-8 leading-relaxed"
-              style={{ color: "#85B7EB" }}
+              style={{ color: "var(--brand-300)" }}
             >
               Hệ thống trợ lý AI chuyên biệt cho hành chính công, hỗ trợ cán bộ soạn thảo, tra cứu và giải đáp thủ tục hành chính.
             </p>
@@ -176,7 +180,7 @@ export default async function HomePage() {
               <Link href="/login" className="w-full sm:w-auto">
                 <button
                   className="w-full sm:w-auto px-8 py-3 rounded-full font-medium text-white transition-opacity hover:opacity-90"
-                  style={{ background: "linear-gradient(90deg, #378ADD 0%, #7F77DD 100%)" }}
+                  style={{ background: "linear-gradient(90deg, var(--brand-500) 0%, var(--brand-700) 100%)" }}
                 >
                   Dùng thử ngay
                 </button>
@@ -197,14 +201,14 @@ export default async function HomePage() {
         {/* Stats — pinned to bottom of 100vh section */}
         <div
           className="relative z-10 border-t border-white/10"
-          style={{ background: "rgba(12,68,124,0.6)" }}
+          style={{ background: "color-mix(in srgb, var(--brand-800) 60%, transparent)" }}
         >
           <div className="container py-5 px-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {STATS.map((s) => (
                 <div key={s.label} className="text-center">
                   <p className="font-bold text-3xl sm:text-4xl text-white">{s.value}</p>
-                  <p className="text-sm mt-1" style={{ color: "#85B7EB" }}>{s.label}</p>
+                  <p className="text-sm mt-1" style={{ color: "var(--brand-300)" }}>{s.label}</p>
                 </div>
               ))}
             </div>
@@ -216,10 +220,10 @@ export default async function HomePage() {
       <section className="bg-white py-20">
         <div className="container">
           <div className="text-center mb-12">
-            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#378ADD" }}>
+            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "var(--brand-500)" }}>
               ĐIỂM NGHẼN THỰC TIỄN
             </p>
-            <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "#042C53" }}>
+            <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "var(--brand-900)" }}>
               GIẢI QUYẾT ĐIỂM NGHẼN THỰC TIỄN
             </h2>
             <p className="text-base text-muted-foreground mt-2">
@@ -238,7 +242,7 @@ export default async function HomePage() {
                 {PROBLEMS.map((p) => (
                   <li key={p} className="flex items-start gap-2">
                     <XCircle className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#E24B4A" }} />
-                    <span className="text-sm" style={{ color: "#042C53" }}>{p}</span>
+                    <span className="text-sm" style={{ color: "var(--brand-900)" }}>{p}</span>
                   </li>
                 ))}
               </ul>
@@ -247,14 +251,14 @@ export default async function HomePage() {
             {/* Với CivicAI */}
             <div
               className="rounded-lg p-5"
-              style={{ background: "#EFF6FF", borderLeft: "4px solid #378ADD" }}
+              style={{ background: "#EFF6FF", borderLeft: "4px solid var(--brand-500)" }}
             >
-              <p className="text-sm font-medium mb-4" style={{ color: "#0C447C" }}>Với CivicAI</p>
+              <p className="text-sm font-medium mb-4" style={{ color: "var(--brand-800)" }}>Với CivicAI</p>
               <ul className="space-y-3">
                 {SOLUTIONS.map((s) => (
                   <li key={s} className="flex items-start gap-2">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#378ADD" }} />
-                    <span className="text-sm" style={{ color: "#042C53" }}>{s}</span>
+                    <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "var(--brand-500)" }} />
+                    <span className="text-sm" style={{ color: "var(--brand-900)" }}>{s}</span>
                   </li>
                 ))}
               </ul>
@@ -267,10 +271,10 @@ export default async function HomePage() {
       <section className="py-16" style={{ background: "#F8FAFC" }}>
         <div className="container">
           <div className="text-center mb-10">
-            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#378ADD" }}>
+            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "var(--brand-500)" }}>
               PHÁP LÝ & AN TOÀN
             </p>
-            <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "#042C53" }}>
+            <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: "var(--brand-900)" }}>
               BẢO MẬT &amp; TUÂN THỦ
             </h2>
             <p className="text-base text-muted-foreground mt-2">
@@ -283,11 +287,11 @@ export default async function HomePage() {
               <div
                 key={title}
                 className="rounded-lg p-5 bg-white"
-                style={{ border: "1px solid #B5D4F4" }}
+                style={{ border: "1px solid var(--brand-200)" }}
               >
-                <Icon className="h-6 w-6 mb-3" style={{ color: "#378ADD" }} />
-                <p className="font-semibold text-base mb-2" style={{ color: "#042C53" }}>{title}</p>
-                <p className="text-sm leading-relaxed" style={{ color: "#185FA5" }}>{subtitle}</p>
+                <Icon className="h-6 w-6 mb-3" style={{ color: "var(--brand-500)" }} />
+                <p className="font-semibold text-base mb-2" style={{ color: "var(--brand-900)" }}>{title}</p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--brand-700)" }}>{subtitle}</p>
               </div>
             ))}
           </div>
@@ -295,7 +299,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── E. 7 TÍNH NĂNG ── */}
-      <section id="features" className="relative overflow-hidden py-20" style={{ background: "#042C53" }}>
+      <section id="features" className="relative overflow-hidden py-20" style={{ background: "var(--brand-900)" }}>
         {/* Glow trang trí */}
         <div
           className="absolute pointer-events-none z-0"
@@ -309,13 +313,13 @@ export default async function HomePage() {
 
         <div className="container relative z-10">
           <div className="text-center mb-12">
-            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#85B7EB" }}>
+            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "var(--brand-300)" }}>
               CÁC TRỢ LÝ AI
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold text-white">
               7 TRỢ LÝ AI CHUYÊN BIỆT
             </h2>
-            <p className="text-base mt-2" style={{ color: "#85B7EB" }}>
+            <p className="text-base mt-2" style={{ color: "var(--brand-300)" }}>
               Các trợ lý AI cộng tác với nhau, con người giữ quyền quyết định
             </p>
           </div>
@@ -332,12 +336,12 @@ export default async function HomePage() {
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
-                  style={{ background: "rgba(55,138,221,0.2)" }}
+                  style={{ background: "color-mix(in srgb, var(--brand-500) 20%, transparent)" }}
                 >
-                  <Icon className="h-5 w-5" style={{ color: "#85B7EB" }} />
+                  <Icon className="h-5 w-5" style={{ color: "var(--brand-300)" }} />
                 </div>
                 <p className="font-medium text-base text-white">{name}</p>
-                <p className="text-sm mt-1 leading-relaxed" style={{ color: "#85B7EB" }}>{desc}</p>
+                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--brand-300)" }}>{desc}</p>
               </div>
             ))}
           </div>
@@ -345,16 +349,16 @@ export default async function HomePage() {
       </section>
 
       {/* ── F. LƯU TRỮ & DỮ LIỆU ── */}
-      <section className="py-16" style={{ background: "#0C447C" }}>
+      <section className="py-16" style={{ background: "var(--brand-800)" }}>
         <div className="container">
           <div className="text-center mb-10">
-            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "#85B7EB" }}>
+            <p className="text-xs font-medium tracking-widest uppercase mb-2" style={{ color: "var(--brand-300)" }}>
               HẠ TẦNG
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold text-white">
               LƯU TRỮ VÀ DỮ LIỆU
             </h2>
-            <p className="text-base mt-2" style={{ color: "#85B7EB" }}>
+            <p className="text-base mt-2" style={{ color: "var(--brand-300)" }}>
               Toàn quyền kiểm soát dữ liệu trong hạ tầng của cơ quan
             </p>
           </div>
@@ -369,9 +373,9 @@ export default async function HomePage() {
                   border: "1px solid rgba(255,255,255,0.15)",
                 }}
               >
-                <Icon className="h-7 w-7 mb-3" style={{ color: "#85B7EB" }} />
+                <Icon className="h-7 w-7 mb-3" style={{ color: "var(--brand-300)" }} />
                 <p className="font-medium text-base text-white mb-2">{title}</p>
-                <p className="text-sm leading-relaxed" style={{ color: "#B5D4F4" }}>{desc}</p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--brand-200)" }}>{desc}</p>
               </div>
             ))}
           </div>
@@ -381,7 +385,7 @@ export default async function HomePage() {
       {/* ── G. CTA ── */}
       <section
         className="relative overflow-hidden py-20"
-        style={{ background: "#042C53" }}
+        style={{ background: "var(--brand-900)" }}
       >
         {/* Center glow */}
         <div
@@ -392,7 +396,7 @@ export default async function HomePage() {
             style={{
               width: "500px", height: "300px",
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(56,138,221,0.25) 0%, transparent 60%)",
+              background: "radial-gradient(circle, color-mix(in srgb, var(--brand-500) 25%, transparent) 0%, transparent 60%)",
             }}
           />
         </div>
@@ -401,13 +405,13 @@ export default async function HomePage() {
           <h2 className="text-2xl sm:text-3xl font-bold text-white">
             BẮT ĐẦU TRẢI NGHIỆM NGAY HÔM NAY
           </h2>
-          <p className="text-base max-w-xl" style={{ color: "#85B7EB" }}>
+          <p className="text-base max-w-xl" style={{ color: "var(--brand-300)" }}>
             Đăng ký miễn phí và trải nghiệm ngay sức mạnh của trợ lý AI hành chính.
           </p>
           <Link href="/login">
             <button
               className="px-10 py-4 rounded-full font-medium text-lg text-white transition-opacity hover:opacity-90"
-              style={{ background: "linear-gradient(90deg, #378ADD 0%, #7F77DD 100%)" }}
+              style={{ background: "linear-gradient(90deg, var(--brand-500) 0%, var(--brand-700) 100%)" }}
             >
               Bắt đầu trải nghiệm ngay
             </button>
@@ -418,9 +422,9 @@ export default async function HomePage() {
       {/* ── H. FOOTER ── */}
       <footer
         className="border-t py-8"
-        style={{ background: "#021D38", borderColor: "rgba(255,255,255,0.1)" }}
+        style={{ background: "var(--brand-900)", borderColor: "rgba(255,255,255,0.1)" }}
       >
-        <p className="text-center text-sm" style={{ color: "#85B7EB" }}>
+        <p className="text-center text-sm" style={{ color: "var(--brand-300)" }}>
           © 2026 CivicAI · Sở KHCN TP. HCM
         </p>
       </footer>
