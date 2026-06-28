@@ -863,4 +863,33 @@ export const hoSoApi = {
     const { data } = await api.get("/ho-so/stats");
     return data as HoSoStats;
   },
+
+  notifications: {
+    list: async () => {
+      const { data } = await api.get("/ho-so/notifications");
+      return data as { items: NotificationDto[]; unread_count: number };
+    },
+    unreadCount: async () => {
+      const { data } = await api.get("/ho-so/notifications/unread-count");
+      return data as { count: number };
+    },
+    markRead: async (id: string) => {
+      const { data } = await api.patch(`/ho-so/notifications/${id}/read`);
+      return data as NotificationDto;
+    },
+    markAllRead: async () => {
+      await api.patch("/ho-so/notifications/read-all");
+    },
+  },
 };
+
+export interface NotificationDto {
+  id: string;
+  ho_so_id: string;
+  loai: "tao_moi" | "buoc_hoan_thanh" | "cho_bo_sung" | "hoan_thanh";
+  tieu_de: string;
+  noi_dung: string;
+  da_doc: boolean;
+  kenh: string;
+  created_at: string;
+}

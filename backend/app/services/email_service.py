@@ -138,6 +138,75 @@ async def send_reminder_email(
     return success
 
 
+# ── Ho-so notification email ─────────────────────────────────────────────────
+
+async def send_ho_so_email(
+    to_email: str,
+    tieu_de: str,
+    noi_dung_html: str,
+    settings: Settings,
+    dashboard_url: str = "https://vanban.ai/dashboard/ho-so",
+) -> bool:
+    """Generic email cho ho-so notifications — không có file đính kèm."""
+    if not settings.sendgrid_api_key:
+        logger.warning("[email] SendGrid API key chưa cấu hình — bỏ qua ho-so email")
+        return False
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+    except ImportError:
+        logger.error("[email] sendgrid chưa được cài đặt")
+        return False
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;border:1px solid #e5e7eb;padding:32px;">
+        <tr><td>
+          <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#6b7280;letter-spacing:1px;text-transform:uppercase;">
+            Thông báo từ Trợ Lý Hành Chính
+          </p>
+          <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#111827;">
+            {tieu_de}
+          </h1>
+          <div style="color:#374151;font-size:14px;line-height:1.6;">
+            {noi_dung_html}
+          </div>
+          <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb;">
+          <a href="{dashboard_url}"
+             style="display:inline-block;padding:10px 20px;background:#0d9488;color:#fff;
+                    border-radius:6px;font-weight:600;text-decoration:none;font-size:14px;">
+            Xem hồ sơ
+          </a>
+          <p style="margin:16px 0 0;font-size:11px;color:#d1d5db;">Gửi từ Trợ Lý Hành Chính</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        message = Mail(
+            from_email=(settings.sendgrid_from_email, settings.sendgrid_from_name),
+            to_emails=to_email,
+            subject=f"[Hồ Sơ] {tieu_de}",
+            html_content=html_content,
+        )
+        sg = SendGridAPIClient(settings.sendgrid_api_key)
+        status_code = await asyncio.to_thread(_send_one, sg, message)
+        logger.info("[email] ho-so notification gửi đến %s → status %s", to_email, status_code)
+        return status_code < 300
+    except Exception as exc:
+        logger.error("[email] lỗi gửi ho-so notification đến %s: %s", to_email, exc)
+        return False
+
+
 # ── Password reset helpers ────────────────────────────────────────────────────
 
 def generate_reset_token() -> str:

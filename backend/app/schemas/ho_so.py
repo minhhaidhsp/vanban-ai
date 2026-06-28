@@ -100,3 +100,21 @@ class HoSoStats(BaseModel):
     hoan_thanh: int
     qua_han: int
     hoan_thanh_thang_nay: int
+
+
+class NotificationOut(BaseModel):
+    id: str
+    ho_so_id: str
+    loai: str
+    tieu_de: str
+    noi_dung: str
+    da_doc: bool
+    kenh: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationListOut(BaseModel):
+    items: List[NotificationOut]
+    unread_count: int

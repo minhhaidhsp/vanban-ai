@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
@@ -7,14 +8,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.document import Document
 from app.models.ho_so import HoSo, HoSoBuoc, HoSoFile
+from app.models.ho_so_notification import HoSoNotification
 from app.schemas.ho_so import (
     HoSoCreate, HoSoUpdate, HoSoOut, HoSoListItem,
     HoSoStats, BuocUpdate, BuocOut, FileOut,
+    NotificationOut, NotificationListOut,
+)
+from app.services.ho_so_notification_service import (
+    notify_tao_moi, notify_buoc_hoan_thanh,
+    notify_cho_bo_sung, notify_hoan_thanh,
 )
 import uuid
 
@@ -175,6 +183,10 @@ async def create_ho_so(
 
     await db.commit()
     await db.refresh(hs)
+
+    # Fire-and-forget notification (non-blocking)
+    asyncio.create_task(notify_tao_moi(hs.id, current_user.id, get_settings()))
+
     return _to_out(hs, buocs, [])
 
 
@@ -207,6 +219,78 @@ async def get_ho_so_stats(
             if r.trang_thai == "hoan_thanh" and r.updated_at >= thirty_days_ago
         ),
     )
+
+
+# ── Notification endpoints — must stay BEFORE /{ho_so_id} ────────────────────
+
+@router.get("/notifications", response_model=NotificationListOut)
+async def list_notifications(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Danh sách notifications của user — chưa đọc trước, sau đó đã đọc."""
+    rows = (await db.execute(
+        select(HoSoNotification)
+        .where(HoSoNotification.nguoi_nhan_id == current_user.id)
+        .order_by(HoSoNotification.da_doc.asc(), HoSoNotification.created_at.desc())
+        .limit(50)
+    )).scalars().all()
+
+    unread_count = sum(1 for r in rows if not r.da_doc)
+    return NotificationListOut(
+        items=[NotificationOut.model_validate(r) for r in rows],
+        unread_count=unread_count,
+    )
+
+
+@router.get("/notifications/unread-count")
+async def get_unread_count(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(func.count(HoSoNotification.id)).where(
+            HoSoNotification.nguoi_nhan_id == current_user.id,
+            HoSoNotification.da_doc == False,  # noqa: E712
+        )
+    )
+    return {"count": result.scalar() or 0}
+
+
+@router.patch("/notifications/read-all", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_all_read(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rows = (await db.execute(
+        select(HoSoNotification).where(
+            HoSoNotification.nguoi_nhan_id == current_user.id,
+            HoSoNotification.da_doc == False,  # noqa: E712
+        )
+    )).scalars().all()
+    for r in rows:
+        r.da_doc = True
+    await db.commit()
+
+
+@router.patch("/notifications/{notification_id}/read", response_model=NotificationOut)
+async def mark_one_read(
+    notification_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    notif = (await db.execute(
+        select(HoSoNotification).where(
+            HoSoNotification.id == notification_id,
+            HoSoNotification.nguoi_nhan_id == current_user.id,
+        )
+    )).scalar_one_or_none()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thông báo")
+    notif.da_doc = True
+    await db.commit()
+    await db.refresh(notif)
+    return NotificationOut.model_validate(notif)
 
 
 @router.get("/{ho_so_id}", response_model=HoSoOut)
@@ -257,12 +341,21 @@ async def update_ho_so(
             detail="ly_do_bo_sung bắt buộc khi chuyển sang chờ bổ sung",
         )
 
+    new_trang_thai = payload.trang_thai
+    new_ly_do = payload.ly_do_bo_sung or hs.ly_do_bo_sung
+
     for field, val in payload.model_dump(exclude_none=True).items():
         setattr(hs, field, val)
     hs.updated_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(hs)
+
+    # Notification triggers
+    if new_trang_thai == "cho_bo_sung":
+        asyncio.create_task(
+            notify_cho_bo_sung(hs.id, new_ly_do or "Cần bổ sung hồ sơ", get_settings())
+        )
 
     buocs = (await db.execute(
         select(HoSoBuoc).where(HoSoBuoc.ho_so_id == ho_so_id).order_by(HoSoBuoc.thu_tu)
@@ -318,8 +411,14 @@ async def update_buoc(
     for field, val in payload.model_dump(exclude_none=True).items():
         setattr(buoc, field, val)
 
+    thu_tu_completed = None
+    ten_buoc_completed = None
+    ho_so_hoan_thanh = False
+
     if payload.trang_thai == "xong":
         buoc.hoan_thanh_luc = datetime.now(timezone.utc)
+        thu_tu_completed = buoc.thu_tu
+        ten_buoc_completed = buoc.ten_buoc
 
         all_buocs = (await db.execute(
             select(HoSoBuoc).where(HoSoBuoc.ho_so_id == ho_so_id).order_by(HoSoBuoc.thu_tu)
@@ -328,6 +427,7 @@ async def update_buoc(
         if buoc.thu_tu == 5:
             hs.trang_thai = "hoan_thanh"
             hs.updated_at = datetime.now(timezone.utc)
+            ho_so_hoan_thanh = True
         else:
             for b in all_buocs:
                 if b.thu_tu == buoc.thu_tu + 1:
@@ -336,6 +436,15 @@ async def update_buoc(
 
     await db.commit()
     await db.refresh(buoc)
+
+    # Notification triggers (fire-and-forget)
+    if thu_tu_completed is not None and ten_buoc_completed is not None:
+        asyncio.create_task(
+            notify_buoc_hoan_thanh(ho_so_id, thu_tu_completed, ten_buoc_completed, get_settings())
+        )
+    if ho_so_hoan_thanh:
+        asyncio.create_task(notify_hoan_thanh(ho_so_id, get_settings()))
+
     return BuocOut.model_validate(buoc)
 
 

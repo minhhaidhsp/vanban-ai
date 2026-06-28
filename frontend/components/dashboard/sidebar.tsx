@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import Cookies from "js-cookie";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useSidebar } from "@/contexts/sidebar-context";
@@ -175,6 +176,19 @@ export function Sidebar() {
               </>
             )}
           </button>
+        )}
+
+        {/* Notification bell */}
+        {user && (
+          <div className={cn(
+            "flex items-center mb-1",
+            collapsed ? "justify-center" : "justify-between px-1"
+          )}>
+            {!collapsed && (
+              <span className="text-xs text-muted-foreground">Thông báo hồ sơ</span>
+            )}
+            <NotificationBell collapsed={collapsed} />
+          </div>
         )}
 
         <Button

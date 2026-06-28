@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { documentApi, type DocumentDto, type DocumentStats } from "@/lib/api";
+import { documentApi, hoSoApi, type DocumentDto, type DocumentStats, type HoSoStats } from "@/lib/api";
 import { VAN_BAN_TYPES } from "@/lib/nd30";
 import {
   Card, CardContent, CardHeader, CardTitle,
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   FileText, Upload, CalendarDays, LayoutDashboard,
   TrendingUp, File, Database,
+  FolderOpen, Clock, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -96,6 +97,11 @@ export function DashboardOverview() {
   const { data: stats, isLoading: statsLoading } = useQuery<DocumentStats>({
     queryKey: ["document-stats"],
     queryFn: documentApi.getStats,
+  });
+
+  const { data: hoSoStats, isLoading: hoSoStatsLoading } = useQuery<HoSoStats>({
+    queryKey: ["ho-so-stats"],
+    queryFn: hoSoApi.stats,
   });
 
   const { data: recentData, isLoading: recentLoading } = useQuery<{ items: DocumentDto[]; total: number }>({
@@ -305,6 +311,54 @@ export function DashboardOverview() {
           )}
         </CardContent>
       </Card>
+      {/* ── Hồ sơ hành chính ────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold">Hồ sơ hành chính</h2>
+          <Link href="/dashboard/ho-so" className="text-sm text-primary hover:underline font-normal">
+            Xem tất cả →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {hoSoStatsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <MetricCardSkeleton key={i} />)
+          ) : (
+            <>
+              <MetricCard
+                label="Tổng hồ sơ"
+                value={hoSoStats?.tong ?? 0}
+                icon={<FolderOpen className="h-5 w-5 text-blue-600" />}
+                sublabel="Tất cả trạng thái"
+                iconBg="bg-blue-50"
+              />
+              <MetricCard
+                label="Đang xử lý"
+                value={hoSoStats?.dang_xu_ly ?? 0}
+                icon={<Clock className="h-5 w-5 text-amber-600" />}
+                sublabel="Chờ hoàn thành"
+                iconBg="bg-amber-50"
+              />
+              <MetricCard
+                label="Hoàn thành"
+                value={hoSoStats?.hoan_thanh ?? 0}
+                icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                sublabel={`Tháng này: ${hoSoStats?.hoan_thanh_thang_nay ?? 0}`}
+                iconBg="bg-emerald-50"
+              />
+              <MetricCard
+                label="Quá hạn"
+                value={hoSoStats?.qua_han ?? 0}
+                icon={
+                  <AlertTriangle className={`h-5 w-5 ${(hoSoStats?.qua_han ?? 0) > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+                }
+                sublabel={(hoSoStats?.qua_han ?? 0) > 0 ? "Cần xử lý ngay" : "Không có"}
+                iconBg={(hoSoStats?.qua_han ?? 0) > 0 ? "bg-red-50" : "bg-muted"}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
       {/* ── Kho tri thức ────────────────────────────────────── */}
       <Card className="border-brand-100 bg-brand-50/30">
         <CardContent className="p-5">
