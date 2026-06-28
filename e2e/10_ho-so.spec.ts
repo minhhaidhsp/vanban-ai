@@ -25,11 +25,11 @@ test.describe("HỒ SƠ HÀNH CHÍNH", () => {
     // Header
     await expect(page.getByText("Hồ sơ hành chính").first()).toBeVisible();
 
-    // Tabs lọc
-    await expect(page.getByText("Tất cả")).toBeVisible();
-    await expect(page.getByText("Đang xử lý")).toBeVisible();
-    await expect(page.getByText("Chờ bổ sung")).toBeVisible();
-    await expect(page.getByText("Hoàn thành")).toBeVisible();
+    // Tabs lọc — dùng getByRole('button') để phân biệt với Select placeholder / badges
+    await expect(page.getByRole("button", { name: "Tất cả", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Đang xử lý", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Chờ bổ sung", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Hoàn thành", exact: true })).toBeVisible();
 
     // Seeded data
     await expect(page.getByText("HS-2026-001")).toBeVisible({ timeout: 8_000 });
@@ -50,8 +50,8 @@ test.describe("HỒ SƠ HÀNH CHÍNH", () => {
     await page.goto("/dashboard/ho-so");
     await page.waitForTimeout(1_500);
 
-    // Click tab "Chờ bổ sung"
-    await page.getByText("Chờ bổ sung").click();
+    // Click tab "Chờ bổ sung" — dùng button role để tránh click vào badge trong bảng
+    await page.getByRole("button", { name: "Chờ bổ sung", exact: true }).click();
     await page.waitForTimeout(1_000);
 
     // HS-2026-002 (trang_thai=cho_bo_sung) phải hiện
@@ -213,8 +213,9 @@ test.describe("HỒ SƠ HÀNH CHÍNH", () => {
     await expect(
       page.getByText("Lý do yêu cầu bổ sung")
     ).toBeVisible({ timeout: 6_000 });
+    // .first() vì cả ly_do_bo_sung và ket_qua bước 1 đều chứa cụm này
     await expect(
-      page.getByText(/Thiếu bản sao CCCD/)
+      page.getByText(/Thiếu bản sao CCCD/).first()
     ).toBeVisible();
 
     await screenshot(page, "hs_10_cho_bo_sung_detail");
