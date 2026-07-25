@@ -6,12 +6,11 @@ import {
   Building2, LayoutDashboard, FilePlus, Search, BookOpen,
   ScanText, Settings, Users, LogOut,
   PanelLeftClose, PanelLeftOpen, ChevronRight,
-  Mic, ImagePlus, BellRing, FolderOpen, type LucideIcon,
+  Mic, ImagePlus, BellRing, FolderOpen, BarChart2, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import Cookies from "js-cookie";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useSidebar } from "@/contexts/sidebar-context";
@@ -34,6 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard",                label: "Tổng quan",          icon: LayoutDashboard },
       { href: "/dashboard/ho-so",          label: "Hồ sơ hành chính",  icon: FolderOpen      },
+      { href: "/dashboard/ho-so/stats",   label: "Thống kê cá nhân",   icon: BarChart2       },
       { href: "/dashboard/documents",      label: "Tạo văn bản",        icon: FilePlus        },
       { href: "/dashboard/rag-search",     label: "Tra cứu văn bản",  icon: Search          },
       { href: "/dashboard/reference-docs", label: "Kho văn bản",      icon: BookOpen        },
@@ -176,19 +176,6 @@ export function Sidebar() {
               </>
             )}
           </button>
-        )}
-
-        {/* Notification bell */}
-        {user && (
-          <div className={cn(
-            "flex items-center mb-1",
-            collapsed ? "justify-center" : "justify-between px-1"
-          )}>
-            {!collapsed && (
-              <span className="text-xs text-muted-foreground">Thông báo hồ sơ</span>
-            )}
-            <NotificationBell collapsed={collapsed} />
-          </div>
         )}
 
         <Button
