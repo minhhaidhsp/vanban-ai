@@ -32,6 +32,20 @@ class AdminUpdateUser(BaseModel):
     is_active: bool | None = None
 
 
+class AdminCreateUser(BaseModel):
+    email: EmailStr
+    full_name: str
+    role: str = "staff"
+    password: str | None = Field(default=None, min_length=8)
+    send_email: bool = True
+
+
+class AdminCreateUserResponse(BaseModel):
+    user: UserResponse
+    plain_password: str
+    email_sent: bool
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

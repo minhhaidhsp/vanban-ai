@@ -509,6 +509,17 @@ export const userApi = {
     await api.post("/users/me/change-password", payload);
   },
 
+  createUser: async (payload: {
+    email: string;
+    full_name: string;
+    role: string;
+    password?: string;
+    send_email?: boolean;
+  }) => {
+    const { data } = await api.post("/users/", payload);
+    return data as { user: UserDto; plain_password: string; email_sent: boolean };
+  },
+
   listUsers: async () => {
     const { data } = await api.get("/users/");
     return data as UserDto[];

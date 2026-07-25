@@ -207,6 +207,116 @@ async def send_ho_so_email(
         return False
 
 
+# ── Welcome email (admin tạo tài khoản) ──────────────────────────────────────
+
+async def send_welcome_email(
+    to_email: str,
+    full_name: str,
+    plain_password: str,
+    role_label: str,
+    settings: Settings,
+    login_url: str = "https://vanban.ai/login",
+) -> bool:
+    """Gửi email chào mừng kèm thông tin đăng nhập cho user mới do admin tạo."""
+    if not settings.sendgrid_api_key:
+        logger.warning("[email] SendGrid chưa config — bỏ qua welcome email")
+        return False
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+    except ImportError:
+        logger.error("[email] sendgrid chưa được cài đặt")
+        return False
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:8px;border:1px solid #e5e7eb;overflow:hidden;">
+        <!-- Header -->
+        <tr><td style="background:#b9000e;padding:24px 32px;">
+          <p style="margin:0;font-size:12px;font-weight:600;color:#fca5a5;letter-spacing:1px;text-transform:uppercase;">
+            Trợ Lý Hành Chính · VănBản.AI
+          </p>
+          <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#fff;">
+            Tài khoản của bạn đã được tạo
+          </h1>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+            Xin chào <strong>{full_name}</strong>,
+          </p>
+          <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+            Quản trị viên vừa tạo tài khoản <strong>{role_label}</strong> cho bạn
+            trên hệ thống <strong>Trợ Lý Hành Chính</strong>.
+            Dưới đây là thông tin đăng nhập của bạn:
+          </p>
+          <!-- Credentials box -->
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+            <tr><td style="padding:20px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:6px 0;color:#6b7280;font-size:14px;width:120px;">Email:</td>
+                  <td style="padding:6px 0;color:#111827;font-size:14px;font-weight:600;">{to_email}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0;color:#6b7280;font-size:14px;">Mật khẩu:</td>
+                  <td style="padding:6px 0;">
+                    <code style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:4px;
+                                 font-size:15px;font-weight:700;letter-spacing:1px;">{plain_password}</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0;color:#6b7280;font-size:14px;">Vai trò:</td>
+                  <td style="padding:6px 0;color:#111827;font-size:14px;">{role_label}</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 24px;color:#ef4444;font-size:13px;font-weight:600;">
+            ⚠️ Vui lòng đổi mật khẩu ngay sau lần đăng nhập đầu tiên.
+          </p>
+          <a href="{login_url}"
+             style="display:inline-block;padding:12px 28px;background:#b9000e;color:#fff;
+                    border-radius:6px;font-weight:600;text-decoration:none;font-size:15px;">
+            Đăng nhập ngay
+          </a>
+          <hr style="margin:28px 0;border:none;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;">
+            Nếu bạn không biết về tài khoản này, hãy liên hệ quản trị viên của đơn vị.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#d1d5db;">© 2025 Trợ Lý Hành Chính · VănBản.AI</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        message = Mail(
+            from_email=(settings.sendgrid_from_email, settings.sendgrid_from_name),
+            to_emails=to_email,
+            subject="[Trợ Lý Hành Chính] Thông tin tài khoản của bạn",
+            html_content=html_content,
+        )
+        sg = SendGridAPIClient(settings.sendgrid_api_key)
+        status_code = await asyncio.to_thread(_send_one, sg, message)
+        logger.info("[email] welcome email gửi đến %s → status %s", to_email, status_code)
+        return status_code < 300
+    except Exception as exc:
+        logger.error("[email] lỗi gửi welcome email đến %s: %s", to_email, exc)
+        return False
+
+
 # ── Password reset helpers ────────────────────────────────────────────────────
 
 def generate_reset_token() -> str:

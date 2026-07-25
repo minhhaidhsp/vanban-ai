@@ -1,11 +1,15 @@
+import secrets
+import string
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, Field
 from app.api.deps import get_current_user, get_admin_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.user import UserResponse, AdminUpdateUser
+from app.schemas.user import UserResponse, AdminUpdateUser, AdminCreateUser, AdminCreateUserResponse
 from app.core.security import verify_password, get_password_hash
 
 router = APIRouter()
@@ -50,6 +54,62 @@ async def change_password(
         )
     current_user.hashed_password = get_password_hash(body.new_password)
     await db.commit()
+
+
+_ROLE_LABEL = {"admin": "Quản trị viên", "leader": "Lãnh đạo", "staff": "Cán bộ"}
+_ALPHABET = string.ascii_letters + string.digits + "!@#$%"
+
+
+def _gen_password(length: int = 12) -> str:
+    """Tạo mật khẩu ngẫu nhiên đủ mạnh (chữ hoa, thường, số, ký tự đặc biệt)."""
+    while True:
+        pwd = "".join(secrets.choice(_ALPHABET) for _ in range(length))
+        if (any(c.isupper() for c in pwd)
+                and any(c.islower() for c in pwd)
+                and any(c.isdigit() for c in pwd)):
+            return pwd
+
+
+@router.post("/", response_model=AdminCreateUserResponse, status_code=201)
+async def admin_create_user(
+    body: AdminCreateUser,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_admin_user),
+):
+    if body.role not in ("admin", "leader", "staff"):
+        raise HTTPException(400, "Role không hợp lệ")
+
+    existing = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(400, "Email này đã được đăng ký")
+
+    plain_password = body.password or _gen_password()
+    user = User(
+        email=body.email,
+        full_name=body.full_name,
+        hashed_password=get_password_hash(plain_password),
+        role=body.role,
+        is_superuser=(body.role == "admin"),
+    )
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+
+    email_sent = False
+    if body.send_email:
+        settings = get_settings()
+        from app.services.email_service import send_welcome_email
+        login_url = (settings.allowed_origins[0] if settings.allowed_origins else "http://localhost:3000") + "/login"
+        email_sent = await send_welcome_email(
+            to_email=body.email,
+            full_name=body.full_name,
+            plain_password=plain_password,
+            role_label=_ROLE_LABEL.get(body.role, body.role),
+            settings=settings,
+            login_url=login_url,
+        )
+
+    return AdminCreateUserResponse(user=user, plain_password=plain_password, email_sent=email_sent)
 
 
 @router.get("/", response_model=list[UserResponse])

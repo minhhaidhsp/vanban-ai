@@ -48,9 +48,37 @@ async def _load_models() -> None:
     logger.info("[startup] all models ready — serving full traffic")
 
 
+async def _promote_admin_email() -> None:
+    """Đảm bảo ADMIN_EMAIL luôn có role=admin và is_superuser=True.
+
+    Cần thiết khi tài khoản được tạo trước khi logic auto-promote được thêm vào register.
+    """
+    admin_email = settings.admin_email
+    if not admin_email:
+        return
+    try:
+        from sqlalchemy import select, update
+        from app.core.database import AsyncSessionLocal
+        from app.models.user import User
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User).where(User.email == admin_email.lower())
+            )
+            user = result.scalar_one_or_none()
+            if user and (user.role != "admin" or not user.is_superuser):
+                user.role = "admin"
+                user.is_superuser = True
+                await db.commit()
+                logger.info("[startup] promoted %s → admin", admin_email)
+    except Exception as exc:
+        logger.warning("[startup] admin promote failed (non-fatal): %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        await _promote_admin_email()
         # Fire-and-forget: lifespan yields immediately so /health responds at once.
         asyncio.create_task(_load_models())
     except Exception as e:
